@@ -1,4 +1,4 @@
-/* 5 themes via CSS variables on [data-theme=...] */
+/* 4 themes via CSS variables on [data-theme=...] */
 
 :root,
 [data-theme='aurora-day'] {
@@ -64,28 +64,7 @@
   --heatmap-4: #a5b4fc;
 }
 
-[data-theme='forest'] {
-  --bg: #0d1f17;
-  --surface: #142a1f;
-  --surface-2: #1c3829;
-  --text: #d1fae5;
-  --text-muted: #6ee7b7;
-  --primary: #34d399;
-  --primary-hover: #6ee7b7;
-  --primary-soft: #1f3a2a;
-  --border: #234232;
-  --danger: #fca5a5;
-  --success: #34d399;
-  --warning: #fcd34d;
-  --shadow: rgba(0, 0, 0, 0.5);
-  --heatmap-0: #1c3829;
-  --heatmap-1: #14532d;
-  --heatmap-2: #166534;
-  --heatmap-3: #15803d;
-  --heatmap-4: #22c55e;
-}
-
-[data-theme='claude'] {
+[data-theme='amber-dawn'] {
   --bg: #faf9f6;
   --surface: #ffffff;
   --surface-2: #f5f0eb;

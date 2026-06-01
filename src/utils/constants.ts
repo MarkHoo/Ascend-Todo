@@ -8,8 +8,7 @@ export const THEMES = [
   { id: 'aurora-day', name: 'Aurora Day' },
   { id: 'mint-garden', name: 'Mint Garden' },
   { id: 'midnight', name: 'Midnight' },
-  { id: 'forest', name: 'Forest' },
-  { id: 'claude', name: 'Claude' },
+  { id: 'amber-dawn', name: 'Amber Dawn' },
 ] as const;
 
 export const LANGUAGES = [

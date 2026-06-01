@@ -121,8 +121,8 @@ export function SettingsPage() {
                 className={`card p-3 text-left ${settings.theme === th.id ? 'ring-2 ring-primary' : ''}`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  {th.id === 'midnight' || th.id === 'forest' ? <Moon size={12} /> : <Sun size={12} />}
-                  <span className="text-sm font-medium">{t(`settings.theme_${th.id === 'claude' ? 'claude' : th.id.split('-')[0]}`)}</span>
+                  {th.id === 'midnight' ? <Moon size={12} /> : <Sun size={12} />}
+                  <span className="text-sm font-medium">{t(`settings.theme_${th.id.split('-')[0]}`)}</span>
                 </div>
                 <div className="flex gap-1">
                   <span
@@ -135,9 +135,7 @@ export function SettingsPage() {
                             ? '#10b981'
                             : th.id === 'midnight'
                               ? '#1c2440'
-                              : th.id === 'forest'
-                                ? '#22c55e'
-                                : '#da7756',
+                              : '#da7756',
                     }}
                   />
                   <span
@@ -150,9 +148,7 @@ export function SettingsPage() {
                             ? '#d1fae5'
                             : th.id === 'midnight'
                               ? '#312e81'
-                              : th.id === 'forest'
-                                ? '#15803d'
-                                : '#faf0ec',
+                              : '#faf0ec',
                     }}
                   />
                 </div>
