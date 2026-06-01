@@ -1,0 +1,35 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Tauri
+src-tauri/target
+src-tauri/Cargo.lock
+src-tauri/gen
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# TS build info
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
+# Tauri build artifacts
+src-tauri/resources/
+src-tauri/Cargo.lock
+src-tauri/Cargo.lock

@@ -1,0 +1,23 @@
+export const APP_NAME = '光阶Todo';
+export const APP_SLOGAN = '拾光而上，有序人生';
+export const APP_VERSION = '0.1.0';
+
+export const THEMES = [
+  { id: 'aurora-day', name: 'Aurora Day' },
+  { id: 'mint-garden', name: 'Mint Garden' },
+  { id: 'midnight', name: 'Midnight' },
+  { id: 'forest', name: 'Forest' },
+] as const;
+
+export const LANGUAGES = [
+  { id: 'en', name: 'English' },
+  { id: 'zh-CN', name: '简体中文' },
+  { id: 'zh-TW', name: '繁體中文' },
+] as const;
+
+export const SOUNDS = [
+  { id: 'bell', name: 'Bell' },
+  { id: 'chime', name: 'Chime' },
+  { id: 'digital', name: 'Digital' },
+  { id: 'none', name: 'None' },
+] as const;

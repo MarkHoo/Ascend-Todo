@@ -1,0 +1,207 @@
+// Types that mirror the Rust models (snake_case from serde -> camelCase here for TS)
+
+export type ISODate = string;
+
+export interface Board {
+  id: string;
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  isPinned: boolean;
+  position: number;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+}
+
+export interface List {
+  id: string;
+  boardId: string;
+  name: string;
+  position: number;
+  createdAt: ISODate;
+}
+
+export interface Task {
+  id: string;
+  listId: string;
+  title: string;
+  description?: string | null;
+  position: number;
+  dueAt?: string | null;
+  reminderAt?: string | null;
+  reminderTime?: string | null;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  parentTaskId?: string | null;
+  color?: string | null;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+}
+
+export interface Subtask {
+  id: string;
+  taskId: string;
+  title: string;
+  isCompleted: boolean;
+  position: number;
+  createdAt: ISODate;
+}
+
+export interface TaskWithSubtasks extends Task {
+  subtasks: Subtask[];
+}
+
+export interface ListWithTasks {
+  list: List;
+  tasks: TaskWithSubtasks[];
+}
+
+export interface BoardWithLists {
+  board: Board;
+  lists: ListWithTasks[];
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  description?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  dueAt?: string | null;
+  parentGoalId?: string | null;
+  position: number;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+}
+
+export interface Milestone {
+  id: string;
+  goalId: string;
+  title: string;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  position: number;
+  createdAt: ISODate;
+}
+
+export interface GoalWithMilestones {
+  // flattened Goal fields
+  id: string;
+  title: string;
+  description?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  dueAt?: string | null;
+  parentGoalId?: string | null;
+  position: number;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+  milestones: Milestone[];
+  subGoals: GoalWithMilestones[];
+  progress: number;
+}
+
+export interface PomodoroSession {
+  id: string;
+  taskId?: string | null;
+  mode: 'countdown' | 'countup';
+  durationSeconds: number;
+  startedAt: ISODate;
+  endedAt?: string | null;
+  completed: boolean;
+}
+
+export interface DailyPomodoroCount {
+  date: string;
+  count: number;
+  seconds: number;
+}
+
+export interface PomodoroStats {
+  totalSessions: number;
+  totalSeconds: number;
+  completedSessions: number;
+  byDay: DailyPomodoroCount[];
+}
+
+export interface CheckIn {
+  id: string;
+  date: string;
+  count: number;
+}
+
+export interface CheckInSummary {
+  total: number;
+  todayCount: number;
+  streak: number;
+  byDay: CheckIn[];
+}
+
+export interface UserProfile {
+  id: string;
+  nickname?: string | null;
+  avatar?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  signature?: string | null;
+  updatedAt: ISODate;
+}
+
+export interface AppSettings {
+  theme: 'aurora-day' | 'mint-garden' | 'midnight' | 'forest';
+  language: 'en' | 'zh-CN' | 'zh-TW';
+  weekStart: 'mon' | 'sun';
+  pomodoroDuration: number;
+  pomodoroLongBreak: number;
+  autoUpdate: boolean;
+  syncEnabled: boolean;
+  syncServerUrl?: string | null;
+  reminderSound: 'bell' | 'chime' | 'digital' | 'none';
+  notificationEnabled: boolean;
+  motivationalQuotes: boolean;
+}
+
+export interface AuthSession {
+  token: string;
+  nickname: string;
+  serverUrl?: string | null;
+}
+
+export interface SyncStatus {
+  enabled: boolean;
+  loggedIn: boolean;
+  lastPushedAt?: string | null;
+  lastPulledAt?: string | null;
+  pendingChanges: number;
+  serverUrl?: string | null;
+}
+
+export interface CalendarEntry {
+  id: string;
+  title: string;
+  date: string;
+  time?: string | null;
+  listId: string;
+  listName: string;
+  boardId: string;
+  boardName: string;
+  boardColor?: string | null;
+  isCompleted: boolean;
+  color?: string | null;
+  hasReminder: boolean;
+  hasSubtasks: boolean;
+  subtaskCount: number;
+  subtaskDone: number;
+}
+
+export interface ReminderItem {
+  taskId: string;
+  taskTitle: string;
+  dueAt?: string | null;
+  reminderAt?: string | null;
+  reminderTime?: string | null;
+  isCompleted: boolean;
+  boardName: string;
+  listName: string;
+}
