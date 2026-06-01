@@ -1,28 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Flame, CheckCircle2, Target, Timer, TrendingUp, Calendar as CalIcon } from 'lucide-react';
+import { Flame, CheckCircle2, Target, Timer, TrendingUp, Calendar as CalIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { pomodoroApi, goalsApi, tasksApi } from '@/api';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { dayjs, heatmapCells } from '@/utils/date';
 import { quoteForToday } from '@/utils/quotes';
 import { ProgressBar } from '@/components/common/ProgressBar';
-import type { DailyPomodoroCount, GoalWithMilestones, Task } from '@/types';
+import type { DailyPomodoroCount, GoalWithMilestones } from '@/types';
 
 export function OverviewPage() {
   const { t } = useTranslation();
   const settings = useSettingsStore((s) => s.settings);
-  const [pomoStats, setPomoStats] = useState<{ total: number; today: number; last7: DailyPomodoroCount[]; byDay365: DailyPomodoroCount[] } | null>(null);
+  const [pomoStats, setPomoStats] = useState<{ total: number; today: number; last7: DailyPomodoroCount[]; byDayAll: DailyPomodoroCount[] } | null>(null);
   const [goals, setGoals] = useState<GoalWithMilestones[]>([]);
   const [weekDone, setWeekDone] = useState(0);
   const [streak, setStreak] = useState(0);
   const [dateMap, setDateMap] = useState<Map<string, number>>(new Map());
-  const [chartsReady, setChartsReady] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(dayjs().year());
 
   useEffect(() => {
     (async () => {
       const [p, g, allTasks] = await Promise.all([
-        pomodoroApi.stats(365),
+        pomodoroApi.stats(730),
         goalsApi.list(),
         tasksApi.listAll(),
       ]);
@@ -30,14 +30,13 @@ export function OverviewPage() {
         total: p.totalSessions,
         today: p.byDay.length ? p.byDay[p.byDay.length - 1].count : 0,
         last7: p.byDay.slice(-7),
-        byDay365: p.byDay,
+        byDayAll: p.byDay,
       });
       setGoals(g);
       const start = dayjs().startOf('week');
       const done = allTasks.filter((x) => x.isCompleted && x.completedAt && dayjs(x.completedAt).isAfter(start)).length;
       setWeekDone(done);
 
-      // Compute activity map: task completions + pomodoro sessions per day
       const activityMap = new Map<string, number>();
       for (const task of allTasks) {
         if (task.isCompleted && task.completedAt) {
@@ -50,10 +49,9 @@ export function OverviewPage() {
       }
       setDateMap(activityMap);
 
-      // Compute streak from activity
       let s = 0;
       const today = dayjs().startOf('day');
-      for (let i = 0; i < 365; i++) {
+      for (let i = 0; i < 730; i++) {
         const d = today.subtract(i, 'day').format('YYYY-MM-DD');
         if ((activityMap.get(d) || 0) > 0) {
           s++;
@@ -62,19 +60,30 @@ export function OverviewPage() {
         }
       }
       setStreak(s);
-      setChartsReady(true);
     })();
   }, []);
 
   const quote = useMemo(() => quoteForToday(settings.language), [settings.language]);
 
-  const cells = useMemo(
-    () => heatmapCells(180, settings.weekStart),
-    [settings.weekStart],
+  const yearCells = useMemo(
+    () => heatmapCells(selectedYear, settings.weekStart),
+    [selectedYear, settings.weekStart],
   );
 
+  const yearActivityDays = useMemo(() => {
+    const yearStart = `${selectedYear}-01-01`;
+    const yearEnd = `${selectedYear}-12-31`;
+    let count = 0;
+    for (const [date, v] of dateMap) {
+      if (v > 0 && date >= yearStart && date <= yearEnd) count++;
+    }
+    return count;
+  }, [dateMap, selectedYear]);
+
+  const currentYear = dayjs().year();
+
   const trendOption = useMemo(() => {
-    if (!pomoStats || !chartsReady) return null;
+    if (!pomoStats) return null;
     const last7 = pomoStats.last7;
     return {
       tooltip: { trigger: 'axis' as const },
@@ -101,10 +110,10 @@ export function OverviewPage() {
         },
       ],
     };
-  }, [pomoStats, chartsReady]);
+  }, [pomoStats]);
 
   const donutOption = useMemo(() => {
-    if (goals.length === 0 || !chartsReady) return null;
+    if (goals.length === 0) return null;
     const data = goals.slice(0, 6).map((g) => ({
       name: g.title,
       value: Math.round(g.progress * 100) || 1,
@@ -125,7 +134,7 @@ export function OverviewPage() {
         },
       ],
     };
-  }, [goals, chartsReady]);
+  }, [goals]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -162,9 +171,30 @@ export function OverviewPage() {
       </div>
 
       <div className="card p-5 mb-4">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">{t('overview.heatmap')}</div>
-          <div className="text-xs text-text-muted">{t('overview.heatmapDesc')}</div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-sm font-semibold">{t('overview.heatmap')}</div>
+            <div className="text-xs text-text-muted">{t('overview.heatmapDesc')}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="btn-ghost p-1"
+              onClick={() => setSelectedYear(selectedYear - 1)}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-sm font-medium w-12 text-center">{selectedYear}</span>
+            <button
+              className="btn-ghost p-1"
+              onClick={() => setSelectedYear(Math.min(currentYear, selectedYear + 1))}
+              disabled={selectedYear >= currentYear}
+            >
+              <ChevronRight size={16} />
+            </button>
+            <span className="text-xs text-text-muted ml-2">
+              {yearActivityDays} {t('overview.activeDays') || 'active days'}
+            </span>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <div
@@ -174,7 +204,7 @@ export function OverviewPage() {
             {Array.from({ length: 53 }).map((_, w) => (
               <div key={w} className="flex flex-col gap-0.5">
                 {Array.from({ length: 7 }).map((__, d) => {
-                  const cell = cells.find((c) => c.week === w && c.dow === d);
+                  const cell = yearCells.find((c) => c.week === w && c.dow === d);
                   if (!cell) return <div key={d} className="w-3 h-3" />;
                   const count = dateMap.get(cell.date.format('YYYY-MM-DD')) || 0;
                   const lvl =
@@ -219,7 +249,7 @@ export function OverviewPage() {
           </div>
           <div style={{ minHeight: 220 }}>
             {trendOption ? (
-              <ReactECharts option={trendOption} style={{ height: 220 }} notMerge />
+              <ReactECharts option={trendOption} style={{ height: 220 }} lazyUpdate />
             ) : (
               <div className="h-[220px] flex items-center justify-center text-sm text-text-muted">{t('common.loading')}</div>
             )}
@@ -232,7 +262,7 @@ export function OverviewPage() {
           </div>
           <div style={{ minHeight: 220 }}>
             {donutOption ? (
-              <ReactECharts option={donutOption} style={{ height: 220 }} notMerge />
+              <ReactECharts option={donutOption} style={{ height: 220 }} lazyUpdate />
             ) : (
               <div className="h-[220px] flex items-center justify-center text-sm text-text-muted">{t('goal.noGoals')}</div>
             )}
@@ -272,7 +302,7 @@ function StatCard({
 }) {
   return (
     <div className="card p-4 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }}>
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-surface-2">
         {icon}
       </div>
       <div className="flex-1 min-w-0">

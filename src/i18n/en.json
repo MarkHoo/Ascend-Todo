@@ -51,7 +51,8 @@
     "pomodoros": "Pomodoros",
     "streak": "Day streak",
     "thisWeekTasks": "This week's tasks",
-    "goalProgress": "Goal progress"
+    "goalProgress": "Goal progress",
+    "activeDays": "active days"
   },
   "board": {
     "title": "Task Boards",

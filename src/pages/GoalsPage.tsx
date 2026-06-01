@@ -394,11 +394,12 @@ function MilestoneRow({
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div className="flex items-center gap-2 text-sm group">
       <button
         onClick={onToggle}
-        className="w-4 h-4 rounded border-2 flex items-center justify-center"
+        className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0"
         style={{
           borderColor: m.isCompleted ? 'var(--primary)' : 'var(--border)',
           background: m.isCompleted ? 'var(--primary)' : 'transparent',
@@ -407,7 +408,12 @@ function MilestoneRow({
         {m.isCompleted && <span className="text-white text-[10px]">✓</span>}
       </button>
       <span className={`flex-1 ${m.isCompleted ? 'line-through text-text-muted' : ''}`}>{m.title}</span>
-      <button onClick={onDelete} className="btn-ghost p-0.5">
+      <button
+        onClick={() => {
+          if (confirm(t('goal.deleteConfirm'))) onDelete();
+        }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost p-0.5"
+      >
         <Trash2 size={12} />
       </button>
     </div>

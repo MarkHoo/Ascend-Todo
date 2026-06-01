@@ -51,7 +51,8 @@
     "pomodoros": "番茄数",
     "streak": "连续打卡",
     "thisWeekTasks": "本周完成",
-    "goalProgress": "目标进度"
+    "goalProgress": "目标进度",
+    "activeDays": "天活动"
   },
   "board": {
     "title": "任务看板",

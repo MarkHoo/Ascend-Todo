@@ -221,15 +221,18 @@ export function BoardDetailPage() {
               </div>
             </div>
           </SortableContext>
-          <DragOverlay>
+          <DragOverlay dropAnimation={{
+            duration: 250,
+            easing: 'cubic-bezier(0.18, 1, 0.22, 1)',
+          }}>
             {activeList && (
-              <div className="card p-3 w-72 opacity-80 rotate-2">
+              <div className="card p-3 w-72 shadow-2xl" style={{ transform: 'rotate(3deg) scale(1.02)', opacity: 0.85 }}>
                 <div className="font-semibold">{activeList.list.name}</div>
                 <div className="text-xs text-text-muted">{activeList.tasks.length} tasks</div>
               </div>
             )}
             {activeTask && (
-              <div className="card p-3 w-72 opacity-80 rotate-2">
+              <div className="card p-3 w-72 shadow-2xl" style={{ transform: 'rotate(2deg) scale(1.02)', opacity: 0.85 }}>
                 <div className="text-sm">{activeTask.title}</div>
               </div>
             )}
@@ -252,6 +255,13 @@ export function BoardDetailPage() {
               {t('board.save')}
             </Button>
             <Button
+              variant="ghost"
+              onClick={() => { setEditingTask(null); setDraft({}); }}
+            >
+              {t('common.close')}
+            </Button>
+            <div className="flex-1" />
+            <Button
               variant="danger"
               onClick={async () => {
                 if (editingTask && confirm(t('board.deleteConfirm'))) {
@@ -263,10 +273,6 @@ export function BoardDetailPage() {
             >
               <Trash2 size={14} />
               {t('common.delete')}
-            </Button>
-            <div className="flex-1" />
-            <Button variant="ghost" onClick={() => { setEditingTask(null); setDraft({}); }}>
-              {t('common.close')}
             </Button>
           </>
         }
@@ -390,8 +396,9 @@ function SortableListColumn({
   const [newTask, setNewTask] = useState('');
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
+    transition: transition || 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1), opacity 200ms ease',
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : 'auto' as const,
   };
 
   return (
@@ -430,7 +437,13 @@ function SortableListColumn({
                 {list.list.name}
               </h3>
               <span className="text-xs text-text-muted">{list.tasks.length}</span>
-              <button onClick={onDeleteList} className="btn-ghost p-0.5">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(t('goal.deleteConfirm'))) onDeleteList();
+                }}
+                className="btn-ghost p-0.5"
+              >
                 <Trash2 size={12} />
               </button>
             </>
@@ -506,8 +519,9 @@ function SortableTaskCard({
   });
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
+    transition: transition || 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1), opacity 200ms ease',
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : 'auto' as const,
   };
   const doneSubs = task.subtasks.filter((s) => s.isCompleted).length;
 
@@ -585,6 +599,7 @@ function SubtaskRow({
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 text-sm">
       <button
@@ -600,7 +615,12 @@ function SubtaskRow({
       <span className={`flex-1 ${subtask.isCompleted ? 'line-through text-text-muted' : ''}`}>
         {subtask.title}
       </span>
-      <button onClick={onDelete} className="btn-ghost p-0.5">
+      <button
+        onClick={() => {
+          if (confirm(t('board.deleteConfirm'))) onDelete();
+        }}
+        className="btn-ghost p-0.5"
+      >
         <Trash2 size={12} />
       </button>
     </div>
