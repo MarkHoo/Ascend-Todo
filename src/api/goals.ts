@@ -19,6 +19,9 @@ export const goalsApi = {
     color?: string | null;
     icon?: string | null;
     dueAt?: string | null;
+    progressMode?: string;
+    progressValue?: number;
+    progressTotal?: number;
   }) => invoke<void>('update_goal', params),
   delete: (id: string) => invoke<void>('delete_goal', { id }),
   progress: (goalId: string) => invoke<number>('goal_progress', { goalId }),

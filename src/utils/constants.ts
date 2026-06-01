@@ -9,6 +9,7 @@ export const THEMES = [
   { id: 'mint-garden', name: 'Mint Garden' },
   { id: 'midnight', name: 'Midnight' },
   { id: 'forest', name: 'Forest' },
+  { id: 'claude', name: 'Claude' },
 ] as const;
 
 export const LANGUAGES = [

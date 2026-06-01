@@ -97,6 +97,9 @@ export interface GoalWithMilestones {
   position: number;
   createdAt: ISODate;
   updatedAt: ISODate;
+  progressMode: 'percentage' | 'numeric';
+  progressValue: number;
+  progressTotal: number;
   milestones: Milestone[];
   subGoals: GoalWithMilestones[];
   progress: number;

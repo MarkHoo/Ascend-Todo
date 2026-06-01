@@ -11,7 +11,8 @@ fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
 
 fn load_goal(c: &Connection, id: &str) -> AppResult<Goal> {
     Ok(c.query_row(
-        "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at
+        "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
+                progress_mode, progress_value, progress_total
          FROM goals WHERE id = ?",
         params![id],
         |r| {
@@ -26,6 +27,9 @@ fn load_goal(c: &Connection, id: &str) -> AppResult<Goal> {
                 position: r.get(7)?,
                 created_at: r.get(8)?,
                 updated_at: r.get(9)?,
+                progress_mode: r.get(10)?,
+                progress_value: r.get(11)?,
+                progress_total: r.get(12)?,
             })
         },
     )?)
@@ -56,7 +60,8 @@ fn load_milestones(c: &Connection, goal_id: &str) -> AppResult<Vec<Milestone>> {
 
 fn load_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<GoalWithMilestones>> {
     let mut stmt = c.prepare(
-        "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at
+        "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
+                progress_mode, progress_value, progress_total
          FROM goals WHERE parent_goal_id = ? ORDER BY position ASC, created_at ASC",
     )?;
     let rows = stmt.query_map(params![parent_id], |r| {
@@ -71,6 +76,9 @@ fn load_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<GoalWithMile
             position: r.get(7)?,
             created_at: r.get(8)?,
             updated_at: r.get(9)?,
+            progress_mode: r.get(10)?,
+            progress_value: r.get(11)?,
+            progress_total: r.get(12)?,
         })
     })?;
     let mut out = Vec::new();
@@ -84,13 +92,21 @@ fn load_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<GoalWithMile
 fn build_goal_with(c: &Connection, goal: Goal) -> AppResult<GoalWithMilestones> {
     let milestones = load_milestones(c, &goal.id)?;
     let sub_goals = load_sub_goals(c, &goal.id)?;
-    let total = milestones.len() + sub_goals.len();
-    let done = milestones.iter().filter(|m| m.is_completed).count()
-        + sub_goals
-            .iter()
-            .filter(|g| g.progress >= 1.0)
-            .count();
-    let progress = if total == 0 { 0.0 } else { done as f32 / total as f32 };
+    let progress = if goal.progress_mode == "numeric" {
+        if goal.progress_total > 0.0 {
+            (goal.progress_value / goal.progress_total).min(1.0)
+        } else {
+            0.0
+        }
+    } else {
+        let total = milestones.len() + sub_goals.len();
+        let done = milestones.iter().filter(|m| m.is_completed).count()
+            + sub_goals
+                .iter()
+                .filter(|g| g.progress >= 1.0)
+                .count();
+        if total == 0 { 0.0 } else { done as f64 / total as f64 }
+    };
     Ok(GoalWithMilestones {
         goal,
         milestones,
@@ -103,7 +119,8 @@ fn build_goal_with(c: &Connection, goal: Goal) -> AppResult<GoalWithMilestones> 
 pub fn list_goals(state: State<DbState>) -> AppResult<Vec<GoalWithMilestones>> {
     let c = conn(&state);
     let mut stmt = c.prepare(
-        "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at
+        "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
+                progress_mode, progress_value, progress_total
          FROM goals WHERE parent_goal_id IS NULL ORDER BY position ASC, created_at ASC",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -118,6 +135,9 @@ pub fn list_goals(state: State<DbState>) -> AppResult<Vec<GoalWithMilestones>> {
             position: r.get(7)?,
             created_at: r.get(8)?,
             updated_at: r.get(9)?,
+            progress_mode: r.get(10)?,
+            progress_value: r.get(11)?,
+            progress_total: r.get(12)?,
         })
     })?;
     let mut out = Vec::new();
@@ -157,8 +177,9 @@ pub fn create_goal(
         .unwrap_or(-1);
     c.execute(
         "INSERT INTO goals
-            (id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
+             progress_mode, progress_value, progress_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'percentage', 0, 100)",
         params![id, title, description, color, icon, due_at, parent_goal_id, max_pos + 1, now, now],
     )?;
     Ok(Goal {
@@ -172,6 +193,9 @@ pub fn create_goal(
         position: max_pos + 1,
         created_at: now.clone(),
         updated_at: now,
+        progress_mode: "percentage".to_string(),
+        progress_value: 0.0,
+        progress_total: 100.0,
     })
 }
 
@@ -184,6 +208,9 @@ pub fn update_goal(
     color: Option<Option<String>>,
     icon: Option<Option<String>>,
     due_at: Option<Option<String>>,
+    progress_mode: Option<String>,
+    progress_value: Option<f64>,
+    progress_total: Option<f64>,
 ) -> AppResult<()> {
     let c = conn(&state);
     let mut desc_v = None::<Option<String>>;
@@ -209,6 +236,9 @@ pub fn update_goal(
             color = CASE WHEN ? THEN ? ELSE color END,
             icon = CASE WHEN ? THEN ? ELSE icon END,
             due_at = CASE WHEN ? THEN ? ELSE due_at END,
+            progress_mode = COALESCE(?, progress_mode),
+            progress_value = COALESCE(?, progress_value),
+            progress_total = COALESCE(?, progress_total),
             updated_at = ?
          WHERE id = ?",
         params![
@@ -217,6 +247,7 @@ pub fn update_goal(
             color_v.is_some() as i64, color_v.unwrap_or(None),
             icon_v.is_some() as i64, icon_v.unwrap_or(None),
             due_v.is_some() as i64, due_v.unwrap_or(None),
+            progress_mode, progress_value, progress_total,
             now(), id,
         ],
     )?;
@@ -325,7 +356,7 @@ pub fn reorder_milestones(state: State<DbState>, ids: Vec<String>) -> AppResult<
 }
 
 #[tauri::command]
-pub fn goal_progress(state: State<DbState>, goal_id: String) -> AppResult<f32> {
+pub fn goal_progress(state: State<DbState>, goal_id: String) -> AppResult<f64> {
     let c = conn(&state);
     let g = build_goal_with(&c, load_goal(&c, &goal_id)?)?;
     Ok(g.progress)

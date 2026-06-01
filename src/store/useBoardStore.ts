@@ -9,6 +9,7 @@ interface State {
   fetchBoards: () => Promise<void>;
   fetchBoard: (id: string) => Promise<void>;
   createBoard: (params: { name: string; description?: string | null; color?: string | null; icon?: string | null }) => Promise<Board>;
+  updateBoard: (id: string, patch: { name?: string; description?: string | null; color?: string | null }) => Promise<void>;
   togglePin: (id: string) => Promise<void>;
   deleteBoard: (id: string) => Promise<void>;
   createList: (boardId: string, name: string) => Promise<void>;
@@ -45,6 +46,10 @@ export const useBoardStore = create<State>((set, get) => ({
     const b = await boardsApi.create(params);
     await get().fetchBoards();
     return b;
+  },
+  updateBoard: async (id, patch) => {
+    await boardsApi.update({ id, ...patch });
+    await get().fetchBoards();
   },
   togglePin: async (id) => {
     await boardsApi.togglePin(id);

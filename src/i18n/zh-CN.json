@@ -74,7 +74,15 @@
     "deleteConfirm": "确认删除此任务？",
     "list": "列表",
     "taskCount": "{{count}} 个任务",
-    "boardColor": "颜色"
+    "boardColor": "颜色",
+    "labelColor": "标签颜色",
+    "taskTitle": "任务标题",
+    "taskDescription": "任务描述",
+    "dueDate": "截止日期",
+    "taskReminder": "每日提醒",
+    "save": "保存",
+    "renameBoard": "重命名",
+    "renameList": "重命名列表"
   },
   "goal": {
     "title": "目标",
@@ -86,7 +94,14 @@
     "milestones": "里程碑",
     "progress": "进度",
     "due": "目标日期",
-    "deleteConfirm": "确认删除此目标？子目标和里程碑也会被删除。"
+    "deleteConfirm": "确认删除此目标？子目标和里程碑也会被删除。",
+    "progressMode": "进度模式",
+    "percentage": "百分比",
+    "numeric": "数值",
+    "completedValue": "已完成",
+    "totalValue": "总计",
+    "renameGoal": "重命名",
+    "maxDepth": "已达到最大子目标层级"
   },
   "calendar": {
     "title": "日历",
@@ -139,6 +154,8 @@
     "theme_mint": "薄荷园",
     "theme_midnight": "午夜蓝",
     "theme_forest": "深林绿",
+    "theme_claude": "Claude",
+    "theme_claude": "Claude",
     "general": "通用",
     "weekStart": "每周起始日",
     "monday": "周一",

@@ -129,6 +129,18 @@ pub fn migrate(conn: &Connection) -> AppResult<()> {
         tx.execute("PRAGMA user_version = 1;", params![])?;
         tx.commit()?;
     }
+    if user_version < 2 {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(
+            r#"
+            ALTER TABLE goals ADD COLUMN progress_mode TEXT NOT NULL DEFAULT 'percentage';
+            ALTER TABLE goals ADD COLUMN progress_value REAL NOT NULL DEFAULT 0;
+            ALTER TABLE goals ADD COLUMN progress_total REAL NOT NULL DEFAULT 100;
+            "#,
+        )?;
+        tx.execute("PRAGMA user_version = 2;", params![])?;
+        tx.commit()?;
+    }
     Ok(())
 }
 

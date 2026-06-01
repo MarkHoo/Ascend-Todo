@@ -2,108 +2,121 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Flame, CheckCircle2, Target, Timer, TrendingUp, Calendar as CalIcon } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
-import { checkInsApi, pomodoroApi, goalsApi, tasksApi } from '@/api';
+import { pomodoroApi, goalsApi, tasksApi } from '@/api';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { dayjs, heatmapCells } from '@/utils/date';
 import { quoteForToday } from '@/utils/quotes';
 import { ProgressBar } from '@/components/common/ProgressBar';
-import { Button } from '@/components/common/Button';
-import { toast } from '@/components/common/Toast';
-import type { CheckIn, CheckInSummary, DailyPomodoroCount, GoalWithMilestones } from '@/types';
+import type { DailyPomodoroCount, GoalWithMilestones, Task } from '@/types';
 
 export function OverviewPage() {
   const { t } = useTranslation();
   const settings = useSettingsStore((s) => s.settings);
-  const [summary, setSummary] = useState<CheckInSummary | null>(null);
-  const [pomoStats, setPomoStats] = useState<{ total: number; today: number; last7: DailyPomodoroCount[] } | null>(null);
+  const [pomoStats, setPomoStats] = useState<{ total: number; today: number; last7: DailyPomodoroCount[]; byDay365: DailyPomodoroCount[] } | null>(null);
   const [goals, setGoals] = useState<GoalWithMilestones[]>([]);
   const [weekDone, setWeekDone] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [dateMap, setDateMap] = useState<Map<string, number>>(new Map());
+  const [chartsReady, setChartsReady] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [s, p, g, allTasks] = await Promise.all([
-        checkInsApi.summary(),
-        pomodoroApi.stats(7),
+      const [p, g, allTasks] = await Promise.all([
+        pomodoroApi.stats(365),
         goalsApi.list(),
         tasksApi.listAll(),
       ]);
-      setSummary(s);
       setPomoStats({
         total: p.totalSessions,
         today: p.byDay.length ? p.byDay[p.byDay.length - 1].count : 0,
-        last7: p.byDay,
+        last7: p.byDay.slice(-7),
+        byDay365: p.byDay,
       });
       setGoals(g);
       const start = dayjs().startOf('week');
       const done = allTasks.filter((x) => x.isCompleted && x.completedAt && dayjs(x.completedAt).isAfter(start)).length;
       setWeekDone(done);
+
+      // Compute activity map: task completions + pomodoro sessions per day
+      const activityMap = new Map<string, number>();
+      for (const task of allTasks) {
+        if (task.isCompleted && task.completedAt) {
+          const d = dayjs(task.completedAt).format('YYYY-MM-DD');
+          activityMap.set(d, (activityMap.get(d) || 0) + 1);
+        }
+      }
+      for (const pd of p.byDay) {
+        activityMap.set(pd.date, (activityMap.get(pd.date) || 0) + pd.count);
+      }
+      setDateMap(activityMap);
+
+      // Compute streak from activity
+      let s = 0;
+      const today = dayjs().startOf('day');
+      for (let i = 0; i < 365; i++) {
+        const d = today.subtract(i, 'day').format('YYYY-MM-DD');
+        if ((activityMap.get(d) || 0) > 0) {
+          s++;
+        } else if (i > 0) {
+          break;
+        }
+      }
+      setStreak(s);
+      setChartsReady(true);
     })();
   }, []);
 
-  const onCheckIn = async () => {
-    await checkInsApi.checkInToday();
-    toast.success('+1');
-    const s = await checkInsApi.summary();
-    setSummary(s);
-  };
-
   const quote = useMemo(() => quoteForToday(settings.language), [settings.language]);
-
-  // Heatmap data: build a map of date -> count
-  const dateMap = useMemo(() => {
-    const m = new Map<string, number>();
-    if (!summary) return m;
-    for (const c of summary.byDay) m.set(c.date, c.count);
-    return m;
-  }, [summary]);
 
   const cells = useMemo(
     () => heatmapCells(180, settings.weekStart),
     [settings.weekStart],
   );
 
-  // 7-day pomodoro trend chart
   const trendOption = useMemo(() => {
-    if (!pomoStats) return null;
+    if (!pomoStats || !chartsReady) return null;
     const last7 = pomoStats.last7;
     return {
-      tooltip: { trigger: 'axis' },
-      grid: { left: 30, right: 12, top: 20, bottom: 24 },
+      tooltip: { trigger: 'axis' as const },
+      grid: { left: 40, right: 12, top: 20, bottom: 28 },
       xAxis: {
-        type: 'category',
+        type: 'category' as const,
         data: last7.map((d) => d.date.slice(5)),
-        axisLine: { lineStyle: { color: 'var(--border)' } },
-        axisLabel: { color: 'var(--text-muted)', fontSize: 10 },
+        axisLine: { lineStyle: { color: '#999' } },
+        axisLabel: { color: '#666', fontSize: 10 },
       },
       yAxis: {
-        type: 'value',
-        axisLine: { lineStyle: { color: 'var(--border)' } },
-        axisLabel: { color: 'var(--text-muted)', fontSize: 10 },
-        splitLine: { lineStyle: { color: 'var(--border)' } },
+        type: 'value' as const,
+        axisLine: { lineStyle: { color: '#999' } },
+        axisLabel: { color: '#666', fontSize: 10 },
+        splitLine: { lineStyle: { color: '#eee' } },
       },
+      animation: true,
+      animationDuration: 400,
       series: [
         {
-          type: 'bar',
+          type: 'bar' as const,
           data: last7.map((d) => d.count),
-          itemStyle: { color: 'var(--primary)', borderRadius: [4, 4, 0, 0] },
+          itemStyle: { color: '#6366f1', borderRadius: [4, 4, 0, 0] },
         },
       ],
     };
-  }, [pomoStats]);
+  }, [pomoStats, chartsReady]);
 
-  // Goal progress donut
   const donutOption = useMemo(() => {
-    if (goals.length === 0) return null;
+    if (goals.length === 0 || !chartsReady) return null;
     const data = goals.slice(0, 6).map((g) => ({
       name: g.title,
-      value: Math.round(g.progress * 100),
+      value: Math.round(g.progress * 100) || 1,
     }));
     return {
-      tooltip: { trigger: 'item' },
-      legend: { bottom: 0, textStyle: { color: 'var(--text-muted)', fontSize: 10 } },
+      tooltip: { trigger: 'item' as const },
+      legend: { bottom: 0, textStyle: { color: '#666', fontSize: 10 } },
+      animation: true,
+      animationDuration: 400,
       series: [
         {
-          type: 'pie',
+          type: 'pie' as const,
           radius: ['45%', '70%'],
           avoidLabelOverlap: false,
           label: { show: false },
@@ -112,7 +125,7 @@ export function OverviewPage() {
         },
       ],
     };
-  }, [goals]);
+  }, [goals, chartsReady]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -129,8 +142,7 @@ export function OverviewPage() {
         <StatCard
           icon={<Flame size={18} className="text-orange-500" />}
           label={t('overview.streak')}
-          value={summary?.streak ?? 0}
-          suffix={t('common.today')}
+          value={streak}
         />
         <StatCard
           icon={<CheckCircle2 size={18} className="text-green-500" />}
@@ -150,14 +162,9 @@ export function OverviewPage() {
       </div>
 
       <div className="card p-5 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <div className="text-sm font-semibold">{t('overview.heatmap')}</div>
-            <div className="text-xs text-text-muted">{t('overview.heatmapDesc')}</div>
-          </div>
-          <Button size="sm" onClick={onCheckIn}>
-            + Check in
-          </Button>
+        <div className="mb-3">
+          <div className="text-sm font-semibold">{t('overview.heatmap')}</div>
+          <div className="text-xs text-text-muted">{t('overview.heatmapDesc')}</div>
         </div>
         <div className="overflow-x-auto">
           <div
@@ -173,11 +180,11 @@ export function OverviewPage() {
                   const lvl =
                     count === 0
                       ? 'var(--heatmap-0)'
-                      : count === 1
+                      : count <= 2
                         ? 'var(--heatmap-1)'
-                        : count === 2
+                        : count <= 5
                           ? 'var(--heatmap-2)'
-                          : count === 3
+                          : count <= 8
                             ? 'var(--heatmap-3)'
                             : 'var(--heatmap-4)';
                   return (
@@ -185,7 +192,7 @@ export function OverviewPage() {
                       key={d}
                       className="w-3 h-3 rounded-sm"
                       style={{ background: lvl }}
-                      title={`${cell.date.format('YYYY-MM-DD')} · ${count}`}
+                      title={`${cell.date.format('YYYY-MM-DD')} · ${count} activities`}
                     />
                   );
                 })}
@@ -201,9 +208,6 @@ export function OverviewPage() {
             ),
           )}
           <span>More</span>
-          <span className="ml-auto">
-            {t('common.today')}: {summary?.todayCount ?? 0} · {t('overview.streak')}: {summary?.streak ?? 0}
-          </span>
         </div>
       </div>
 
@@ -213,22 +217,26 @@ export function OverviewPage() {
             <TrendingUp size={16} />
             {t('pomodoro.stats')} · 7d
           </div>
-          {trendOption ? (
-            <ReactECharts option={trendOption} style={{ height: 220 }} />
-          ) : (
-            <div className="text-sm text-text-muted">{t('common.loading')}</div>
-          )}
+          <div style={{ minHeight: 220 }}>
+            {trendOption ? (
+              <ReactECharts option={trendOption} style={{ height: 220 }} notMerge />
+            ) : (
+              <div className="h-[220px] flex items-center justify-center text-sm text-text-muted">{t('common.loading')}</div>
+            )}
+          </div>
         </div>
         <div className="card p-5">
           <div className="text-sm font-semibold mb-2 flex items-center gap-2">
             <Target size={16} />
             {t('overview.goalProgress')}
           </div>
-          {donutOption ? (
-            <ReactECharts option={donutOption} style={{ height: 220 }} />
-          ) : (
-            <div className="text-sm text-text-muted">{t('goal.noGoals')}</div>
-          )}
+          <div style={{ minHeight: 220 }}>
+            {donutOption ? (
+              <ReactECharts option={donutOption} style={{ height: 220 }} notMerge />
+            ) : (
+              <div className="h-[220px] flex items-center justify-center text-sm text-text-muted">{t('goal.noGoals')}</div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -257,23 +265,20 @@ function StatCard({
   icon,
   label,
   value,
-  suffix,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
-  suffix?: string;
 }) {
   return (
     <div className="card p-4 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--surface-2)' }}>
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }}>
         {icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-xs text-text-muted">{label}</div>
-        <div className="text-2xl font-semibold leading-tight">
+        <div className="text-2xl font-semibold leading-tight tabular-nums">
           {value}
-          {suffix && <span className="text-xs text-text-muted ml-1">{suffix}</span>}
         </div>
       </div>
     </div>

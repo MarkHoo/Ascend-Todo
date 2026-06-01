@@ -7,7 +7,7 @@ interface State {
   loading: boolean;
   fetchGoals: () => Promise<void>;
   createGoal: (params: { title: string; description?: string | null; color?: string | null; icon?: string | null; dueAt?: string | null; parentGoalId?: string | null }) => Promise<void>;
-  updateGoal: (id: string, patch: { title?: string; description?: string | null; color?: string | null; icon?: string | null; dueAt?: string | null }) => Promise<void>;
+  updateGoal: (id: string, patch: { title?: string; description?: string | null; color?: string | null; icon?: string | null; dueAt?: string | null; progressMode?: string; progressValue?: number; progressTotal?: number }) => Promise<void>;
   deleteGoal: (id: string) => Promise<void>;
   createMilestone: (goalId: string, title: string) => Promise<void>;
   toggleMilestone: (id: string) => Promise<void>;

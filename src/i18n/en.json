@@ -74,7 +74,15 @@
     "deleteConfirm": "Delete this task?",
     "list": "List",
     "taskCount": "{{count}} tasks",
-    "boardColor": "Color"
+    "boardColor": "Color",
+    "labelColor": "Label Color",
+    "taskTitle": "Task Title",
+    "taskDescription": "Description",
+    "dueDate": "Due Date",
+    "taskReminder": "Daily Reminder",
+    "save": "Save",
+    "renameBoard": "Rename",
+    "renameList": "Rename list"
   },
   "goal": {
     "title": "Goals",
@@ -86,7 +94,14 @@
     "milestones": "Milestones",
     "progress": "Progress",
     "due": "Target date",
-    "deleteConfirm": "Delete this goal? Sub-goals and milestones will also be deleted."
+    "deleteConfirm": "Delete this goal? Sub-goals and milestones will also be deleted.",
+    "progressMode": "Progress mode",
+    "percentage": "Percentage",
+    "numeric": "Numeric",
+    "completedValue": "Completed",
+    "totalValue": "Total",
+    "renameGoal": "Rename",
+    "maxDepth": "Maximum sub-goal depth reached"
   },
   "calendar": {
     "title": "Calendar",
@@ -139,6 +154,8 @@
     "theme_mint": "Mint Garden",
     "theme_midnight": "Midnight",
     "theme_forest": "Forest",
+    "theme_claude": "Claude",
+    "theme_claude": "Claude",
     "general": "General",
     "weekStart": "Week starts on",
     "monday": "Monday",

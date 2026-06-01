@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, MoreHorizontal, Pin, PinOff, Trash2, Calendar as CalIcon, Bell, Clock, Edit3 } from 'lucide-react';
+import { ArrowLeft, Plus, Pin, PinOff, Trash2, Calendar as CalIcon, Bell, Check, X, Edit3 } from 'lucide-react';
 import {
   DndContext,
   closestCorners,
@@ -15,14 +15,12 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useBoardStore } from '@/store/useBoardStore';
-import { tasksApi } from '@/api';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Input, Textarea } from '@/components/common/Input';
 import { DateTimePicker } from '@/components/common/DateTimePicker';
 import { TimePicker } from '@/components/common/DateTimePicker';
 import { ColorPicker } from '@/components/common/ColorPicker';
-import { ProgressBar } from '@/components/common/ProgressBar';
 import { toast } from '@/components/common/Toast';
 import { dayjs } from '@/utils/date';
 import type { ListWithTasks, Subtask, TaskWithSubtasks } from '@/types';
@@ -31,12 +29,15 @@ export function BoardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { currentBoard, fetchBoard, createList, togglePin, deleteList, deleteTask, reorderLists, reorderTasks, moveTask, createSubtask, toggleSubtask, deleteSubtask, updateTask } = useBoardStore();
+  const { currentBoard, fetchBoard, createList, togglePin, deleteList, deleteTask, reorderLists, moveTask, createSubtask, toggleSubtask, deleteSubtask, updateTask } = useBoardStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<'list' | 'task' | null>(null);
   const [newListName, setNewListName] = useState('');
   const [editingTask, setEditingTask] = useState<TaskWithSubtasks | null>(null);
+  const [draft, setDraft] = useState<Partial<TaskWithSubtasks>>({});
   const [newSubtask, setNewSubtask] = useState('');
+  const [editingListId, setEditingListId] = useState<string | null>(null);
+  const [editListName, setEditListName] = useState('');
 
   useEffect(() => {
     if (id) fetchBoard(id);
@@ -52,6 +53,33 @@ export function BoardDetailPage() {
   }
 
   const { board, lists } = currentBoard;
+
+  const openTaskDetail = (task: TaskWithSubtasks) => {
+    setEditingTask(task);
+    setDraft({
+      title: task.title,
+      description: task.description,
+      dueAt: task.dueAt,
+      reminderTime: task.reminderTime,
+      color: task.color,
+    });
+  };
+
+  const handleSave = async () => {
+    if (!editingTask) return;
+    const patch: Record<string, unknown> = {};
+    if (draft.title !== editingTask.title) patch.title = draft.title;
+    if (draft.description !== editingTask.description) patch.description = draft.description ?? undefined;
+    if (draft.dueAt !== editingTask.dueAt) patch.dueAt = draft.dueAt;
+    if (draft.reminderTime !== editingTask.reminderTime) patch.reminderTime = draft.reminderTime;
+    if (draft.color !== editingTask.color) patch.color = draft.color;
+    if (Object.keys(patch).length > 0) {
+      await updateTask(editingTask.id, patch as any);
+      toast.success(t('board.save'));
+    }
+    setEditingTask(null);
+    setDraft({});
+  };
 
   const onDragStart = (e: DragStartEvent) => {
     setActiveId(String(e.active.id));
@@ -74,15 +102,12 @@ export function BoardDetailPage() {
       newOrder.splice(newIndex, 0, moved);
       await reorderLists(board.id, newOrder.map((x) => x.list.id));
     } else {
-      // task drag
       const aData = active.data.current as { listId: string; index: number };
       const oData = over.data.current as { listId: string; index: number } | undefined;
-      // If over is a list container (droppable)
       let targetListId = oData?.listId;
       let targetIndex = oData?.index;
       if (!targetListId) {
         targetListId = String(over.id);
-        // Drop into empty list
         const lst = lists.find((l) => l.list.id === targetListId);
         targetIndex = lst ? lst.tasks.length : 0;
       }
@@ -94,6 +119,18 @@ export function BoardDetailPage() {
   const activeTask = activeType === 'task'
     ? lists.flatMap((l) => l.tasks).find((t) => t.id === activeId)
     : null;
+
+  const startRenameList = (listId: string, currentName: string) => {
+    setEditingListId(listId);
+    setEditListName(currentName);
+  };
+
+  const confirmRenameList = async () => {
+    if (editingListId && editListName.trim()) {
+      await useBoardStore.getState().renameList(editingListId, editListName.trim());
+      setEditingListId(null);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -137,12 +174,18 @@ export function BoardDetailPage() {
                   key={l.list.id}
                   list={l}
                   index={idx}
+                  editingListId={editingListId}
+                  editListName={editListName}
+                  setEditListName={setEditListName}
+                  onStartRenameList={startRenameList}
+                  onConfirmRenameList={confirmRenameList}
+                  onCancelRenameList={() => setEditingListId(null)}
                   onAddTask={async (title) => {
                     await useBoardStore.getState().createTask(l.list.id, title);
                   }}
                   onToggleTask={(taskId) => useBoardStore.getState().toggleTask(taskId)}
                   onDeleteTask={deleteTask}
-                  onEditTask={(task) => setEditingTask(task)}
+                  onEditTask={openTaskDetail}
                   onDeleteList={async () => {
                     if (confirm(t('goal.deleteConfirm'))) await deleteList(l.list.id);
                   }}
@@ -196,17 +239,25 @@ export function BoardDetailPage() {
 
       <Modal
         open={!!editingTask}
-        onClose={() => setEditingTask(null)}
+        onClose={() => { setEditingTask(null); setDraft({}); }}
         title={t('board.taskDetail')}
         size="lg"
         footer={
           <>
+            <Button
+              variant="primary"
+              onClick={handleSave}
+            >
+              <Check size={14} />
+              {t('board.save')}
+            </Button>
             <Button
               variant="danger"
               onClick={async () => {
                 if (editingTask && confirm(t('board.deleteConfirm'))) {
                   await deleteTask(editingTask.id);
                   setEditingTask(null);
+                  setDraft({});
                 }
               }}
             >
@@ -214,7 +265,7 @@ export function BoardDetailPage() {
               {t('common.delete')}
             </Button>
             <div className="flex-1" />
-            <Button variant="ghost" onClick={() => setEditingTask(null)}>
+            <Button variant="ghost" onClick={() => { setEditingTask(null); setDraft({}); }}>
               {t('common.close')}
             </Button>
           </>
@@ -223,54 +274,37 @@ export function BoardDetailPage() {
         {editingTask && (
           <div className="space-y-3">
             <Input
-              label={t('profile.nickname')}
-              value={editingTask.title}
-              onChange={async (e) => {
-                const v = e.target.value;
-                await updateTask(editingTask.id, { title: v });
-                setEditingTask({ ...editingTask, title: v });
-              }}
+              label={t('board.taskTitle')}
+              value={draft.title ?? editingTask.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
             <Textarea
-              label={t('profile.signature')}
-              value={editingTask.description || ''}
-              onChange={async (e) => {
-                const v = e.target.value;
-                await updateTask(editingTask.id, { description: v || undefined });
-                setEditingTask({ ...editingTask, description: v || null });
-              }}
+              label={t('board.taskDescription')}
+              value={(draft.description ?? editingTask.description) || ''}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value || null })}
             />
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">{t('board.due')}</label>
+                <label className="label">{t('board.dueDate')}</label>
                 <DateTimePicker
-                  value={editingTask.dueAt}
-                  onChange={async (v) => {
-                    await updateTask(editingTask.id, { dueAt: v });
-                    setEditingTask({ ...editingTask, dueAt: v });
-                  }}
-                  placeholder={t('board.due')}
+                  value={draft.dueAt ?? editingTask.dueAt}
+                  onChange={(v) => setDraft({ ...draft, dueAt: v })}
+                  placeholder={t('board.dueDate')}
                 />
               </div>
               <div>
-                <label className="label">{t('board.reminderTime')}</label>
+                <label className="label">{t('board.taskReminder')}</label>
                 <TimePicker
-                  value={editingTask.reminderTime}
-                  onChange={async (v) => {
-                    await updateTask(editingTask.id, { reminderTime: v });
-                    setEditingTask({ ...editingTask, reminderTime: v });
-                  }}
+                  value={draft.reminderTime ?? editingTask.reminderTime}
+                  onChange={(v) => setDraft({ ...draft, reminderTime: v })}
                 />
               </div>
             </div>
             <div>
-              <label className="label">{t('board.boardColor')}</label>
+              <label className="label">{t('board.labelColor')}</label>
               <ColorPicker
-                value={editingTask.color}
-                onChange={async (v) => {
-                  await updateTask(editingTask.id, { color: v });
-                  setEditingTask({ ...editingTask, color: v });
-                }}
+                value={draft.color ?? editingTask.color}
+                onChange={(v) => setDraft({ ...draft, color: v })}
               />
             </div>
             <div>
@@ -305,10 +339,10 @@ export function BoardDetailPage() {
                 {editingTask.completedAt &&
                   `${t('board.completed')}: ${dayjs(editingTask.completedAt).format('YYYY-MM-DD HH:mm')}`}
               </span>
-              {editingTask.reminderTime && (
+              {(draft.reminderTime ?? editingTask.reminderTime) && (
                 <span className="flex items-center gap-1">
                   <Bell size={12} />
-                  {editingTask.reminderTime}
+                  {draft.reminderTime ?? editingTask.reminderTime}
                 </span>
               )}
             </div>
@@ -322,6 +356,12 @@ export function BoardDetailPage() {
 function SortableListColumn({
   list,
   index,
+  editingListId,
+  editListName,
+  setEditListName,
+  onStartRenameList,
+  onConfirmRenameList,
+  onCancelRenameList,
   onAddTask,
   onToggleTask,
   onDeleteTask,
@@ -330,6 +370,12 @@ function SortableListColumn({
 }: {
   list: ListWithTasks;
   index: number;
+  editingListId: string | null;
+  editListName: string;
+  setEditListName: (v: string) => void;
+  onStartRenameList: (id: string, name: string) => void;
+  onConfirmRenameList: () => void;
+  onCancelRenameList: () => void;
   onAddTask: (title: string) => Promise<void>;
   onToggleTask: (id: string) => void;
   onDeleteTask: (id: string) => void;
@@ -352,11 +398,43 @@ function SortableListColumn({
     <div ref={setNodeRef} style={style} className="w-72 shrink-0">
       <div className="card p-3 flex flex-col gap-2 max-h-[calc(100vh-180px)]">
         <div className="flex items-center gap-2" {...attributes} {...listeners}>
-          <h3 className="font-semibold text-sm flex-1 truncate cursor-grab">{list.list.name}</h3>
-          <span className="text-xs text-text-muted">{list.tasks.length}</span>
-          <button onClick={onDeleteList} className="btn-ghost p-0.5">
-            <Trash2 size={12} />
-          </button>
+          {editingListId === list.list.id ? (
+            <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                className="input py-0.5 px-1 text-sm flex-1"
+                value={editListName}
+                onChange={(e) => setEditListName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onConfirmRenameList();
+                  if (e.key === 'Escape') onCancelRenameList();
+                }}
+                autoFocus
+              />
+              <button className="btn-ghost p-0.5" onClick={onConfirmRenameList}>
+                <Check size={14} className="text-green-500" />
+              </button>
+              <button className="btn-ghost p-0.5" onClick={onCancelRenameList}>
+                <X size={14} className="text-text-muted" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <h3
+                className="font-semibold text-sm flex-1 truncate cursor-grab"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onStartRenameList(list.list.id, list.list.name);
+                }}
+                title={t('board.renameList')}
+              >
+                {list.list.name}
+              </h3>
+              <span className="text-xs text-text-muted">{list.tasks.length}</span>
+              <button onClick={onDeleteList} className="btn-ghost p-0.5">
+                <Trash2 size={12} />
+              </button>
+            </>
+          )}
         </div>
         <SortableContext
           items={list.tasks.map((t) => t.id)}

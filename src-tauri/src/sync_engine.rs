@@ -103,7 +103,9 @@ pub fn build_snapshot(c: &Connection) -> AppResult<Snapshot> {
     let mut goals = Vec::new();
     {
         let mut stmt = c.prepare(
-            "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at FROM goals",
+            "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
+                    progress_mode, progress_value, progress_total
+             FROM goals",
         )?;
         for r in stmt.query_map([], |r| {
             Ok(Goal {
@@ -117,6 +119,9 @@ pub fn build_snapshot(c: &Connection) -> AppResult<Snapshot> {
                 position: r.get(7)?,
                 created_at: r.get(8)?,
                 updated_at: r.get(9)?,
+                progress_mode: r.get(10)?,
+                progress_value: r.get(11)?,
+                progress_total: r.get(12)?,
             })
         })? {
             goals.push(r?);

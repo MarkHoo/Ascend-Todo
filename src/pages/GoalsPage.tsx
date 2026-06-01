@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Target, Trash2, Calendar as CalIcon, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Target, Trash2, Calendar as CalIcon, ChevronDown, ChevronRight, Check, X } from 'lucide-react';
 import { useGoalStore } from '@/store/useGoalStore';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
@@ -12,13 +12,14 @@ import { toast } from '@/components/common/Toast';
 import { dayjs } from '@/utils/date';
 import type { GoalWithMilestones, Milestone } from '@/types';
 
+const MAX_DEPTH = 4;
+
 export function GoalsPage() {
   const { t } = useTranslation();
   const { goals, fetchGoals, createGoal, updateGoal, deleteGoal, createMilestone, toggleMilestone, deleteMilestone } = useGoalStore();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  // New goal form
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [dueAt, setDueAt] = useState<string | null>(null);
@@ -49,13 +50,15 @@ export function GoalsPage() {
     setParentId(null);
   };
 
-  const flattenForParent = (gs: GoalWithMilestones[]): GoalWithMilestones[] => {
+  const flattenForParent = (gs: GoalWithMilestones[], depth = 0): GoalWithMilestones[] => {
     const out: GoalWithMilestones[] = [];
-    const visit = (g: GoalWithMilestones) => {
-      out.push(g);
-      g.subGoals.forEach(visit);
+    const visit = (g: GoalWithMilestones, d: number) => {
+      if (d < MAX_DEPTH - 1) {
+        out.push(g);
+        g.subGoals.forEach((sg) => visit(sg, d + 1));
+      }
     };
-    gs.forEach(visit);
+    gs.forEach((g) => visit(g, depth));
     return out;
   };
   const allGoals = flattenForParent(goals);
@@ -119,12 +122,12 @@ export function GoalsPage() {
       >
         <div className="space-y-3">
           <Input
-            label={t('profile.nickname')}
+            label={t('goal.title')}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
           <Textarea
-            label={t('profile.signature')}
+            label={t('goal.subGoals')}
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
           />
@@ -136,21 +139,23 @@ export function GoalsPage() {
             <label className="label">{t('board.boardColor')}</label>
             <ColorPicker value={color} onChange={setColor} />
           </div>
-          <div>
-            <label className="label">{t('goal.subGoals')}</label>
-            <select
-              className="input"
-              value={parentId || ''}
-              onChange={(e) => setParentId(e.target.value || null)}
-            >
-              <option value="">-</option>
-              {allGoals.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.title}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!parentId && (
+            <div>
+              <label className="label">{t('goal.subGoals')}</label>
+              <select
+                className="input"
+                value={parentId || ''}
+                onChange={(e) => setParentId(e.target.value || null)}
+              >
+                <option value="">-</option>
+                {allGoals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </Modal>
     </div>
@@ -183,10 +188,28 @@ function GoalCard({
   const { t } = useTranslation();
   const isOpen = expanded[goal.id] ?? true;
   const [newMs, setNewMs] = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(goal.title);
+  const [progressMode, setProgressMode] = useState<'percentage' | 'numeric'>('percentage');
+  const [progressValue, setProgressValue] = useState(Math.round(goal.progress * 100));
+  const [progressTotal, setProgressTotal] = useState(100);
   const toggle = () => setExpanded({ ...expanded, [goal.id]: !isOpen });
 
+  const saveTitle = async () => {
+    if (titleDraft.trim() && titleDraft.trim() !== goal.title) {
+      await onUpdateGoal(goal.id, { title: titleDraft.trim() });
+    }
+    setEditingTitle(false);
+  };
+
+  const updateProgress = async (pct: number) => {
+    setProgressValue(pct);
+  };
+
+  const canAddSubGoal = level < MAX_DEPTH - 1;
+
   return (
-    <div className="card" style={{ marginLeft: level * 16 }}>
+    <div className="card" style={{ marginLeft: level * 20 }}>
       <div className="p-4 flex items-start gap-3">
         <button onClick={toggle} className="btn-ghost p-0.5 mt-0.5">
           {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -197,14 +220,77 @@ function GoalCard({
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold truncate">{goal.title}</h3>
+            {editingTitle ? (
+              <div className="flex items-center gap-1 flex-1">
+                <input
+                  className="input py-0.5 px-1 text-sm flex-1 font-semibold"
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveTitle();
+                    if (e.key === 'Escape') { setEditingTitle(false); setTitleDraft(goal.title); }
+                  }}
+                  autoFocus
+                />
+                <button className="btn-ghost p-0.5" onClick={saveTitle}>
+                  <Check size={14} className="text-green-500" />
+                </button>
+                <button className="btn-ghost p-0.5" onClick={() => { setEditingTitle(false); setTitleDraft(goal.title); }}>
+                  <X size={14} className="text-text-muted" />
+                </button>
+              </div>
+            ) : (
+              <h3
+                className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
+                onDoubleClick={() => { setEditingTitle(true); setTitleDraft(goal.title); }}
+                title={t('goal.renameGoal')}
+              >
+                {goal.title}
+              </h3>
+            )}
             <span className="text-xs text-text-muted">{Math.round(goal.progress * 100)}%</span>
           </div>
           {goal.description && (
             <div className="text-xs text-text-muted mt-0.5 line-clamp-2">{goal.description}</div>
           )}
-          <div className="mt-2">
-            <ProgressBar value={goal.progress} color={goal.color || 'var(--primary)'} />
+          <div className="mt-2 flex items-center gap-2">
+            <ProgressBar value={goal.progress} color={goal.color || 'var(--primary)'} className="flex-1" />
+            {progressMode === 'numeric' ? (
+              <div className="flex items-center gap-1 text-xs">
+                <input
+                  type="number"
+                  className="input py-0 px-1 w-14 text-xs text-center"
+                  value={progressValue}
+                  onChange={(e) => updateProgress(Number(e.target.value))}
+                  min={0}
+                  max={progressTotal}
+                />
+                <span className="text-text-muted">/</span>
+                <input
+                  type="number"
+                  className="input py-0 px-1 w-14 text-xs text-center"
+                  value={progressTotal}
+                  onChange={(e) => setProgressTotal(Number(e.target.value))}
+                  min={1}
+                />
+              </div>
+            ) : (
+              <input
+                type="range"
+                className="w-20 h-1 accent-primary"
+                value={progressValue}
+                onChange={(e) => updateProgress(Number(e.target.value))}
+                min={0}
+                max={100}
+              />
+            )}
+            <button
+              className="btn-ghost p-0.5 text-xs text-text-muted"
+              onClick={() => setProgressMode(progressMode === 'percentage' ? 'numeric' : 'percentage')}
+              title={t('goal.progressMode')}
+            >
+              {progressMode === 'percentage' ? '%' : '#'}
+            </button>
           </div>
           {goal.dueAt && (
             <div className="mt-1.5 flex items-center gap-1 text-xs text-text-muted">
@@ -214,9 +300,11 @@ function GoalCard({
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" onClick={() => onAddSubGoal(goal.id)}>
-            <Plus size={12} />
-          </Button>
+          {canAddSubGoal && (
+            <Button size="sm" variant="ghost" onClick={() => onAddSubGoal(goal.id)}>
+              <Plus size={12} />
+            </Button>
+          )}
           <Button
             size="sm"
             variant="danger"

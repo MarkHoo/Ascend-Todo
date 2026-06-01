@@ -97,6 +97,9 @@ pub struct Goal {
     pub position: i32,
     pub created_at: String,
     pub updated_at: String,
+    pub progress_mode: String,
+    pub progress_value: f64,
+    pub progress_total: f64,
 }}
 
 camel! {
@@ -117,7 +120,7 @@ pub struct GoalWithMilestones {
     pub goal: Goal,
     pub milestones: Vec<Milestone>,
     pub sub_goals: Vec<GoalWithMilestones>,
-    pub progress: f32,
+    pub progress: f64,
 }
 
 // ============ Pomodoro ============
