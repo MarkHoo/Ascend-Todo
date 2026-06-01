@@ -24,9 +24,9 @@ pub fn run() {
             let app_dir = app
                 .path()
                 .app_data_dir()
-                .unwrap_or_else(|_| std::env::temp_dir().join("guangjie-todo"));
+                .unwrap_or_else(|_| std::env::temp_dir().join("ascend-todo"));
             std::fs::create_dir_all(&app_dir).ok();
-            let db_path = app_dir.join("guangjie.db");
+            let db_path = app_dir.join("ascend.db");
             let conn = db::open(&db_path).expect("failed to open db");
             db::migrate(&conn).expect("failed to migrate db");
             app.manage(DbState {

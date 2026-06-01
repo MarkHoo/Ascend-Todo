@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    guangjie_todo_lib::run()
+    ascend_todo_lib::run()
 }

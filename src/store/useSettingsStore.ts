@@ -31,7 +31,7 @@ export const useSettingsStore = create<State>()(
       setAll: (s) => set({ settings: s }),
     }),
     {
-      name: 'guangjie:settings',
+      name: 'ascend:settings',
       storage: createJSONStorage(() => localStorage),
       partialize: (st) => ({ settings: st.settings }),
     },

@@ -14,7 +14,7 @@ export const useAuthStore = create<State>()(
       setSession: (s) => set({ session: s }),
     }),
     {
-      name: 'guangjie:auth',
+      name: 'ascend:auth',
       storage: createJSONStorage(() => localStorage),
     },
   ),

@@ -130,7 +130,7 @@ invoke<Task>('create_task', { listId, title, ... });
 - SQLite 调试：下载 DB 副本
   ```bash
   # Windows 默认位置
-  %APPDATA%\com.guangjie.todo\guangjie.db
+  %APPDATA%\com.ascend.todo\ascend.db
   ```
   用 [DB Browser for SQLite](https://sqlitebrowser.org/) 打开。
 

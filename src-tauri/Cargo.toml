@@ -1,13 +1,13 @@
 [package]
-name = "guangjie-todo"
+name = "ascend-todo"
 version = "0.1.0"
-description = "光阶Todo - 拾光而上，有序人生"
+description = "Ascend Todo — Master your time, elevate your life."
 authors = ["Mark"]
 edition = "2021"
 rust-version = "1.77"
 
 [lib]
-name = "guangjie_todo_lib"
+name = "ascend_todo_lib"
 crate-type = ["rlib"]
 
 [build-dependencies]

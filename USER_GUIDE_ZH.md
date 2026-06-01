@@ -294,17 +294,17 @@
 
 ### Q1：数据存在哪里？安全吗？
 所有数据存储在本地 SQLite 数据库。位置：
-- **Windows**：`%APPDATA%\com.guangjie.todo\guangjie.db`
-- **macOS**：`~/Library/Application Support/com.guangjie.todo/guangjie.db`
-- **Linux**：`~/.local/share/com.guangjie.todo/guangjie.db`
+- **Windows**：`%APPDATA%\com.ascend.todo\ascend.db`
+- **macOS**：`~/Library/Application Support/com.ascend.todo/ascend.db`
+- **Linux**：`~/.local/share/com.ascend.todo/ascend.db`
 
 未登录时数据**完全在本地**。登录启用云同步后才会与服务器交换数据（当前为 Mock）。
 
 ### Q2：如何备份？
-直接复制上面的 `guangjie.db` 文件即可。建议定期备份。
+直接复制上面的 `ascend.db` 文件即可。建议定期备份。
 
 ### Q3：忘记密码怎么办？
-本地账户没有找回功能（Mock 实现）。可以删除 `settings` 表中的 `auth_pw_hash` 和 `auth_nickname` 两行，或直接删除整个 `guangjie.db` 重置应用。
+本地账户没有找回功能（Mock 实现）。可以删除 `settings` 表中的 `auth_pw_hash` 和 `auth_nickname` 两行，或直接删除整个 `ascend.db` 重置应用。
 
 ### Q4：提醒不弹出？
 检查 4 件事：
@@ -317,7 +317,7 @@
 当前版本不支持。看板、目标都是本地单人数据。
 
 ### Q6：可以导入/导出数据吗？
-暂未提供 UI。可手动复制 `guangjie.db` 备份/迁移；或编写小工具调用 `sync_snapshot` 命令导出全量 JSON。
+暂未提供 UI。可手动复制 `ascend.db` 备份/迁移；或编写小工具调用 `sync_snapshot` 命令导出全量 JSON。
 
 ### Q7：番茄钟和任务提醒哪个先到？
 两者独立触发。可能同时弹多个通知。

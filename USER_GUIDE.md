@@ -296,17 +296,17 @@ Click **Save** to apply all changes (persisted locally + synced to cloud if logg
 
 ### Q1: Where is my data stored? Is it safe?
 All data is stored in a local SQLite database:
-- **Windows**: `%APPDATA%\com.guangjie.todo\guangjie.db`
-- **macOS**: `~/Library/Application Support/com.guangjie.todo/guangjie.db`
-- **Linux**: `~/.local/share/com.guangjie.todo/guangjie.db`
+- **Windows**: `%APPDATA%\com.ascend.todo\ascend.db`
+- **macOS**: `~/Library/Application Support/com.ascend.todo/ascend.db`
+- **Linux**: `~/.local/share/com.ascend.todo/ascend.db`
 
 When not logged in, data is **entirely local**. After enabling cloud sync and logging in, data is exchanged with the server (currently mock).
 
 ### Q2: How do I back up?
-Simply copy the `guangjie.db` file listed above. Regular backups are recommended.
+Simply copy the `ascend.db` file listed above. Regular backups are recommended.
 
 ### Q3: I forgot my password. What do I do?
-There is no password recovery (mock implementation). You can delete the `auth_pw_hash` and `auth_nickname` rows from the `settings` table, or delete the entire `guangjie.db` to reset the app.
+There is no password recovery (mock implementation). You can delete the `auth_pw_hash` and `auth_nickname` rows from the `settings` table, or delete the entire `ascend.db` to reset the app.
 
 ### Q4: Reminders aren't showing. What should I check?
 1. Is **Enable notifications** turned on in **Settings**?
@@ -318,7 +318,7 @@ There is no password recovery (mock implementation). You can delete the `auth_pw
 Not in this version. Boards and goals are single-user local data.
 
 ### Q6: Can I import/export data?
-No UI for this yet. You can manually copy `guangjie.db` for backup/migration, or write a small tool that calls the `sync_snapshot` command to export full JSON.
+No UI for this yet. You can manually copy `ascend.db` for backup/migration, or write a small tool that calls the `sync_snapshot` command to export full JSON.
 
 ### Q7: Which fires first — the pomodoro or the task reminder?
 They are independent and may trigger simultaneously.

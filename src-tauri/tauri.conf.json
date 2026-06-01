@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "光阶Todo",
+  "productName": "Ascend Todo",
   "version": "0.1.0",
-  "identifier": "com.guangjie.todo",
+  "identifier": "com.ascend.todo",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -42,7 +42,7 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
-    "shortDescription": "光阶Todo - 拾光而上，有序人生",
+    "shortDescription": "Ascend Todo — Master your time, elevate your life.",
     "longDescription": "A cross-platform Todo app with boards, goals, calendar, and pomodoro.",
     "publisher": "Mark",
     "windows": {

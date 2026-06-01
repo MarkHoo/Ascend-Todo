@@ -19,7 +19,7 @@ A cross-platform desktop task manager built with **React 18 + TypeScript + Tauri
 - **Cloud sync (Mock)**: local-account login + push/pull snapshot, toggle on/off
 - **Auto-update check** (default on, can disable)
 - **Cross-day/month/year** tasks with reminders
-- All data persisted in local SQLite (`%AppData%/com.guangjie.todo/guangjie.db`)
+- All data persisted in local SQLite (`%AppData%/com.ascend.todo/ascend.db`)
 
 ## 🛠️ Tech Stack
 

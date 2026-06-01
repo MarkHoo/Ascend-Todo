@@ -58,7 +58,7 @@ function useReminderPolling() {
         const items = await remindersApi.pending(new Date().toISOString());
         const lang = settings.language;
         const appName =
-          lang === 'zh-CN' ? '光阶Todo' :
+          lang === 'zh-CN' ? 'Ascend Todo' :
           lang === 'zh-TW' ? '光階Todo' : 'Ascend Todo';
         for (const it of items) {
           sendNotification({
