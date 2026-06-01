@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { setDayjsLocale } from '@/utils/date';
 import { settingsApi } from '@/api';
@@ -31,6 +32,9 @@ function useLangSync() {
   useEffect(() => {
     setDayjsLocale(lang);
     i18n.changeLanguage(lang);
+    const name = i18n.getResource(lang, 'translation', 'app.name') || 'Ascend Todo';
+    const slogan = i18n.getResource(lang, 'translation', 'app.slogan') || '';
+    getCurrentWindow().setTitle(`${name} — ${slogan}`).catch(() => {});
   }, [lang, i18n]);
 }
 
@@ -52,9 +56,13 @@ function useReminderPolling() {
         }
         if (!granted) return;
         const items = await remindersApi.pending(new Date().toISOString());
+        const lang = settings.language;
+        const appName =
+          lang === 'zh-CN' ? '光阶Todo' :
+          lang === 'zh-TW' ? '光階Todo' : 'Ascend Todo';
         for (const it of items) {
           sendNotification({
-            title: '光阶Todo · 任务提醒',
+            title: `${appName} · ${lang.startsWith('zh') ? '任务提醒' : 'Task Reminder'}`,
             body: `${it.taskTitle}（${it.boardName} / ${it.listName}）`,
           });
           // play sound

@@ -1,350 +1,353 @@
-# 用户使用说明
+# Ascend Todo — User Guide
 
-> **光阶Todo** — 拾光而上，有序人生
+> **Master your time, elevate your life.**
 >
-> 跨平台桌面待办应用，让每一刻都成为通向更好自己的阶梯。
+> A cross-platform desktop task manager that helps you build an orderly, purposeful life.
+
+[中文版说明](./USER_GUIDE_ZH.md)
 
 ---
 
-## 目录
+## Table of Contents
 
-1. [快速开始](#1-快速开始)
-2. [界面总览](#2-界面总览)
-3. [总览](#3-总览)
-4. [任务看板](#4-任务看板)
-5. [目标](#5-目标)
-6. [日历](#6-日历)
-7. [番茄钟](#7-番茄钟)
-8. [个人资料](#8-个人资料)
-9. [设置](#9-设置)
-10. [常见问题](#10-常见问题)
-
----
-
-## 1. 快速开始
-
-### 安装
-
-- **Windows**：双击 `.msi` 或 `.exe` 安装包，按提示安装
-- **macOS**：拖拽 `.app` 到 Applications 文件夹
-- **Linux**：运行 `.deb` 或赋予 `.AppImage` 可执行权限后双击
-
-### 首次启动
-
-应用打开后默认进入 **总览** 页面。建议步骤：
-
-1. 点击左下角头像 → **个人资料**，设置昵称和签名
-2. 点击左下角 **设置**，选择喜欢的主题与语言
-3. 进入 **任务看板** 创建第一个看板
-
-数据默认保存在本地 SQLite，**无需联网**。登录后可启用云同步（详见 [§9.5](#95-同步)）。
+1. [Getting Started](#1-getting-started)
+2. [Interface Overview](#2-interface-overview)
+3. [Overview](#3-overview)
+4. [Task Boards](#4-task-boards)
+5. [Goals](#5-goals)
+6. [Calendar](#6-calendar)
+7. [Pomodoro](#7-pomodoro)
+8. [Profile](#8-profile)
+9. [Settings](#9-settings)
+10. [FAQ](#10-faq)
 
 ---
 
-## 2. 界面总览
+## 1. Getting Started
 
-应用采用经典的 **侧栏 + 主区** 布局。
+### Installation
+
+- **Windows**: Double-click the `.msi` or `-setup.exe` installer and follow the prompts
+- **macOS**: Drag the `.app` to your Applications folder
+- **Linux**: Run the `.deb` package (`sudo dpkg -i file.deb`) or make the `.AppImage` executable and double-click it
+
+### First Launch
+
+The app opens on the **Overview** page. Recommended first steps:
+
+1. Click the avatar at the bottom-left → **Profile**, and set your nickname and signature
+2. Click **Settings** at the bottom-left to choose your preferred theme and language
+3. Go to **Task Boards** to create your first board
+
+All data is stored locally in SQLite by default. **No internet connection is required.** Enable cloud sync after logging in (see [§9.5](#95-sync)).
+
+---
+
+## 2. Interface Overview
+
+The app uses a classic **sidebar + main area** layout.
 
 ```
-┌─────────┬──────────────────────────────────────────┐
-│         │ 顶部状态栏：同步状态、操作               │
-│  光阶Todo├──────────────────────────────────────────┤
-│         │                                          │
-│  总览   │                                          │
-│  看板   │              主内容区域                  │
-│  目标   │       （根据侧栏选中项显示对应页面）      │
-│  日历   │                                          │
-│  番茄钟 │                                          │
-│         │                                          │
-│  ───    │                                          │
-│  固定看板│                                          │
-│  ───    │                                          │
-│  设置   │                                          │
-│  头像   │                                          │
-└─────────┴──────────────────────────────────────────┘
+┌──────────┬──────────────────────────────────────────┐
+│          │ Top bar: sync status, quick actions       │
+│  Ascend  ├──────────────────────────────────────────┤
+│   Todo   │                                          │
+│          │              Main content                 │
+│ Overview │        (changes based on sidebar          │
+│  Boards  │           selection below)                │
+│  Goals   │                                          │
+│ Calendar │                                          │
+│ Pomodoro │                                          │
+│          │                                          │
+│  ─────── │                                          │
+│ Pinned   │                                          │
+│  boards  │                                          │
+│  ─────── │                                          │
+│ Settings │                                          │
+│  Avatar  │                                          │
+└──────────┴──────────────────────────────────────────┘
 ```
 
-**侧栏**（自上而下）：
-- 总览 · 看板 · 目标 · 日历 · 番茄钟
-- （已固定的看板）
-- 设置 · 头像
+**Sidebar** (top to bottom):
+- Overview · Boards · Goals · Calendar · Pomodoro
+- (Pinned boards)
+- Settings · Avatar
 
-**顶部状态栏**：显示云同步状态、最后同步时间，提供快速同步按钮。
+**Top bar**: Shows cloud sync status, last sync time, and a quick sync button.
 
 ---
 
-## 3. 总览
+## 3. Overview
 
-> 快速了解今天的进度与整体趋势
+> Get a quick snapshot of today's progress and long-term trends
 
-进入后第一眼看到的是 **今日一句**（励志语），下方是 4 个数据卡片：
+The first thing you see is the **Quote of the Day** (motivational quote), followed by four stat cards:
 
-| 卡片 | 含义 |
+| Card | Meaning |
 | --- | --- |
-| 连续打卡 | 截至今日连续打卡的天数 |
-| 已完成任务 | 本周已勾选完成的任务数 |
-| 进行中目标 | 尚未 100% 完成的目标数 |
-| 番茄数 | 历史累计的番茄钟次数 |
+| Day Streak | Consecutive days with check-ins |
+| Tasks Completed | Tasks marked done this week |
+| Active Goals | Goals not yet 100% complete |
+| Pomodoros | Total pomodoro sessions ever |
 
-### 活动图
+### Activity Heatmap
 
-类似 GitHub 贡献图的 **53 周 × 7 天热力图**，每个格子的颜色深浅代表当天的活动量（基于打卡数 + 任务完成情况）。鼠标悬停可看具体日期和计数。
+A **53-week × 7-day** GitHub-style heatmap. Each square's shade represents that day's activity level (based on check-ins + completed tasks). Hover to see the date and count.
 
-点击右上角 **+ Check in** 完成今日打卡。
+Click **+ Check in** at the top-right to record today's check-in.
 
-### 趋势与汇总
+### Trend & Summary
 
-- **14d 番茄数趋势**：柱状图展示最近两周每日完成的番茄数
-- **目标进度**：环形图展示各目标的完成百分比
-- **目标列表**：进度条 + 百分比
-
----
-
-## 4. 任务看板
-
-> Trello 风格看板，支持拖拽与子任务
-
-### 4.1 创建看板
-
-1. 在 **任务看板** 页面点击右上角 **+ 新建看板**
-2. 填写名称（必填）、描述、选择颜色
-3. 点击 **创建**，自动跳转到看板详情
-
-### 4.2 看板操作
-
-- **添加列表**：在看板最右侧的输入框输入列表名，按 Enter 或点 +
-- **添加任务**：在列表底部输入任务标题，按 Enter
-- **拖拽任务**：按住任务卡片可在同一列表内上下拖动排序
-- **跨列表拖动**：按住任务卡片拖到另一列表的任意位置
-- **完成/取消完成**：点击任务左侧圆形复选框
-- **编辑任务**：点击任务正文打开详情弹窗
-- **删除任务**：悬停任务卡片，点右上角 × 图标
-- **固定到侧栏**：返回看板列表，点看板卡上的图钉图标
-
-### 4.3 任务详情
-
-点击任务正文弹出的弹窗可设置：
-
-- **标题**、**描述**
-- **截止日期**：跨天、跨月、跨年任务都可设置
-- **每日提醒时间**（HH:MM）：到点会触发桌面通知 + 提示音
-- **任务颜色**：用于在日历和热力图中突出显示
-- **子任务**：勾选子任务自动反映在父任务进度中
-
-### 4.4 任务标识
-
-任务卡片上会显示：
-- 📅 截止日期
-- 🔔 每日提醒时间
-- ✓ 子任务完成进度（如 `2/5`）
+- **14-day Pomodoro Trend**: Bar chart of daily pomodoro count over the last two weeks
+- **Goal Progress**: Donut chart showing each goal's completion percentage
+- **Goal List**: Progress bars with percentages
 
 ---
 
-## 5. 目标
+## 4. Task Boards
 
-> 长期目标 + 子目标 + 里程碑，进度自动计算
+> Trello-style boards with drag-and-drop and subtasks
 
-### 5.1 创建目标
+### 4.1 Creating a Board
 
-1. 在 **目标** 页面点击 **+ 新建目标**
-2. 输入标题、描述、目标日期（可选）、颜色
-3. 点击 **创建**
+1. On the **Task Boards** page, click **+ New board** at the top-right
+2. Enter a name (required), description, and choose a color
+3. Click **Create** — you'll be taken to the board detail view
 
-### 5.2 添加里程碑
+### 4.2 Board Operations
 
-在目标卡片展开状态下：
-- 列表底部输入里程碑标题 → 按 Enter 或 +
-- 勾选里程碑左侧圆圈标记完成
-- 点击 × 删除里程碑
+- **Add a list**: Enter the list name in the input at the far right of the board, press Enter or click +
+- **Add a task**: Enter the task title at the bottom of any list, press Enter
+- **Drag tasks**: Hold a task card and drag within the same list to reorder
+- **Cross-list drag**: Hold a task card and drag it to another list at any position
+- **Complete / undo**: Click the circular checkbox to the left of the task
+- **Edit a task**: Click the task body to open the detail modal
+- **Delete a task**: Hover over the task card and click the × icon at the top-right
+- **Pin to sidebar**: Return to the boards list, click the pin icon on any board card
 
-### 5.3 添加子目标
+### 4.3 Task Details
 
-点击目标卡右上角 **+** 图标，会弹出"新建目标"对话框，父目标已自动选中。
+The modal that opens when you click a task body lets you set:
 
-### 5.4 进度计算
+- **Title**, **Description**
+- **Due date**: Supports cross-day, cross-month, and cross-year tasks
+- **Daily reminder time** (HH:MM): Triggers a desktop notification + sound at the specified time each day
+- **Task color**: Highlights the task in the calendar and heatmap views
+- **Subtasks**: Checking a subtask automatically reflects in the parent task's progress
 
-进度按"已完成项 / 总项"计算：
-- 一级里程碑数 + 子目标数 = 总项
-- 已勾选里程碑 + 已 100% 完成的子目标 = 已完成项
+### 4.4 Task Badges
 
-顶部进度条实时更新。
-
----
-
-## 6. 日历
-
-> 在日历中查看、创建跨天/跨月/跨年任务
-
-### 6.1 视图切换
-
-- **日视图**：24 小时时间轴
-- **周视图**：7 天 × 24 小时网格
-- **月视图**：经典月历
-
-切换按钮在页面顶部，旁边的 ‹ › 可前后翻页，**今天** 按钮跳回当前日期。
-
-### 6.2 周起始日
-
-在 **设置** 中可选择每周起始日是 **周一** 还是 **周日**。影响：
-- 周视图的列顺序
-- 月视图第一行/最后一行的展示
-
-### 6.3 创建任务
-
-点击日历中任意空白格（月视图是日期、周/日视图是小时格）→ 弹出新建任务框：
-- 选择所属看板 / 列表
-- 任务默认带选定的日期/时间，可修改
-- 点击 **创建** 即保存
-
-### 6.4 显示规则
-
-- 任务的 **截止日期** 落在某日 → 该日单元格显示任务彩色块
-- 已完成任务带删除线
-- 任务有颜色 → 单元格用对应颜色淡化背景
+Task cards display:
+- 📅 Due date
+- 🔔 Daily reminder time
+- ✓ Subtask progress (e.g. `2/5`)
 
 ---
 
-## 7. 番茄钟
+## 5. Goals
 
-> 专注计时，自动记录与统计
+> Long-term goals with milestones and sub-goals, progress auto-calculated
 
-### 7.1 模式
+### 5.1 Creating a Goal
 
-- **倒计时**：从设定时长倒数至 0 后提醒
-- **正计时**：从 0 开始累计，按"停止"结束
+1. On the **Goals** page, click **+ New goal**
+2. Enter a title, description, target date (optional), and color
+3. Click **Create**
 
-切换按钮在计时器上方。
+### 5.2 Adding Milestones
 
-### 7.2 使用步骤
+In the expanded goal card:
+- Enter the milestone title at the bottom of the list → press Enter or click +
+- Click the circle to the left of a milestone to mark it complete
+- Click × to delete a milestone
 
-1. 选择 **时长**（分钟），默认值在 **设置** 中配置
-2. （可选）选择要关联的 **任务**——便于在历史中查看"这件事花了多少番茄"
-3. 点击 **开始**
-4. 可随时 **暂停** / **继续** / **停止**
-5. 倒计时结束自动播提示音 + 弹桌面通知
+### 5.3 Adding Sub-goals
 
-### 7.3 统计
+Click the **+** icon at the top-right of the goal card. The "New goal" dialog opens with the parent goal pre-selected.
 
-- **总次数**、**已完成次数**、**累计时长**
-- **14 天趋势**折线图
-- **历史**列表（每条显示：开始时间、模式、时长、关联任务）
+### 5.4 Progress Calculation
 
----
+Progress is calculated as `completed items / total items`:
+- First-level milestones + sub-goals = total items
+- Checked milestones + 100%-complete sub-goals = completed items
 
-## 8. 个人资料
-
-> 点击侧栏底部头像进入
-
-可设置：
-- **昵称**（侧栏与顶栏会显示）
-- **头像**（点击"上传"选择本地图片；点 × 清除）
-- **手机号**、**邮箱**、**个性签名**
-
-所有修改点 **保存** 后立即生效（同时持久化到本地 + 在登录后随云同步上行）。
+The progress bar at the top updates in real time.
 
 ---
 
-## 9. 设置
+## 6. Calendar
 
-> 点击侧栏底部"设置"进入
+> View and create tasks across days, weeks, and months
 
-### 9.1 外观
+### 6.1 View Modes
 
-- **主题**：4 选 1（极光白 / 薄荷园 / 午夜蓝 / 深林绿）
-- **语言**：英语 / 简体中文 / 繁體中文（默认英语）
-- **每周起始日**：周一 / 周日
+- **Day**: 24-hour timeline for a single day
+- **Week**: 7-day × 24-hour grid
+- **Month**: Classic month calendar
 
-### 9.2 番茄钟
+Switch using the buttons at the top. The ‹ › buttons navigate forward/back, and the **Today** button returns to the current date.
 
-- **默认时长**（分钟）：新会话默认采用
-- **长休息**（分钟）：预留扩展
+### 6.2 Week Start Day
 
-### 9.3 提醒
+In **Settings**, choose whether the week starts on **Monday** or **Sunday**. This affects:
+- The column order in week view
+- The first/last row display in month view
 
-- **启用桌面通知**：到点的每日提醒会触发系统通知
-- **显示励志语**：总览页显示今日一句
-- **提示音**：铃声 / 风铃 / 电子音 / 无（到点 + 番茄结束播放）
+### 6.3 Creating a Task
 
-### 9.4 账户
+Click any empty cell in the calendar (a date in month view, an hour cell in week/day view) → a new task dialog appears:
+- Select the board / list
+- The task is pre-filled with the selected date/time, which you can modify
+- Click **Create** to save
 
-- 未登录时：可 **注册** 或 **登录**
-- 已登录时：显示当前昵称，提供 **退出登录**
+### 6.4 Display Rules
 
-⚠️ 当前为 **Mock 实现**：密码以 SHA-256 哈希后存本地，不会上传到任何真实服务器。生产部署需替换 `src-tauri/src/sync_engine.rs` 为真实后端。
-
-### 9.5 同步
-
-- **启用云端同步**：开启后才会在顶栏显示同步状态
-- **服务器地址**：留空使用本地 Mock；填入实际 URL 配合真实后端
-- **立即同步**：↑ push（推本地到服务器）/ ↓ pull（从服务器拉取并覆盖本地）
-
-⚠️ Mock 模式下 push/pull 仅在进程内模拟；重启应用会重置。
-
-### 9.6 关于
-
-- 当前 **版本号**
-- **启动时检查更新**：开启后每次启动会自动检测新版
-- **检查更新**：手动触发一次检测
+- Tasks whose **due date** falls on a given day appear as colored blocks on that day's cell
+- Completed tasks are shown with strikethrough
+- Tasks with a color set use that color as a tinted background
 
 ---
 
-## 10. 常见问题
+## 7. Pomodoro
 
-### Q1：数据存在哪里？安全吗？
-所有数据存储在本地 SQLite 数据库。位置：
-- **Windows**：`%APPDATA%\com.guangjie.todo\guangjie.db`
-- **macOS**：`~/Library/Application Support/com.guangjie.todo/guangjie.db`
-- **Linux**：`~/.local/share/com.guangjie.todo/guangjie.db`
+> Focus timer with automatic logging and statistics
 
-未登录时数据**完全在本地**。登录启用云同步后才会与服务器交换数据（当前为 Mock）。
+### 7.1 Modes
 
-### Q2：如何备份？
-直接复制上面的 `guangjie.db` 文件即可。建议定期备份。
+- **Countdown**: Counts down from the set duration to 0, then alerts
+- **Countup**: Counts up from 0; press "Stop" to end
 
-### Q3：忘记密码怎么办？
-本地账户没有找回功能（Mock 实现）。可以删除 `settings` 表中的 `auth_pw_hash` 和 `auth_nickname` 两行，或直接删除整个 `guangjie.db` 重置应用。
+Switch between modes using the toggle above the timer.
 
-### Q4：提醒不弹出？
-检查 4 件事：
-1. **设置** → **启用桌面通知** 开关是否打开
-2. 操作系统的通知权限是否授权（Windows 设置 → 系统 → 通知）
-3. **提示音** 是否设为"无"——如果设为"无"且关闭通知，会完全静默
-4. 任务是否勾选完成——已完成任务不再提醒
+### 7.2 Usage Steps
 
-### Q5：可以多人协作吗？
-当前版本不支持。看板、目标都是本地单人数据。
+1. Choose the **duration** (minutes) — the default is set in **Settings**
+2. (Optional) Select a **linked task** — so you can see "how many pomodoros this task took" in history
+3. Click **Start**
+4. You can **Pause** / **Resume** / **Stop** at any time
+5. When the countdown reaches zero, a sound plays and a desktop notification appears
 
-### Q6：可以导入/导出数据吗？
-暂未提供 UI。可手动复制 `guangjie.db` 备份/迁移；或编写小工具调用 `sync_snapshot` 命令导出全量 JSON。
+### 7.3 Statistics
 
-### Q7：番茄钟和任务提醒哪个先到？
-两者独立触发。可能同时弹多个通知。
-
-### Q8：可以同时打开多个窗口吗？
-当前是单窗口设计。Tauri 2 技术上支持多窗口，但 UI 未暴露入口。
-
-### Q9：怎么改主题颜色？
-进入 **设置** → **外观** → 点击喜欢的 4 个主题之一。如需自定义颜色，编辑 `src/styles/themes.css` 后重新构建。
-
-### Q10：怎么切换语言？
-**设置** → **外观** → 语言，3 选 1。立即生效，无需重启。
+- **Total sessions**, **Completed sessions**, **Total time**
+- **14-day trend** line chart
+- **History** list (each entry shows: start time, mode, duration, linked task)
 
 ---
 
-## 快捷键
+## 8. Profile
 
-| 键位 | 操作 |
+> Click the avatar at the bottom-left of the sidebar
+
+You can set:
+- **Nickname** (displayed in the sidebar and top bar)
+- **Avatar** (click "Upload" to select a local image; click × to clear)
+- **Phone**, **Email**, **Signature**
+
+Click **Save** to apply all changes (persisted locally + synced to cloud if logged in).
+
+---
+
+## 9. Settings
+
+> Click "Settings" at the bottom-left of the sidebar
+
+### 9.1 Appearance
+
+- **Theme**: Choose from 4 options (Aurora Day · Mint Garden · Midnight · Forest)
+- **Language**: English (default) · Simplified Chinese · Traditional Chinese
+- **Week starts on**: Monday · Sunday
+
+### 9.2 Pomodoro
+
+- **Default duration** (minutes): Used as the starting value for new sessions
+- **Long break** (minutes): Reserved for future use
+
+### 9.3 Reminder
+
+- **Enable notifications**: Daily reminders trigger system notifications at the specified time
+- **Show motivational quotes**: The overview page shows a quote of the day
+- **Reminder sound**: Bell · Chime · Digital · None (played when a timer ends or a reminder fires)
+
+### 9.4 Account
+
+- When not logged in: **Sign up** or **Sign in** forms
+- When logged in: Shows current nickname, with a **Sign out** button
+
+⚠️ Currently a **mock implementation**: passwords are stored locally as SHA-256 hashes and never uploaded to any server. Production deployment requires replacing `src-tauri/src/sync_engine.rs` with a real backend.
+
+### 9.5 Sync
+
+- **Enable cloud sync**: Only when enabled will the sync status appear in the top bar
+- **Server URL**: Leave blank for local mock; fill in a real URL to connect to a backend
+- **Sync now**: ↑ push (upload local to server) / ↓ pull (download from server, overwriting local)
+
+⚠️ In mock mode, push/pull simulates within the process. Restarting the app resets the state.
+
+### 9.6 About
+
+- Current **version number**
+- **Check for updates on startup**: When enabled, a check runs at each launch
+- **Check for updates**: Manually trigger a check
+
+---
+
+## 10. FAQ
+
+### Q1: Where is my data stored? Is it safe?
+All data is stored in a local SQLite database:
+- **Windows**: `%APPDATA%\com.guangjie.todo\guangjie.db`
+- **macOS**: `~/Library/Application Support/com.guangjie.todo/guangjie.db`
+- **Linux**: `~/.local/share/com.guangjie.todo/guangjie.db`
+
+When not logged in, data is **entirely local**. After enabling cloud sync and logging in, data is exchanged with the server (currently mock).
+
+### Q2: How do I back up?
+Simply copy the `guangjie.db` file listed above. Regular backups are recommended.
+
+### Q3: I forgot my password. What do I do?
+There is no password recovery (mock implementation). You can delete the `auth_pw_hash` and `auth_nickname` rows from the `settings` table, or delete the entire `guangjie.db` to reset the app.
+
+### Q4: Reminders aren't showing. What should I check?
+1. Is **Enable notifications** turned on in **Settings**?
+2. Has the OS granted notification permissions? (Windows: Settings → System → Notifications)
+3. Is the **Reminder sound** set to "None"? — If both sound and notifications are off, nothing happens
+4. Is the task already completed? — Completed tasks are no longer reminded
+
+### Q5: Can multiple people collaborate?
+Not in this version. Boards and goals are single-user local data.
+
+### Q6: Can I import/export data?
+No UI for this yet. You can manually copy `guangjie.db` for backup/migration, or write a small tool that calls the `sync_snapshot` command to export full JSON.
+
+### Q7: Which fires first — the pomodoro or the task reminder?
+They are independent and may trigger simultaneously.
+
+### Q8: Can I open multiple windows?
+Currently a single-window design. Tauri 2 technically supports multi-window, but no UI entry is exposed.
+
+### Q9: How do I change the theme colors?
+Go to **Settings** → **Appearance** → click one of the 4 themes. To customize colors, edit `src/styles/themes.css` and rebuild.
+
+### Q10: How do I switch languages?
+**Settings** → **Appearance** → Language, 3 choices. Takes effect immediately — no restart required.
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
 | --- | --- |
-| `Esc` | 关闭弹窗 |
-| `Enter` | 确认输入（新建任务、列表、目标、里程碑等） |
-| `Ctrl+Shift+I` | 打开/关闭开发者工具（开发模式默认开） |
-| `F11` | 切换全屏 |
-| 侧栏 `1-5` | （暂未绑定）切换总览/看板/目标/日历/番茄钟 |
+| `Esc` | Close modal / dialog |
+| `Enter` | Confirm input (new task, list, goal, milestone, etc.) |
+| `Ctrl+Shift+I` | Toggle developer tools (dev mode on by default) |
+| `F11` | Toggle fullscreen |
 
 ---
 
-## 获取帮助
+## Getting Help
 
-- 项目主页：见仓库 README
-- 开发者文档：见 `DEVELOPING.md`
-- 提交 Bug：请附上操作系统版本、应用版本（**设置 → 关于**）、复现步骤
+- Project README: [README.md](./README.md)
+- Developer docs: [DEVELOPING.md](./DEVELOPING.md)
+- 中文版: [USER_GUIDE_ZH.md](./USER_GUIDE_ZH.md)
+- Bug reports: Include OS version, app version (**Settings → About**), and reproduction steps

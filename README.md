@@ -1,8 +1,8 @@
-# 光阶Todo
+# Ascend Todo / 光阶Todo
 
-> 拾光而上，有序人生
+> **Master your time, elevate your life.** / **拾光而上，有序人生。**
 
-A cross-platform desktop todo app built with **React 18 + TypeScript + Tauri 2 + Rust + SQLite**.
+A cross-platform desktop task manager built with **React 18 + TypeScript + Tauri 2 + Rust + SQLite**.
 
 ## ✨ Features
 
@@ -129,7 +129,8 @@ UI: Settings → Account → Login/Register → enable Sync → Push/Pull.
 
 MIT
 
-## 📚 相关文档
+## 📚 Documentation
 
-- [DEVELOPING.md](./DEVELOPING.md) — 开发者文档（架构、添加新功能、调试、性能）
-- [USER_GUIDE.md](./USER_GUIDE.md) — 用户使用说明（每个模块的详细操作、FAQ）
+- [USER_GUIDE.md](./USER_GUIDE.md) — English user guide (detailed instructions, FAQ)
+- [USER_GUIDE_ZH.md](./USER_GUIDE_ZH.md) — 中文用户使用说明（各模块详细操作、常见问题）
+- [DEVELOPING.md](./DEVELOPING.md) — Developer docs (architecture, adding features, debugging)

@@ -52,7 +52,7 @@ export function Sidebar() {
       style={{ background: 'var(--surface)' }}
     >
       <div className="px-4 py-4">
-        <div className="text-lg font-bold tracking-tight">光阶Todo</div>
+        <div className="text-lg font-bold tracking-tight">{t('app.name')}</div>
         <div className="text-[11px] text-text-muted">{t('app.slogan')}</div>
       </div>
       <nav className="px-2 flex flex-col gap-0.5">
