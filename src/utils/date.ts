@@ -65,21 +65,57 @@ export function rangeWeeks(start: dayjs.Dayjs, weeks: number, weekStart: 'mon' |
   return arr;
 }
 
-export function heatmapCells(year: number, weekStart: 'mon' | 'sun' = 'mon') {
-  // GitHub-like: 53 weeks x 7 days for a given year
+/**
+ * Generate heatmap cells for the last N days ending today.
+ * Returns ~53 columns × 7 rows, aligned to week start.
+ */
+export function heatmapCells(daysBack: number, weekStart: 'mon' | 'sun' = 'mon') {
+  const today = dayjs().startOf('day');
+  const endWeekStart = startOfWeek(today, weekStart);
+  const totalWeeks = Math.ceil(daysBack / 7) + 1;
+  const gridStart = endWeekStart.subtract((totalWeeks - 1) * 7, 'day');
+  const cells: { date: dayjs.Dayjs; week: number; dow: number }[] = [];
+  for (let w = 0; w < totalWeeks; w++) {
+    for (let d = 0; d < 7; d++) {
+      const date = gridStart.add(w * 7 + d, 'day');
+      if (date.isAfter(today, 'day')) continue;
+      cells.push({ date, week: w, dow: d });
+    }
+  }
+  return cells;
+}
+
+/**
+ * Generate heatmap cells for a specific calendar year.
+ */
+export function heatmapCellsForYear(year: number, weekStart: 'mon' | 'sun' = 'mon') {
   const yearStart = dayjs(`${year}-01-01`).startOf('day');
   const yearEnd = dayjs(`${year}-12-31`).startOf('day');
   const today = dayjs().startOf('day');
   const endDate = yearEnd.isBefore(today) ? yearEnd : today;
-  const startWeek = startOfWeek(yearStart, weekStart);
+  const gridStart = startOfWeek(yearStart, weekStart);
   const cells: { date: dayjs.Dayjs; week: number; dow: number }[] = [];
   for (let w = 0; w < 54; w++) {
     for (let d = 0; d < 7; d++) {
-      const date = startWeek.add(w * 7 + d, 'day');
+      const date = gridStart.add(w * 7 + d, 'day');
       if (date.isAfter(endDate, 'day')) continue;
       if (date.year() !== year) continue;
       cells.push({ date, week: w, dow: d });
     }
   }
   return cells;
+}
+
+/**
+ * Compute available years from a date map.
+ */
+export function availableYears(dateMap: Map<string, number>): number[] {
+  const years = new Set<number>();
+  const currentYear = dayjs().year();
+  years.add(currentYear);
+  for (const [dateStr] of dateMap) {
+    const y = parseInt(dateStr.slice(0, 4), 10);
+    if (!isNaN(y)) years.add(y);
+  }
+  return Array.from(years).sort((a, b) => b - a);
 }

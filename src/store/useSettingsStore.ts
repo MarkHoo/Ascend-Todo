@@ -20,6 +20,8 @@ const defaultSettings: AppSettings = {
   reminderSound: 'bell',
   notificationEnabled: true,
   motivationalQuotes: true,
+  autoStart: true,
+  minimizeToTray: true,
 };
 
 export const useSettingsStore = create<State>()(

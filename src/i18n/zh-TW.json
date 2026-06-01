@@ -52,7 +52,8 @@
     "streak": "連續打卡",
     "thisWeekTasks": "本週完成",
     "goalProgress": "目標進度",
-    "activeDays": "天活動"
+    "activeDays": "天活動",
+    "last365": "最近 365 天"
   },
   "board": {
     "title": "任務看板",
@@ -190,7 +191,9 @@
     "autoUpdate": "啟動時檢查更新",
     "checkUpdate": "檢查更新",
     "about": "關於",
-    "version": "版本"
+    "version": "版本",
+    "autoStart": "開機自啟",
+    "minimizeToTray": "關閉時最小化到托盤"
   },
   "sync": {
     "pushed": "已推送到伺服器",

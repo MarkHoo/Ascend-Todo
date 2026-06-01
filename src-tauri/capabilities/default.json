@@ -38,6 +38,7 @@
     "dialog:allow-message",
     "os:default",
     "process:default",
-    "updater:default"
+    "updater:default",
+    "autostart:default"
   ]
 }

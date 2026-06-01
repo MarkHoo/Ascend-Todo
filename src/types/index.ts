@@ -152,7 +152,7 @@ export interface UserProfile {
 }
 
 export interface AppSettings {
-  theme: 'aurora-day' | 'mint-garden' | 'midnight' | 'forest';
+  theme: 'aurora-day' | 'mint-garden' | 'midnight' | 'amber-dawn';
   language: 'en' | 'zh-CN' | 'zh-TW';
   weekStart: 'mon' | 'sun';
   pomodoroDuration: number;
@@ -163,6 +163,8 @@ export interface AppSettings {
   reminderSound: 'bell' | 'chime' | 'digital' | 'none';
   notificationEnabled: boolean;
   motivationalQuotes: boolean;
+  autoStart: boolean;
+  minimizeToTray: boolean;
 }
 
 export interface AuthSession {

@@ -44,6 +44,12 @@ fn parse_settings(map: std::collections::HashMap<String, String>) -> AppSettings
     if let Some(v) = map.get("motivational_quotes") {
         s.motivational_quotes = matches!(v.as_str(), "1" | "true");
     }
+    if let Some(v) = map.get("auto_start") {
+        s.auto_start = matches!(v.as_str(), "1" | "true");
+    }
+    if let Some(v) = map.get("minimize_to_tray") {
+        s.minimize_to_tray = matches!(v.as_str(), "1" | "true");
+    }
     s
 }
 
@@ -87,6 +93,8 @@ pub fn save_settings(state: State<DbState>, settings: AppSettings) -> AppResult<
         ("reminder_sound", settings.reminder_sound.clone()),
         ("notification_enabled", (settings.notification_enabled as i32).to_string()),
         ("motivational_quotes", (settings.motivational_quotes as i32).to_string()),
+        ("auto_start", (settings.auto_start as i32).to_string()),
+        ("minimize_to_tray", (settings.minimize_to_tray as i32).to_string()),
     ];
     let c = conn(&state);
     let tx = c.unchecked_transaction()?;

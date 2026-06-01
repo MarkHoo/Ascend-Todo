@@ -204,6 +204,8 @@ pub struct AppSettings {
     pub reminder_sound: String,
     pub notification_enabled: bool,
     pub motivational_quotes: bool,
+    pub auto_start: bool,
+    pub minimize_to_tray: bool,
 }
 
 impl Default for AppSettings {
@@ -220,6 +222,8 @@ impl Default for AppSettings {
             reminder_sound: "bell".into(),
             notification_enabled: true,
             motivational_quotes: true,
+            auto_start: true,
+            minimize_to_tray: true,
         }
     }
 }

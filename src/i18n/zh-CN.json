@@ -52,7 +52,8 @@
     "streak": "连续打卡",
     "thisWeekTasks": "本周完成",
     "goalProgress": "目标进度",
-    "activeDays": "天活动"
+    "activeDays": "天活动",
+    "last365": "最近 365 天"
   },
   "board": {
     "title": "任务看板",
@@ -191,7 +192,9 @@
     "autoUpdate": "启动时检查更新",
     "checkUpdate": "检查更新",
     "about": "关于",
-    "version": "版本"
+    "version": "版本",
+    "autoStart": "开机自启",
+    "minimizeToTray": "关闭时最小化到托盘"
   },
   "sync": {
     "pushed": "已推送到服务器",

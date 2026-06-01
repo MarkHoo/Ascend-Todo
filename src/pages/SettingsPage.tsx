@@ -232,6 +232,18 @@ export function SettingsPage() {
             ))}
           </div>
         </Row>
+        <Row label={t('settings.autoStart')}>
+          <Toggle
+            value={settings.autoStart}
+            onChange={(v) => onSaveSettings({ autoStart: v })}
+          />
+        </Row>
+        <Row label={t('settings.minimizeToTray')}>
+          <Toggle
+            value={settings.minimizeToTray}
+            onChange={(v) => onSaveSettings({ minimizeToTray: v })}
+          />
+        </Row>
       </Section>
 
       <Section icon={<Cloud size={16} />} title={t('settings.sync')}>

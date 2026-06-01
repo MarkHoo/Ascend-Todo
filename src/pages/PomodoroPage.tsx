@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Play, Pause, Square, Timer as TimerIcon, History, BarChart3 } from 'lucide-react';
-import ReactECharts from 'echarts-for-react';
 import { usePomodoroStore } from '@/store/usePomodoroStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { tasksApi } from '@/api';
@@ -10,6 +9,7 @@ import { formatDuration, formatHM } from '@/utils/format';
 import { playPomodoroEnd } from '@/utils/sound';
 import { dayjs } from '@/utils/date';
 import { toast } from '@/components/common/Toast';
+import { useEChart } from '@/hooks/useEChart';
 import type { Task } from '@/types';
 
 type Mode = 'countdown' | 'countup';
@@ -143,6 +143,8 @@ export function PomodoroPage() {
     };
   }, [stats]);
 
+  const trendRef = useEChart(trendOption, [stats]);
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-semibold flex items-center gap-2 mb-4">
@@ -258,11 +260,7 @@ export function PomodoroPage() {
             <BarChart3 size={16} />
             14d trend
           </div>
-          {trendOption ? (
-            <ReactECharts option={trendOption} style={{ height: 200 }} />
-          ) : (
-            <div className="text-text-muted text-sm">{t('common.loading')}</div>
-          )}
+          <div ref={trendRef} style={{ width: '100%', height: 200 }} />
         </div>
         <div className="card p-5">
           <div className="text-sm font-semibold mb-2 flex items-center gap-2">

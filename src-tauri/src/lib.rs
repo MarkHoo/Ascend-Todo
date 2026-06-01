@@ -7,6 +7,7 @@ mod sync_engine;
 use std::sync::Mutex;
 
 use tauri::Manager;
+use tauri_plugin_autostart::MacosLauncher;
 
 use crate::db::DbState;
 
@@ -20,6 +21,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             let app_dir = app
                 .path()
@@ -32,7 +37,48 @@ pub fn run() {
             app.manage(DbState {
                 conn: Mutex::new(conn),
             });
+
+            // Setup system tray icon
+            let _tray = tauri::tray::TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("Ascend Todo")
+                .on_tray_icon_event(|tray, event| {
+                    if let tauri::tray::TrayIconEvent::Click {
+                        button: tauri::tray::MouseButton::Left,
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Check if minimize-to-tray is enabled
+                let should_minimize = {
+                    let state = window.state::<DbState>();
+                    let c = state.conn.lock().expect("db lock");
+                    c.query_row(
+                        "SELECT value FROM settings WHERE key = 'minimize_to_tray'",
+                        [],
+                        |r| r.get::<_, String>(0),
+                    )
+                    .map(|v| v == "1")
+                    .unwrap_or(true) // default: minimize to tray
+                };
+                if should_minimize {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             // boards
