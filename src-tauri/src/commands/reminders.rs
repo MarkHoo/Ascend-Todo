@@ -1,7 +1,7 @@
 use rusqlite::{params, Connection};
 use tauri::State;
 
-use crate::db::DbState;
+use crate::db::{now, DbState};
 use crate::error::AppResult;
 use crate::models::ReminderItem;
 
@@ -9,8 +9,8 @@ fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
     state.conn.lock().expect("db lock")
 }
 
-/// Returns all pending reminders (incomplete tasks with reminder_at or reminder_time set)
-/// where the reminder time is now or in the past.
+/// Returns pending reminders: incomplete tasks where reminder_at or reminder_time is due,
+/// AND we haven't already notified in the last 5 minutes for that task.
 #[tauri::command]
 pub fn pending_reminders(state: State<DbState>, now_iso: String) -> AppResult<Vec<ReminderItem>> {
     let c = conn(&state);
@@ -22,11 +22,14 @@ pub fn pending_reminders(state: State<DbState>, now_iso: String) -> AppResult<Ve
          WHERE t.is_completed = 0
            AND (
                 (t.reminder_at IS NOT NULL AND t.reminder_at <= ?)
-             OR (t.reminder_time IS NOT NULL AND t.reminder_time <= substr(?, 12, 5))
+             OR (t.reminder_time IS NOT NULL
+                 AND t.reminder_time <= substr(?, 12, 5)
+                 AND (t.last_notified_at IS NULL
+                      OR t.last_notified_at < datetime(?, '-5 minutes')))
            )
          ORDER BY t.reminder_at ASC",
     )?;
-    let rows = stmt.query_map(params![&now_iso, &now_iso], |r| {
+    let rows = stmt.query_map(params![&now_iso, &now_iso, &now_iso], |r| {
         Ok(ReminderItem {
             task_id: r.get(0)?,
             task_title: r.get(1)?,
@@ -43,6 +46,17 @@ pub fn pending_reminders(state: State<DbState>, now_iso: String) -> AppResult<Ve
         out.push(r?);
     }
     Ok(out)
+}
+
+/// Mark a task's last_notified_at to current time, preventing duplicate notifications.
+#[tauri::command]
+pub fn mark_reminder_sent(state: State<DbState>, task_id: String) -> AppResult<()> {
+    let c = conn(&state);
+    c.execute(
+        "UPDATE tasks SET last_notified_at = ? WHERE id = ?",
+        params![now(), task_id],
+    )?;
+    Ok(())
 }
 
 /// All future reminders (for UI display)

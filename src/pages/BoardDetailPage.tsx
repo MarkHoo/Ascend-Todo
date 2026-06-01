@@ -579,7 +579,7 @@ function SortableTaskCard({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            onDelete();
+            if (confirm(t('board.deleteConfirm'))) onDelete();
           }}
           className="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost p-0.5"
         >

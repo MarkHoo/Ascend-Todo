@@ -58,14 +58,19 @@ function useReminderPolling() {
         const items = await remindersApi.pending(new Date().toISOString());
         const lang = settings.language;
         const appName =
-          lang === 'zh-CN' ? 'Ascend Todo' :
+          lang === 'zh-CN' ? '光阶Todo' :
           lang === 'zh-TW' ? '光階Todo' : 'Ascend Todo';
         for (const it of items) {
           sendNotification({
             title: `${appName} · ${lang.startsWith('zh') ? '任务提醒' : 'Task Reminder'}`,
             body: `${it.taskTitle}（${it.boardName} / ${it.listName}）`,
           });
-          // play sound
+          // Mark as notified so we don't re-notify within 5 minutes
+          try {
+            await remindersApi.markSent(it.taskId);
+          } catch {
+            /* ignore */
+          }
           if (settings.reminderSound !== 'none') {
             try {
               const { playReminderSound } = await import('@/utils/sound');
@@ -79,7 +84,7 @@ function useReminderPolling() {
         /* ignore */
       }
     };
-    timer = window.setInterval(tick, 60_000);
+    timer = window.setInterval(tick, 30_000);
     tick();
     return () => {
       if (timer) clearInterval(timer);

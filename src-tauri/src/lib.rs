@@ -148,6 +148,7 @@ pub fn run() {
             commands::sync::sync_snapshot,
             // reminders
             commands::reminders::pending_reminders,
+            commands::reminders::mark_reminder_sent,
             commands::reminders::upcoming_reminders,
         ])
         .run(tauri::generate_context!())

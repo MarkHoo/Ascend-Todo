@@ -141,6 +141,16 @@ pub fn migrate(conn: &Connection) -> AppResult<()> {
         tx.execute("PRAGMA user_version = 2;", params![])?;
         tx.commit()?;
     }
+    if user_version < 3 {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(
+            r#"
+            ALTER TABLE tasks ADD COLUMN last_notified_at TEXT;
+            "#,
+        )?;
+        tx.execute("PRAGMA user_version = 3;", params![])?;
+        tx.commit()?;
+    }
     Ok(())
 }
 
