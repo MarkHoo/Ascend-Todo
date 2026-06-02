@@ -103,7 +103,17 @@
     "completedValue": "已完成",
     "totalValue": "總計",
     "renameGoal": "重新命名",
-    "maxDepth": "已達到最大子目標層級"
+    "maxDepth": "已達到最大子目標層級",
+    "keyResult": "關鍵結果",
+    "addKR": "新增關鍵結果",
+    "metric": "數值型",
+    "boolean": "布林型",
+    "milestoneType": "里程碑型",
+    "weight": "權重",
+    "archive": "歸檔",
+    "review": "復盤",
+    "score": "評分",
+    "linkedTasks": "關聯任務"
   },
   "calendar": {
     "title": "日曆",

@@ -103,7 +103,17 @@
     "completedValue": "已完成",
     "totalValue": "总计",
     "renameGoal": "重命名",
-    "maxDepth": "已达到最大子目标层级"
+    "maxDepth": "已达到最大子目标层级",
+    "keyResult": "关键结果",
+    "addKR": "添加关键结果",
+    "metric": "数值型",
+    "boolean": "布尔型",
+    "milestoneType": "里程碑型",
+    "weight": "权重",
+    "archive": "归档",
+    "review": "复盘",
+    "score": "评分",
+    "linkedTasks": "关联任务"
   },
   "calendar": {
     "title": "日历",

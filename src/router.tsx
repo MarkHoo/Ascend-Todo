@@ -6,6 +6,7 @@ import { OverviewPage } from './pages/OverviewPage';
 import { BoardsPage } from './pages/BoardsPage';
 import { BoardDetailPage } from './pages/BoardDetailPage';
 import { GoalsPage } from './pages/GoalsPage';
+import { GoalDetailPage } from './pages/GoalDetailPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { PomodoroPage } from './pages/PomodoroPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -24,6 +25,7 @@ export function AppRouter() {
             <Route path="/boards" element={<BoardsPage />} />
             <Route path="/boards/:id" element={<BoardDetailPage />} />
             <Route path="/goals" element={<GoalsPage />} />
+            <Route path="/goals/:id" element={<GoalDetailPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/pomodoro" element={<PomodoroPage />} />
             <Route path="/profile" element={<ProfilePage />} />

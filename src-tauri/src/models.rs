@@ -83,7 +83,7 @@ pub struct TaskWithSubtasks {
     pub subtasks: Vec<Subtask>,
 }
 
-// ============ Goals / Milestones ============
+// ============ Goals / Milestones / KeyResults ============
 
 camel! {
 pub struct Goal {
@@ -100,6 +100,12 @@ pub struct Goal {
     pub progress_mode: String,
     pub progress_value: f64,
     pub progress_total: f64,
+    pub category: Option<String>,
+    pub start_date: Option<String>,
+    pub weight: i32,
+    pub status: String,
+    pub review_score: Option<i32>,
+    pub review_note: Option<String>,
 }}
 
 camel! {
@@ -113,15 +119,72 @@ pub struct Milestone {
     pub created_at: String,
 }}
 
+camel! {
+pub struct KeyResult {
+    pub id: String,
+    pub goal_id: String,
+    pub title: String,
+    #[serde(rename = "type")]
+    pub kr_type: String,
+    pub start_value: f64,
+    pub target_value: f64,
+    pub current_value: f64,
+    pub unit: Option<String>,
+    pub weight: i32,
+    pub is_completed: bool,
+    pub position: i32,
+    pub created_at: String,
+}}
+
+camel! {
+pub struct ProgressLog {
+    pub id: String,
+    pub kr_id: String,
+    pub old_value: f64,
+    pub new_value: f64,
+    pub comment: Option<String>,
+    pub created_at: String,
+}}
+
+camel! {
+pub struct GoalTask {
+    pub id: String,
+    pub goal_id: Option<String>,
+    pub kr_id: Option<String>,
+    pub task_id: String,
+    pub created_at: String,
+}}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GoalWithMilestones {
+pub struct GoalWithDetails {
     #[serde(flatten)]
     pub goal: Goal,
     pub milestones: Vec<Milestone>,
-    pub sub_goals: Vec<GoalWithMilestones>,
+    pub key_results: Vec<KeyResult>,
+    pub sub_goals: Vec<GoalWithDetails>,
     pub progress: f64,
+    pub linked_tasks: Vec<LinkedTask>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyResultWithLogs {
+    #[serde(flatten)]
+    pub kr: KeyResult,
+    pub progress: f64,
+    pub logs: Vec<ProgressLog>,
+    pub milestones: Vec<Milestone>,
+}
+
+camel! {
+pub struct LinkedTask {
+    pub id: String,
+    pub title: String,
+    pub is_completed: bool,
+    pub board_name: String,
+    pub list_name: String,
+}}
 
 // ============ Pomodoro ============
 

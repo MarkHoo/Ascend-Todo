@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Target, Trash2, Calendar as CalIcon, ChevronDown, ChevronRight, Check, X } from 'lucide-react';
 import { useGoalStore } from '@/store/useGoalStore';
 import { Button } from '@/components/common/Button';
@@ -10,12 +11,13 @@ import { ColorPicker } from '@/components/common/ColorPicker';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { toast } from '@/components/common/Toast';
 import { dayjs } from '@/utils/date';
-import type { GoalWithMilestones, Milestone } from '@/types';
+import type { GoalWithDetails, Milestone } from '@/types';
 
-const MAX_DEPTH = 4;
+const MAX_DEPTH = 5;
 
 export function GoalsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { goals, fetchGoals, createGoal, updateGoal, deleteGoal, createMilestone, toggleMilestone, deleteMilestone } = useGoalStore();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -50,9 +52,9 @@ export function GoalsPage() {
     setParentId(null);
   };
 
-  const flattenForParent = (gs: GoalWithMilestones[], depth = 0): GoalWithMilestones[] => {
-    const out: GoalWithMilestones[] = [];
-    const visit = (g: GoalWithMilestones, d: number) => {
+  const flattenForParent = (gs: GoalWithDetails[], depth = 0): GoalWithDetails[] => {
+    const out: GoalWithDetails[] = [];
+    const visit = (g: GoalWithDetails, d: number) => {
       if (d < MAX_DEPTH - 1) {
         out.push(g);
         g.subGoals.forEach((sg) => visit(sg, d + 1));
@@ -95,6 +97,7 @@ export function GoalsPage() {
               onDeleteMilestone={deleteMilestone}
               onDeleteGoal={deleteGoal}
               onUpdateGoal={updateGoal}
+              onOpenDetail={(id) => navigate(`/goals/${id}`)}
               onAddSubGoal={(parentId) => {
                 setParentId(parentId);
                 setOpen(true);
@@ -172,9 +175,10 @@ function GoalCard({
   onDeleteMilestone,
   onDeleteGoal,
   onUpdateGoal,
+  onOpenDetail,
   onAddSubGoal,
 }: {
-  goal: GoalWithMilestones;
+  goal: GoalWithDetails;
   level: number;
   expanded: Record<string, boolean>;
   setExpanded: (r: Record<string, boolean>) => void;
@@ -183,6 +187,7 @@ function GoalCard({
   onDeleteMilestone: (id: string) => Promise<void>;
   onDeleteGoal: (id: string) => Promise<void>;
   onUpdateGoal: (id: string, patch: { title?: string; description?: string | null; color?: string | null; icon?: string | null; dueAt?: string | null }) => Promise<void>;
+  onOpenDetail: (id: string) => void;
   onAddSubGoal: (parentId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -242,6 +247,7 @@ function GoalCard({
             ) : (
               <h3
                 className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
+                onClick={() => onOpenDetail(goal.id)}
                 onDoubleClick={() => { setEditingTitle(true); setTitleDraft(goal.title); }}
                 title={t('goal.renameGoal')}
               >
@@ -374,6 +380,7 @@ function GoalCard({
                   onDeleteMilestone={onDeleteMilestone}
                   onDeleteGoal={onDeleteGoal}
                   onUpdateGoal={onUpdateGoal}
+                  onOpenDetail={onOpenDetail}
                   onAddSubGoal={onAddSubGoal}
                 />
               ))}

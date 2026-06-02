@@ -1,5 +1,6 @@
 pub mod boards;
 pub mod goals;
+pub mod key_results;
 pub mod calendar;
 pub mod pomodoro;
 pub mod checkins;

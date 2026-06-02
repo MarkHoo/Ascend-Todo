@@ -85,7 +85,57 @@ export interface Milestone {
   createdAt: ISODate;
 }
 
-export interface GoalWithMilestones {
+export interface KeyResult {
+  id: string;
+  goalId: string;
+  title: string;
+  type: 'metric' | 'boolean' | 'milestone';
+  startValue: number;
+  targetValue: number;
+  currentValue: number;
+  unit?: string | null;
+  weight: number;
+  isCompleted: boolean;
+  position: number;
+  createdAt: ISODate;
+}
+
+export interface ProgressLog {
+  id: string;
+  krId: string;
+  oldValue: number;
+  newValue: number;
+  comment?: string | null;
+  createdAt: ISODate;
+}
+
+export interface KeyResultWithLogs {
+  id: string;
+  goalId: string;
+  title: string;
+  type: 'metric' | 'boolean' | 'milestone';
+  startValue: number;
+  targetValue: number;
+  currentValue: number;
+  unit?: string | null;
+  weight: number;
+  isCompleted: boolean;
+  position: number;
+  createdAt: ISODate;
+  progress: number;
+  logs: ProgressLog[];
+  milestones: Milestone[];
+}
+
+export interface LinkedTask {
+  id: string;
+  title: string;
+  isCompleted: boolean;
+  boardName: string;
+  listName: string;
+}
+
+export interface GoalWithDetails {
   // flattened Goal fields
   id: string;
   title: string;
@@ -100,10 +150,21 @@ export interface GoalWithMilestones {
   progressMode: 'percentage' | 'numeric';
   progressValue: number;
   progressTotal: number;
+  category?: string | null;
+  startDate?: string | null;
+  weight: number;
+  status: 'active' | 'completed' | 'abandoned' | 'archived';
+  reviewScore?: number | null;
+  reviewNote?: string | null;
   milestones: Milestone[];
-  subGoals: GoalWithMilestones[];
+  keyResults: KeyResult[];
+  subGoals: GoalWithDetails[];
   progress: number;
+  linkedTasks: LinkedTask[];
 }
+
+// Backward compatibility alias
+export type GoalWithMilestones = GoalWithDetails;
 
 export interface PomodoroSession {
   id: string;

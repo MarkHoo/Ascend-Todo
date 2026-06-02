@@ -103,7 +103,17 @@
     "completedValue": "Completed",
     "totalValue": "Total",
     "renameGoal": "Rename",
-    "maxDepth": "Maximum sub-goal depth reached"
+    "maxDepth": "Maximum sub-goal depth reached",
+    "keyResult": "Key Result",
+    "addKR": "Add Key Result",
+    "metric": "Metric",
+    "boolean": "Boolean",
+    "milestoneType": "Milestone",
+    "weight": "Weight",
+    "archive": "Archive",
+    "review": "Review",
+    "score": "Score",
+    "linkedTasks": "Linked Tasks"
   },
   "calendar": {
     "title": "Calendar",

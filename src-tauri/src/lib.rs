@@ -110,12 +110,23 @@ pub fn run() {
             commands::goals::create_goal,
             commands::goals::update_goal,
             commands::goals::delete_goal,
+            commands::goals::archive_goal,
+            commands::goals::save_review,
             commands::goals::list_milestones,
             commands::goals::create_milestone,
             commands::goals::toggle_milestone,
             commands::goals::delete_milestone,
             commands::goals::reorder_milestones,
             commands::goals::goal_progress,
+            // key results
+            commands::key_results::list_key_results,
+            commands::key_results::create_key_result,
+            commands::key_results::update_key_result,
+            commands::key_results::check_in_kr,
+            commands::key_results::toggle_kr_completed,
+            commands::key_results::delete_key_result,
+            commands::key_results::reorder_key_results,
+            commands::key_results::kr_progress_history,
             // calendar
             commands::calendar::calendar_range,
             // pomodoro

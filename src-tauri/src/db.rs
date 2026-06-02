@@ -151,6 +151,50 @@ pub fn migrate(conn: &Connection) -> AppResult<()> {
         tx.execute("PRAGMA user_version = 3;", params![])?;
         tx.commit()?;
     }
+    if user_version < 4 {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS key_results (
+                id TEXT PRIMARY KEY,
+                goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'metric',
+                start_value REAL NOT NULL DEFAULT 0,
+                target_value REAL NOT NULL DEFAULT 1,
+                current_value REAL NOT NULL DEFAULT 0,
+                unit TEXT,
+                weight INTEGER NOT NULL DEFAULT 20,
+                is_completed INTEGER NOT NULL DEFAULT 0,
+                position INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS progress_logs (
+                id TEXT PRIMARY KEY,
+                kr_id TEXT NOT NULL REFERENCES key_results(id) ON DELETE CASCADE,
+                old_value REAL NOT NULL,
+                new_value REAL NOT NULL,
+                comment TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS goal_tasks (
+                id TEXT PRIMARY KEY,
+                goal_id TEXT REFERENCES goals(id) ON DELETE CASCADE,
+                kr_id TEXT REFERENCES key_results(id) ON DELETE CASCADE,
+                task_id TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            ALTER TABLE goals ADD COLUMN category TEXT;
+            ALTER TABLE goals ADD COLUMN start_date TEXT;
+            ALTER TABLE goals ADD COLUMN weight INTEGER NOT NULL DEFAULT 5;
+            ALTER TABLE goals ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
+            ALTER TABLE goals ADD COLUMN review_score INTEGER;
+            ALTER TABLE goals ADD COLUMN review_note TEXT;
+            "#,
+        )?;
+        tx.execute("PRAGMA user_version = 4;", params![])?;
+        tx.commit()?;
+    }
     Ok(())
 }
 
