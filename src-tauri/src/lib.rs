@@ -38,10 +38,38 @@ pub fn run() {
                 conn: Mutex::new(conn),
             });
 
-            // Setup system tray icon
+            // Setup system tray icon with context menu
+            use tauri::menu::{MenuBuilder, MenuItemBuilder};
+            let show_item = MenuItemBuilder::new("Show / 隐藏").id("show").build(app)?;
+            let quit_item = MenuItemBuilder::new("Quit / 退出").id("quit").build(app)?;
+            let menu = MenuBuilder::new(app)
+                .item(&show_item)
+                .separator()
+                .item(&quit_item)
+                .build()?;
+
             let _tray = tauri::tray::TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Ascend Todo")
+                .tooltip("光阶Todo / Ascend Todo")
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                if window.is_visible().unwrap_or(false) {
+                                    let _ = window.hide();
+                                } else {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
                 .on_tray_icon_event(|tray, event| {
                     if let tauri::tray::TrayIconEvent::Click {
                         button: tauri::tray::MouseButton::Left,

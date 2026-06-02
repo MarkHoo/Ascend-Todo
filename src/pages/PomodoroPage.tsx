@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, Pause, Square, Timer as TimerIcon, History, BarChart3 } from 'lucide-react';
 import { usePomodoroStore } from '@/store/usePomodoroStore';
@@ -6,7 +7,6 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { tasksApi } from '@/api';
 import { Button } from '@/components/common/Button';
 import { formatDuration, formatHM } from '@/utils/format';
-import { playPomodoroEnd } from '@/utils/sound';
 import { dayjs } from '@/utils/date';
 import { toast } from '@/components/common/Toast';
 import { useEChart } from '@/hooks/useEChart';
@@ -16,6 +16,7 @@ type Mode = 'countdown' | 'countup';
 
 export function PomodoroPage() {
   const { t } = useTranslation();
+  const location = useLocation();
   const settings = useSettingsStore((s) => s.settings);
   const setSettings = useSettingsStore((s) => s.setSettings);
   const { history, stats, active, fetchHistory, fetchStats, startSession, endSession, setActive } = usePomodoroStore();
@@ -29,6 +30,20 @@ export function PomodoroPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const intervalRef = useRef<number | null>(null);
   const startedAtRef = useRef<number | null>(null);
+  const pomodoroAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopPomodoroSound = useCallback(() => {
+    if (pomodoroAudioRef.current) {
+      pomodoroAudioRef.current.pause();
+      pomodoroAudioRef.current.currentTime = 0;
+      pomodoroAudioRef.current = null;
+    }
+  }, []);
+
+  // Stop pomodoro sound when navigating away
+  useEffect(() => {
+    return () => { stopPomodoroSound(); };
+  }, [location.pathname, stopPomodoroSound]);
 
   useEffect(() => {
     fetchHistory();
@@ -89,15 +104,40 @@ export function PomodoroPage() {
       await endSession(active.id, dur, completed);
     }
     if (completed) {
-      playPomodoroEnd();
+      stopPomodoroSound();
+      // Play notification sound (stoppable)
       if (settings.reminderSound !== 'none') {
         try {
-          const { playReminderSound } = await import('@/utils/sound');
-          playReminderSound(settings.reminderSound);
+          const soundMap: Record<string, string> = {
+            bell: '/sounds/bell.mp3',
+            chime: '/sounds/marimba-ringtone.wav',
+            digital: '/sounds/on-hold-ringtone.wav',
+          };
+          const file = soundMap[settings.reminderSound];
+          if (file) {
+            const audio = new Audio(file);
+            audio.volume = 0.7;
+            pomodoroAudioRef.current = audio;
+            audio.play().catch(() => {});
+          }
         } catch {
           /* */
         }
       }
+      // Desktop notification
+      try {
+        const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
+        let granted = await isPermissionGranted();
+        if (!granted) { const p = await requestPermission(); granted = p === 'granted'; }
+        if (granted) {
+          const lang = settings.language;
+          const appName = lang === 'zh-CN' ? '光阶Todo' : lang === 'zh-TW' ? '光階Todo' : 'Ascend Todo';
+          sendNotification({
+            title: `${appName} · ${t('pomodoro.notifyFinished')}`,
+            body: `${t('pomodoro.title')} ${t('pomodoro.completed')}！`,
+          });
+        }
+      } catch { /* */ }
       toast.success(t('pomodoro.notifyFinished'));
     }
     startedAtRef.current = null;

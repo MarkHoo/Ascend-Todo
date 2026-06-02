@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { Settings as SettingsIcon, Sun, Moon, Bell, Cloud, User, Info, RefreshCw } from 'lucide-react';
 import { settingsApi, syncApi, authApi } from '@/api';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -13,12 +14,32 @@ import type { SyncStatus } from '@/types';
 
 export function SettingsPage() {
   const { t } = useTranslation();
+  const location = useLocation();
   const { settings, setSettings, setAll } = useSettingsStore();
   const { session, setSession } = useAuthStore();
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [serverUrl, setServerUrl] = useState('');
   const [nick, setNick] = useState('');
   const [pw, setPw] = useState('');
+  const previewTimerRef = useRef<number | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopPreviewSound = useCallback(() => {
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+      previewAudioRef.current = null;
+    }
+  }, []);
+
+  // Stop preview sound when navigating away
+  useEffect(() => {
+    return () => { stopPreviewSound(); };
+  }, [location.pathname, stopPreviewSound]);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [busy, setBusy] = useState(false);
 
@@ -224,7 +245,25 @@ export function SettingsPage() {
             {SOUNDS.map((s) => (
               <button
                 key={s.id}
-                onClick={() => onSaveSettings({ reminderSound: s.id as any })}
+                onClick={() => {
+                  onSaveSettings({ reminderSound: s.id as any });
+                  if (s.id !== 'none') {
+                    stopPreviewSound();
+                    const soundMap: Record<string, string> = {
+                      bell: '/sounds/bell.mp3',
+                      chime: '/sounds/marimba-ringtone.wav',
+                      digital: '/sounds/on-hold-ringtone.wav',
+                    };
+                    const file = soundMap[s.id];
+                    if (file) {
+                      const audio = new Audio(file);
+                      audio.volume = 0.5;
+                      previewAudioRef.current = audio;
+                      audio.play().catch(() => {});
+                      previewTimerRef.current = window.setTimeout(() => stopPreviewSound(), 3000);
+                    }
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-md ${settings.reminderSound === s.id ? 'bg-primary text-white' : 'text-text-muted'}`}
               >
                 {t(`settings.${s.id}`)}
