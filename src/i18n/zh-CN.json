@@ -113,7 +113,13 @@
     "archive": "归档",
     "review": "复盘",
     "score": "评分",
-    "linkedTasks": "关联任务"
+    "linkedTasks": "关联任务",
+    "updateKR": "更新进度",
+    "comment": "备注",
+    "commentPlaceholder": "今天的进展如何？",
+    "reviewPlaceholder": "哪些做法有效？哪些地方遇到阻碍？下次需要改进什么？",
+    "less": "少",
+    "more": "多"
   },
   "calendar": {
     "title": "日历",

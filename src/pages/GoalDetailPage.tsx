@@ -222,17 +222,19 @@ export function GoalDetailPage() {
       )}
 
       {/* Add KR Modal */}
-      <Modal open={showAddKR} onClose={() => setShowAddKR(false)} title="Add Key Result"
+      <Modal open={showAddKR} onClose={() => setShowAddKR(false)} title={t('goal.addKR')}
         footer={<><Button variant="ghost" onClick={() => setShowAddKR(false)}>{t('common.cancel')}</Button>
         <Button onClick={onAddKR}>{t('common.create')}</Button></>}>
         <div className="space-y-3">
           <Input label={t('goal.title')} value={krTitle} onChange={(e) => setKrTitle(e.target.value)} />
           <div>
-            <label className="label">Type</label>
+            <label className="label">{t('goal.keyResult')} Type</label>
             <div className="card p-0.5 flex items-center text-sm">
               {(['metric', 'boolean', 'milestone'] as const).map((m) => (
                 <button key={m} onClick={() => setKrType(m)}
-                  className={`px-3 py-1.5 rounded-md ${krType === m ? 'bg-primary text-white' : 'text-text-muted'}`}>{m}</button>
+                  className={`px-3 py-1.5 rounded-md ${krType === m ? 'bg-primary text-white' : 'text-text-muted'}`}>
+                  {t(`goal.${m === 'milestone' ? 'milestoneType' : m}`)}
+                </button>
               ))}
             </div>
           </div>
@@ -240,16 +242,16 @@ export function GoalDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               <Input label={t('goal.totalValue')} type="number" value={krTarget}
                 onChange={(e) => setKrTarget(Number(e.target.value) || 100)} />
-              <Input label={t('profile.signature')} value={krUnit} onChange={(e) => setKrUnit(e.target.value)} placeholder="km / 次 / 本" />
+              <Input label={t('goal.weight')} value={krUnit} onChange={(e) => setKrUnit(e.target.value)} placeholder="km / 次 / 本" />
             </div>
           )}
-          <Input label={t('goal.percentage')} type="number" value={krWeight} min={1} max={100}
+          <Input label={t('goal.weight')} type="number" value={krWeight} min={1} max={100}
             onChange={(e) => setKrWeight(Math.max(1, Math.min(100, Number(e.target.value) || 20)))} />
         </div>
       </Modal>
 
       {/* Check-in Modal */}
-      <Modal open={!!checkInKR} onClose={() => setCheckInKR(null)} title={`Update: ${checkInKR?.title}`}
+      <Modal open={!!checkInKR} onClose={() => setCheckInKR(null)} title={`${t('goal.updateKR')}: ${checkInKR?.title}`}
         footer={<><Button variant="ghost" onClick={() => setCheckInKR(null)}>{t('common.cancel')}</Button>
         <Button onClick={onCheckIn}>{t('board.save')}</Button></>}>
         <div className="space-y-3">
@@ -259,11 +261,11 @@ export function GoalDetailPage() {
           ) : (
             <div className="text-center py-4">
               <Button onClick={async () => { await checkInKeyResult(checkInKR!.id, 1); setCheckInKR(null); toast.success('✓'); }}>
-                {t('pomodoro.start')} ✓
+                {t('board.save')} ✓
               </Button>
             </div>
           )}
-          <Textarea label="Comment" value={checkInComment} onChange={(e) => setCheckInComment(e.target.value)} placeholder="How did it go?" />
+          <Textarea label={t('goal.comment')} value={checkInComment} onChange={(e) => setCheckInComment(e.target.value)} placeholder={t('goal.commentPlaceholder')} />
         </div>
       </Modal>
 
@@ -286,8 +288,8 @@ export function GoalDetailPage() {
               ))}
             </div>
           </div>
-          <Textarea label={t('profile.signature')} value={reviewNote} onChange={(e) => setReviewNote(e.target.value)}
-            placeholder="What worked? What didn't? What to improve?" />
+          <Textarea label={t('goal.review')} value={reviewNote} onChange={(e) => setReviewNote(e.target.value)}
+            placeholder={t('goal.reviewPlaceholder')} />
         </div>
       </Modal>
     </div>
@@ -349,7 +351,7 @@ function KRCard({ kr, goal, onCheckIn, onToggle, onDelete }: {
             <button onClick={onCheckIn} className="btn-ghost p-1 text-xs text-primary">+1</button>
           )}
           <button onClick={onCheckIn} className="btn-ghost p-1"><Edit3 size={12} /></button>
-          <button onClick={onDelete} className="btn-ghost p-1"><Trash2 size={12} /></button>
+          <button onClick={() => { if (confirm(t('goal.deleteConfirm'))) onDelete(); }} className="btn-ghost p-1"><Trash2 size={12} /></button>
         </div>
       </div>
     </div>
@@ -357,6 +359,7 @@ function KRCard({ kr, goal, onCheckIn, onToggle, onDelete }: {
 }
 
 function MilestoneRow({ m, onToggle, onDelete }: { m: Milestone; onToggle: () => void; onDelete: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 text-sm group">
       <button onClick={onToggle} className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0"
@@ -364,7 +367,7 @@ function MilestoneRow({ m, onToggle, onDelete }: { m: Milestone; onToggle: () =>
         {m.isCompleted && <span className="text-white text-[10px]">✓</span>}
       </button>
       <span className={`flex-1 ${m.isCompleted ? 'line-through text-text-muted' : ''}`}>{m.title}</span>
-      <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost p-0.5">
+      <button onClick={() => { if (confirm(t('goal.deleteConfirm'))) onDelete(); }} className="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost p-0.5">
         <Trash2 size={12} />
       </button>
     </div>

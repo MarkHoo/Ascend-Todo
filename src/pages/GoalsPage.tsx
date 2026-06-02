@@ -336,7 +336,7 @@ function GoalCard({
                 key={m.id}
                 m={m}
                 onToggle={() => onToggleMilestone(m.id)}
-                onDelete={() => onDeleteMilestone(m.id)}
+                onDelete={() => { if (confirm(t('goal.deleteConfirm'))) onDeleteMilestone(m.id); }}
               />
             ))}
           </div>

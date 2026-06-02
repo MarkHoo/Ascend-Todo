@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { Flame, CheckCircle2, Target, Timer, TrendingUp, Calendar as CalIcon, ChevronDown } from 'lucide-react';
 import { pomodoroApi, goalsApi, tasksApi } from '@/api';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -13,6 +14,7 @@ const DAYS_BACK = 365;
 
 export function OverviewPage() {
   const { t } = useTranslation();
+  const location = useLocation();
   const settings = useSettingsStore((s) => s.settings);
   const [pomoStats, setPomoStats] = useState<{ total: number; today: number; last7: DailyPomodoroCount[] } | null>(null);
   const [goals, setGoals] = useState<GoalWithMilestones[]>([]);
@@ -22,48 +24,51 @@ export function OverviewPage() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const [p, g, allTasks] = await Promise.all([
-        pomodoroApi.stats(730),
-        goalsApi.list(),
-        tasksApi.listAll(),
-      ]);
-      setPomoStats({
-        total: p.totalSessions,
-        today: p.byDay.length ? p.byDay[p.byDay.length - 1].count : 0,
-        last7: p.byDay.slice(-7),
-      });
-      setGoals(g);
-      const start = dayjs().startOf('week');
-      const done = allTasks.filter((x) => x.isCompleted && x.completedAt && dayjs(x.completedAt).isAfter(start)).length;
-      setWeekDone(done);
+  const fetchData = useCallback(async () => {
+    const [p, g, allTasks] = await Promise.all([
+      pomodoroApi.stats(730),
+      goalsApi.list(),
+      tasksApi.listAll(),
+    ]);
+    setPomoStats({
+      total: p.totalSessions,
+      today: p.byDay.length ? p.byDay[p.byDay.length - 1].count : 0,
+      last7: p.byDay.slice(-7),
+    });
+    setGoals(g);
+    const start = dayjs().startOf('week');
+    const done = allTasks.filter((x) => x.isCompleted && x.completedAt && dayjs(x.completedAt).isAfter(start)).length;
+    setWeekDone(done);
 
-      const activityMap = new Map<string, number>();
-      for (const task of allTasks) {
-        if (task.isCompleted && task.completedAt) {
-          const d = dayjs(task.completedAt).format('YYYY-MM-DD');
-          activityMap.set(d, (activityMap.get(d) || 0) + 1);
-        }
+    const activityMap = new Map<string, number>();
+    for (const task of allTasks) {
+      if (task.isCompleted && task.completedAt) {
+        const d = dayjs(task.completedAt).format('YYYY-MM-DD');
+        activityMap.set(d, (activityMap.get(d) || 0) + 1);
       }
-      for (const pd of p.byDay) {
-        activityMap.set(pd.date, (activityMap.get(pd.date) || 0) + pd.count);
-      }
-      setDateMap(activityMap);
+    }
+    for (const pd of p.byDay) {
+      activityMap.set(pd.date, (activityMap.get(pd.date) || 0) + pd.count);
+    }
+    setDateMap(activityMap);
 
-      let s = 0;
-      const today = dayjs().startOf('day');
-      for (let i = 0; i < 730; i++) {
-        const d = today.subtract(i, 'day').format('YYYY-MM-DD');
-        if ((activityMap.get(d) || 0) > 0) {
-          s++;
-        } else if (i > 0) {
-          break;
-        }
+    let s = 0;
+    const today = dayjs().startOf('day');
+    for (let i = 0; i < 730; i++) {
+      const d = today.subtract(i, 'day').format('YYYY-MM-DD');
+      if ((activityMap.get(d) || 0) > 0) {
+        s++;
+      } else if (i > 0) {
+        break;
       }
-      setStreak(s);
-    })();
+    }
+    setStreak(s);
   }, []);
+
+  // Refetch data on mount and when navigating to this page
+  useEffect(() => {
+    fetchData();
+  }, [fetchData, location.pathname]);
 
   const quote = useMemo(() => quoteForToday(settings.language), [settings.language]);
 
@@ -261,11 +266,11 @@ export function OverviewPage() {
           </div>
         </div>
         <div className="mt-3 flex items-center gap-1 text-xs text-text-muted">
-          <span>Less</span>
+          <span>{t('goal.less') || 'Less'}</span>
           {['var(--heatmap-0)', 'var(--heatmap-1)', 'var(--heatmap-2)', 'var(--heatmap-3)', 'var(--heatmap-4)'].map(
             (c) => <span key={c} className="w-3 h-3 rounded-sm" style={{ background: c }} />,
           )}
-          <span>More</span>
+          <span>{t('goal.more') || 'More'}</span>
         </div>
       </div>
 

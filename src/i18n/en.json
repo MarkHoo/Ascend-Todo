@@ -113,7 +113,13 @@
     "archive": "Archive",
     "review": "Review",
     "score": "Score",
-    "linkedTasks": "Linked Tasks"
+    "linkedTasks": "Linked Tasks",
+    "updateKR": "Update",
+    "comment": "Comment",
+    "commentPlaceholder": "How did it go?",
+    "reviewPlaceholder": "What worked? What didn't? What to improve?",
+    "less": "Less",
+    "more": "More"
   },
   "calendar": {
     "title": "Calendar",

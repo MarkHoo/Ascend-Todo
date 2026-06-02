@@ -113,7 +113,13 @@
     "archive": "歸檔",
     "review": "復盤",
     "score": "評分",
-    "linkedTasks": "關聯任務"
+    "linkedTasks": "關聯任務",
+    "updateKR": "更新進度",
+    "comment": "備註",
+    "commentPlaceholder": "今天的進展如何？",
+    "reviewPlaceholder": "哪些做法有效？哪些地方遇到阻礙？下次需要改進什麼？",
+    "less": "少",
+    "more": "多"
   },
   "calendar": {
     "title": "日曆",
