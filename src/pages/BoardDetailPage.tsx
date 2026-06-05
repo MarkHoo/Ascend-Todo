@@ -43,6 +43,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const MAX_NESTING = 5;
+const TOOL_ICON_SIZE = 15;
 
 function fmtTaskDueDate(iso: string | undefined): string {
   if (!iso) return '';
@@ -137,7 +138,7 @@ function ToolbarBtn({ active, onClick, title, children }: {
 }) {
   return (
     <button
-      className={`p-1.5 rounded border transition-colors ${active ? 'bg-primary text-white border-primary shadow-sm' : 'border-transparent text-text-muted hover:bg-surface-2 hover:text-text'}`}
+      className={`w-7 h-7 inline-flex items-center justify-center rounded border text-[11px] font-semibold transition-colors ${active ? 'bg-primary text-white border-primary shadow-sm' : 'border-transparent text-text-muted hover:bg-surface-2 hover:text-text'}`}
       onClick={onClick} title={title} onMouseDown={(e) => e.preventDefault()}
     >{children}</button>
   );
@@ -150,13 +151,17 @@ export function BoardDetailPage() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const { currentBoard, fetchBoard, createList, togglePin, deleteList, deleteTask,
-    reorderLists, moveTask, createTask, getTask, updateTask } = useBoardStore();
+    reorderLists, moveTask, createTask, getTask, updateTask, updateBoard } = useBoardStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<'list' | 'task' | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [newListName, setNewListName] = useState('');
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editListName, setEditListName] = useState('');
+  const [boardEditOpen, setBoardEditOpen] = useState(false);
+  const [boardEditName, setBoardEditName] = useState('');
+  const [boardEditDesc, setBoardEditDesc] = useState('');
+  const [boardEditColor, setBoardEditColor] = useState<string | null>('#6366f1');
   const [taskStack, setTaskStack] = useState<{ task: TaskWithSubtasks; depth: number }[]>([]);
   const taskStackRef = useRef(taskStack);
   taskStackRef.current = taskStack;
@@ -166,6 +171,12 @@ export function BoardDetailPage() {
   const lang = i18n.language;
 
   useEffect(() => { if (id) fetchBoard(id); }, [id, fetchBoard]);
+  useEffect(() => {
+    if (!currentBoard?.board || boardEditOpen) return;
+    setBoardEditName(currentBoard.board.name);
+    setBoardEditDesc(currentBoard.board.description || '');
+    setBoardEditColor(currentBoard.board.color || '#6366f1');
+  }, [currentBoard?.board, boardEditOpen]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   // ALL hooks must be BEFORE any early returns (Rules of Hooks)
@@ -190,6 +201,27 @@ export function BoardDetailPage() {
     return <div className="p-6 text-text-muted">{t('common.loading')}</div>;
   }
   const { board, lists } = currentBoard;
+
+  const openBoardEditor = () => {
+    setBoardEditName(board.name);
+    setBoardEditDesc(board.description || '');
+    setBoardEditColor(board.color || '#6366f1');
+    setBoardEditOpen(true);
+  };
+
+  const saveBoardEditor = async () => {
+    if (!boardEditName.trim()) {
+      toast.error(t('profile.nickname') + ' ?');
+      return;
+    }
+    await updateBoard(board.id, {
+      name: boardEditName.trim(),
+      description: boardEditDesc || null,
+      color: boardEditColor,
+    });
+    await fetchBoard(board.id);
+    setBoardEditOpen(false);
+  };
 
   const openTaskDetail = async (task: TaskWithSubtasks, depth = 0) => {
     if (depth >= MAX_NESTING) { toast.error(t('board.maxDepth') || 'Max nesting depth reached'); return; }
@@ -247,8 +279,8 @@ export function BoardDetailPage() {
           <ArrowLeft size={18} />
         </button>
         <div className="w-3 h-6 rounded-full" style={{ background: board.color || 'var(--primary)' }} />
-        <div>
-          <h1 className="text-lg font-semibold">{board.name}</h1>
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold cursor-pointer truncate" onDoubleClick={openBoardEditor}>{board.name}</h1>
           {board.description && <div className="text-xs text-text-muted">{board.description}</div>}
         </div>
         <button onClick={() => togglePin(board.id)} className="btn-ghost ml-2"
@@ -334,6 +366,38 @@ export function BoardDetailPage() {
         onConfirm={deleteConfirm.onConfirm}
         message={deleteConfirm.message}
       />
+      <Modal
+        open={boardEditOpen}
+        onClose={() => setBoardEditOpen(false)}
+        title={i18n.language.startsWith('zh') ? '看板' : 'Board'}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setBoardEditOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={saveBoardEditor}>{t('common.save')}</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Input
+            label={t('board.taskTitle')}
+            value={boardEditName}
+            onChange={(e) => setBoardEditName(e.target.value)}
+            placeholder="My Tasks"
+          />
+          <div>
+            <label className="label">{t('board.boardColor')}</label>
+            <ColorPicker value={boardEditColor} onChange={setBoardEditColor} />
+          </div>
+          <Input
+            label={t('board.taskDescription')}
+            value={boardEditDesc}
+            onChange={(e) => setBoardEditDesc(e.target.value)}
+            placeholder="..."
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -629,48 +693,48 @@ function TaskDetailModal({
                 <div className="space-y-2">
                   {/* Mode toggle */}
                   <div className="flex items-center gap-1">
-                    <button className={`text-xs px-2 py-1 rounded-l-md border ${descMode === 'richtext' ? 'bg-primary text-white border-primary shadow-sm' : 'border-border bg-surface-2/30 text-text-muted hover:text-text'}`}
-                      onClick={() => setEditorMode('richtext')}><Type size={12} className="inline mr-1" />{t('board.richTextMode')}</button>
-                    <button className={`text-xs px-2 py-1 rounded-r-md border border-l-0 ${descMode === 'markdown' ? 'bg-primary text-white border-primary shadow-sm' : 'border-border bg-surface-2/30 text-text-muted hover:text-text'}`}
-                      onClick={() => setEditorMode('markdown')}><FileText size={12} className="inline mr-1" />{t('board.markdownMode')}</button>
+                    <button className={`h-8 text-xs px-2 rounded-l-md border inline-flex items-center gap-1 ${descMode === 'markdown' ? 'bg-primary text-white border-primary shadow-sm' : 'border-border bg-surface-2/30 text-text-muted hover:text-text'}`}
+                      onClick={() => setEditorMode('markdown')}><FileText size={TOOL_ICON_SIZE} />{t('board.markdownMode')}</button>
+                    <button className={`h-8 text-xs px-2 rounded-r-md border border-l-0 inline-flex items-center gap-1 ${descMode === 'richtext' ? 'bg-primary text-white border-primary shadow-sm' : 'border-border bg-surface-2/30 text-text-muted hover:text-text'}`}
+                      onClick={() => setEditorMode('richtext')}><Type size={TOOL_ICON_SIZE} />{t('board.richTextMode')}</button>
                   </div>
 
                   {/* Editor container — toolbar + content as one visual unit */}
                   <div className="rounded-lg border border-border overflow-hidden">
                     {/* Toolbar */}
-                    <div className="flex items-center gap-0.5 flex-wrap px-2 py-1 border-b border-border bg-surface-2/40">
+                    <div className="min-h-10 flex items-center gap-0.5 flex-wrap px-2 py-1.5 border-b border-border bg-surface-2/40">
                       {descMode === 'richtext' ? (
                         <>
-                          <ToolbarBtn active={rtActiveStates.bold} onClick={() => execCmd('bold')} title="Bold"><Bold size={14} /></ToolbarBtn>
-                          <ToolbarBtn active={rtActiveStates.italic} onClick={() => execCmd('italic')} title="Italic"><Italic size={14} /></ToolbarBtn>
-                          <ToolbarBtn active={rtActiveStates.underline} onClick={() => execCmd('underline')} title="Underline"><Underline size={14} /></ToolbarBtn>
+                          <ToolbarBtn active={rtActiveStates.bold} onClick={() => execCmd('bold')} title="Bold"><Bold size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn active={rtActiveStates.italic} onClick={() => execCmd('italic')} title="Italic"><Italic size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn active={rtActiveStates.underline} onClick={() => execCmd('underline')} title="Underline"><Underline size={TOOL_ICON_SIZE} /></ToolbarBtn>
                           <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'h1')} title="H1"><Heading1 size={14} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'h2')} title="H2"><Heading2 size={14} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'h1')} title="H1"><Heading1 size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'h2')} title="H2"><Heading2 size={TOOL_ICON_SIZE} /></ToolbarBtn>
                           <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn active={rtActiveStates.insertUnorderedList} onClick={() => execCmd('insertUnorderedList')} title="Bullet List"><ListIcon size={14} /></ToolbarBtn>
-                          <ToolbarBtn active={rtActiveStates.insertOrderedList} onClick={() => execCmd('insertOrderedList')} title="Numbered List"><ListOrdered size={14} /></ToolbarBtn>
+                          <ToolbarBtn active={rtActiveStates.insertUnorderedList} onClick={() => execCmd('insertUnorderedList')} title="Bullet List"><ListIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn active={rtActiveStates.insertOrderedList} onClick={() => execCmd('insertOrderedList')} title="Numbered List"><ListOrdered size={TOOL_ICON_SIZE} /></ToolbarBtn>
                           <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => { const url = prompt('URL:'); if (url) execCmd('createLink', url); }} title="Link"><LinkIcon size={14} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'blockquote')} title="Quote"><Quote size={14} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'pre')} title="Code"><Code size={14} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => { const url = prompt('URL:'); if (url) execCmd('createLink', url); }} title="Link"><LinkIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'blockquote')} title="Quote"><Quote size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'pre')} title="Code"><Code size={TOOL_ICON_SIZE} /></ToolbarBtn>
                         </>
                       ) : (
                         <>
-                          <ToolbarBtn onClick={() => insertMd('**', '**')} title="Bold"><Bold size={14} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('*', '*')} title="Italic"><Italic size={14} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('~~', '~~')} title="Strikethrough"><Minus size={14} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => insertMd('**', '**')} title="Bold"><Bold size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => insertMd('*', '*')} title="Italic"><Italic size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => insertMd('~~', '~~')} title="Strikethrough"><Minus size={TOOL_ICON_SIZE} /></ToolbarBtn>
                           <div className="w-px h-4 bg-border mx-0.5" />
                           <ToolbarBtn onClick={() => insertMd('# ')} title="H1"><span className="text-xs font-bold">H1</span></ToolbarBtn>
                           <ToolbarBtn onClick={() => insertMd('## ')} title="H2"><span className="text-xs font-bold">H2</span></ToolbarBtn>
                           <ToolbarBtn onClick={() => insertMd('### ')} title="H3"><span className="text-xs font-bold">H3</span></ToolbarBtn>
                           <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => insertMd('- ')} title="Bullet List"><ListIcon size={14} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('1. ')} title="Ordered List"><ListOrdered size={14} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => insertMd('- ')} title="Bullet List"><ListIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => insertMd('1. ')} title="Ordered List"><ListOrdered size={TOOL_ICON_SIZE} /></ToolbarBtn>
                           <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => insertMd('[', '](url)')} title="Link"><LinkIcon size={14} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('> ')} title="Quote"><Quote size={14} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('`', '`')} title="Inline Code"><Code size={14} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => insertMd('[', '](url)')} title="Link"><LinkIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => insertMd('> ')} title="Quote"><Quote size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                          <ToolbarBtn onClick={() => insertMd('`', '`')} title="Inline Code"><Code size={TOOL_ICON_SIZE} /></ToolbarBtn>
                           <ToolbarBtn onClick={() => insertMd('```\n', '\n```')} title="Code Block"><span className="text-[10px] font-mono">```</span></ToolbarBtn>
                         </>
                       )}
