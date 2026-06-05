@@ -7,6 +7,8 @@ import {
   List as ListIcon, ListOrdered, Link as LinkIcon, Code, Quote, Minus,
 } from 'lucide-react';
 import { marked } from 'marked';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/atom-one-dark.css';
 import {
   DndContext, closestCorners, DragEndEvent, DragOverlay, DragStartEvent,
   PointerSensor, useSensor, useSensors,
@@ -75,17 +77,40 @@ function fmtDateTime(iso: string | undefined, lang: string): string {
 // Configure marked (v15 compatible)
 try { marked.use({ breaks: true, gfm: true }); } catch { /* fallback */ }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function highlightCode(code: string, lang: string): string {
+  const raw = decodeHtmlEntities(code);
+  try {
+    if (lang && hljs.getLanguage(lang)) {
+      return hljs.highlight(raw, { language: lang, ignoreIllegals: true }).value;
+    }
+    return hljs.highlightAuto(raw).value;
+  } catch {
+    return code;
+  }
+}
+
 function decorateCodeBlocks(html: string): string {
   return html.replace(
     /<pre><code( class="language-([^"]+)")?>([\s\S]*?)<\/code><\/pre>/g,
     (_match, classAttr = '', lang = '', code = '') => {
       const normalized = code.endsWith('\n') ? code.slice(0, -1) : code;
-      const lines: string[] = normalized.split('\n');
+      const highlighted = highlightCode(normalized, lang);
+      const lines: string[] = highlighted.split('\n');
       const numbered = lines.map((line: string, index: number) => (
         `<span class="md-code-line"><span class="md-code-number">${index + 1}</span><span class="md-code-text">${line || ' '}</span></span>`
       )).join('');
       const language = lang ? `<div class="md-code-lang">${lang}</div>` : '';
-      return `<div class="md-codeblock">${language}<pre><code${classAttr}>${numbered}</code></pre></div>`;
+      const codeClass = `hljs${lang ? ` language-${lang}` : ''}`;
+      return `<div class="md-codeblock">${language}<pre><code class="${codeClass}">${numbered}</code></pre></div>`;
     },
   );
 }
