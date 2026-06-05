@@ -108,7 +108,7 @@
     "clickToView": "Click to view",
     "richTextMode": "Rich Text",
     "markdownMode": "Markdown",
-    "descPlaceholder": "Click here to start editing description...",
+    "descPlaceholder": "Double-click here to start editing description...",
     "noSubtasks": "No subtasks yet",
     "maxDepth": "Maximum subtask nesting depth reached (5 levels)"
   },

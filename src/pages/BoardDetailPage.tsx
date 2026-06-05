@@ -44,6 +44,12 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const MAX_NESTING = 5;
 
+function fmtTaskDueDate(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = dayjs(iso);
+  return d.year() === dayjs().year() ? d.format('MM-DD') : d.format('YYYY-MM-DD');
+}
+
 function statusLabel(s: TaskStatus, t: (k: string) => string) {
   const m: Record<TaskStatus, string> = {
     not_started: t('board.statusNotStarted'), in_progress: t('board.statusInProgress'),
@@ -363,6 +369,7 @@ function TaskDetailModal({
   const mdTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newSubtask, setNewSubtask] = useState('');
   const [rtActiveStates, setRtActiveStates] = useState<Record<string, boolean>>({});
+  const canHaveSubtasks = depth < MAX_NESTING - 1;
 
   // Sync draft when task changes
   useEffect(() => {
@@ -372,6 +379,12 @@ function TaskDetailModal({
       priority: task.priority, startAt: task.startAt,
     });
   }, [task.id, task.title, task.description, task.dueAt, task.reminderTime, task.color, task.status, task.priority, task.startAt]);
+
+  useEffect(() => {
+    if (!canHaveSubtasks && detailTab === 'subtask') {
+      setDetailTab('info');
+    }
+  }, [canHaveSubtasks, detailTab]);
 
   // Auto-save
   useAutoSave(
@@ -601,8 +614,10 @@ function TaskDetailModal({
         <div className="flex items-center gap-1 border-b border-border pb-1">
           <button className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${detailTab === 'info' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-text-muted hover:text-text'}`}
             onClick={() => setDetailTab('info')}>{t('board.taskInfo')}</button>
-          <button className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${detailTab === 'subtask' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-text-muted hover:text-text'}`}
-            onClick={() => setDetailTab('subtask')}>{t('board.subtask')} {task.subtasks.length > 0 && `(${task.subtasks.length})`}</button>
+          {canHaveSubtasks && (
+            <button className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${detailTab === 'subtask' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-text-muted hover:text-text'}`}
+              onClick={() => setDetailTab('subtask')}>{t('board.subtask')} {task.subtasks.length > 0 && `(${task.subtasks.length})`}</button>
+          )}
         </div>
 
         {/* Tab content */}
@@ -688,7 +703,7 @@ function TaskDetailModal({
                 </div>
               ) : (
                 <div className="p-4 rounded-lg border border-border bg-surface-2/50 min-h-[120px] max-h-[50vh] overflow-y-auto text-sm cursor-pointer hover:border-primary/50 transition-colors prose prose-sm max-w-none"
-                  onClick={startEditingDesc}>
+                  onDoubleClick={startEditingDesc}>
                   {hasHtmlTags
                     ? <div dangerouslySetInnerHTML={{ __html: descHtml }} />
                     : descHtml
@@ -760,7 +775,7 @@ function TaskCardContent({ task }: { task: TaskWithSubtasks }) {
           {task.priority && <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium"
             style={{ background: PRIORITY_COLORS[task.priority] ? `${PRIORITY_COLORS[task.priority]}20` : 'var(--surface-2)', color: PRIORITY_COLORS[task.priority] || 'var(--text-muted)' }}>
             {priorityLabel(task.priority, t)}</span>}
-          {task.dueAt && <span className="flex items-center gap-0.5 text-[10px] text-text-muted"><CalIcon size={9} />{dayjs(task.dueAt).format('MM-DD')}</span>}
+          {task.dueAt && <span className="flex items-center gap-0.5 text-[10px] text-text-muted"><CalIcon size={9} />{fmtTaskDueDate(task.dueAt)}</span>}
         </div>
       </div>
     </div>
@@ -855,7 +870,7 @@ function SortableTaskCard({ task, index, isSelected, onToggle, onDelete, onView,
   return (
     <div ref={setNodeRef} style={style}
       className={`rounded-lg p-2.5 border group cursor-pointer transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
-      {...attributes} {...listeners} onClick={onView} onDoubleClick={onEdit}>
+      {...attributes} {...listeners} onClick={() => { onView(); onEdit(); }}>
       <div className="flex items-start gap-2">
         <button onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
@@ -894,7 +909,7 @@ function SubtaskCard({ subtask, onToggle, onDelete, onClick }: {
         {priorityLabel(subtask.priority, t)}</span>}
       <span className="text-[9px] px-1 py-0.5 rounded-full font-medium text-white shrink-0"
         style={{ background: STATUS_COLORS[status] || 'var(--text-muted)' }}>{statusLabel(status, t)}</span>
-      {subtask.dueAt && <span className="flex items-center gap-0.5 text-[10px] text-text-muted shrink-0"><CalIcon size={8} />{dayjs(subtask.dueAt).format('MM-DD')}</span>}
+      {subtask.dueAt && <span className="flex items-center gap-0.5 text-[10px] text-text-muted shrink-0"><CalIcon size={8} />{fmtTaskDueDate(subtask.dueAt)}</span>}
       <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
         className="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost p-0.5 shrink-0"><Trash2 size={10} /></button>
     </div>

@@ -108,7 +108,7 @@
     "clickToView": "點擊查看",
     "richTextMode": "富文本",
     "markdownMode": "Markdown",
-    "descPlaceholder": "點擊此處開始編輯描述...",
+    "descPlaceholder": "雙擊此處開始編輯描述...",
     "noSubtasks": "暫無子任務",
     "maxDepth": "已達到最大子任務嵌套層數（5層）"
   },
