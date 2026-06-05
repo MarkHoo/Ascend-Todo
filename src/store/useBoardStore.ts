@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { boardsApi, listsApi, tasksApi } from '@/api';
 import type { Board, BoardWithLists, TaskWithSubtasks } from '@/types';
 
+const REMINDERS_CHANGED_EVENT = 'ascend:reminders-changed';
+
 interface State {
   boards: Board[];
   currentBoard: BoardWithLists | null;
@@ -23,6 +25,22 @@ interface State {
   moveTask: (id: string, targetListId: string, targetPosition: number) => Promise<void>;
   reorderTasks: (listId: string, ids: string[]) => Promise<void>;
   reorderLists: (boardId: string, ids: string[]) => Promise<void>;
+}
+
+function patchTaskTree(
+  tasks: TaskWithSubtasks[],
+  id: string,
+  patch: Partial<TaskWithSubtasks>,
+): TaskWithSubtasks[] {
+  return tasks.map((task) => {
+    if (task.id === id) {
+      return { ...task, ...patch, updatedAt: new Date().toISOString() };
+    }
+    if (task.subtasks.length > 0) {
+      return { ...task, subtasks: patchTaskTree(task.subtasks, id, patch) };
+    }
+    return task;
+  });
 }
 
 export const useBoardStore = create<State>((set, get) => ({
@@ -93,20 +111,42 @@ export const useBoardStore = create<State>((set, get) => ({
     if (cur) await get().fetchBoard(cur.board.id);
   },
   updateTask: async (id, patch) => {
-    await tasksApi.update({
-      id,
-      title: patch.title,
-      description: patch.description !== undefined ? patch.description : undefined,
-      dueAt: patch.dueAt,
-      reminderAt: patch.reminderAt,
-      reminderTime: patch.reminderTime,
-      color: patch.color,
-      status: patch.status,
-      priority: patch.priority,
-      startAt: patch.startAt,
-    });
-    const cur = get().currentBoard;
-    if (cur) await get().fetchBoard(cur.board.id);
+    const before = get().currentBoard;
+    if (before) {
+      set({
+        currentBoard: {
+          ...before,
+          lists: before.lists.map((list) => ({
+            ...list,
+            tasks: patchTaskTree(list.tasks, id, patch as Partial<TaskWithSubtasks>),
+          })),
+        },
+      });
+    }
+    try {
+      await tasksApi.update({
+        id,
+        title: patch.title,
+        description: patch.description !== undefined ? patch.description : undefined,
+        dueAt: patch.dueAt,
+        reminderAt: patch.reminderAt,
+        reminderTime: patch.reminderTime,
+        color: patch.color,
+        status: patch.status,
+        priority: patch.priority,
+        startAt: patch.startAt,
+      });
+      const cur = get().currentBoard;
+      if (cur) {
+        get().fetchBoard(cur.board.id).catch(() => {});
+      }
+      if ('reminderAt' in patch || 'reminderTime' in patch || 'dueAt' in patch) {
+        window.dispatchEvent(new Event(REMINDERS_CHANGED_EVENT));
+      }
+    } catch (error) {
+      if (before) set({ currentBoard: before });
+      throw error;
+    }
   },
   moveTask: async (id, targetListId, targetPosition) => {
     await tasksApi.move({ id, targetListId, targetPosition });

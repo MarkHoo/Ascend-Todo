@@ -68,10 +68,25 @@ function fmtDateTime(iso: string | undefined, lang: string): string {
 // Configure marked (v15 compatible)
 try { marked.use({ breaks: true, gfm: true }); } catch { /* fallback */ }
 
+function decorateCodeBlocks(html: string): string {
+  return html.replace(
+    /<pre><code( class="language-([^"]+)")?>([\s\S]*?)<\/code><\/pre>/g,
+    (_match, classAttr = '', lang = '', code = '') => {
+      const normalized = code.endsWith('\n') ? code.slice(0, -1) : code;
+      const lines: string[] = normalized.split('\n');
+      const numbered = lines.map((line: string, index: number) => (
+        `<span class="md-code-line"><span class="md-code-number">${index + 1}</span><span class="md-code-text">${line || ' '}</span></span>`
+      )).join('');
+      const language = lang ? `<div class="md-code-lang">${lang}</div>` : '';
+      return `<div class="md-codeblock">${language}<pre><code${classAttr}>${numbered}</code></pre></div>`;
+    },
+  );
+}
+
 function renderMarkdown(md: string): string {
   try {
     const result = marked.parse(md);
-    return typeof result === 'string' ? result : '';
+    return typeof result === 'string' ? decorateCodeBlocks(result) : '';
   } catch { return md; }
 }
 
@@ -116,7 +131,7 @@ function ToolbarBtn({ active, onClick, title, children }: {
 }) {
   return (
     <button
-      className={`p-1.5 rounded transition-colors ${active ? 'bg-primary/20 text-primary' : 'text-text-muted hover:bg-surface-2 hover:text-text'}`}
+      className={`p-1.5 rounded border transition-colors ${active ? 'bg-primary text-white border-primary shadow-sm' : 'border-transparent text-text-muted hover:bg-surface-2 hover:text-text'}`}
       onClick={onClick} title={title} onMouseDown={(e) => e.preventDefault()}
     >{children}</button>
   );
@@ -132,6 +147,7 @@ export function BoardDetailPage() {
     reorderLists, moveTask, createTask, getTask, updateTask } = useBoardStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<'list' | 'task' | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [newListName, setNewListName] = useState('');
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editListName, setEditListName] = useState('');
@@ -254,6 +270,8 @@ export function BoardDetailPage() {
                   onAddTask={async (title) => { await createTask(l.list.id, title); }}
                   onToggleTask={(taskId) => useBoardStore.getState().toggleTask(taskId)}
                   onDeleteTask={(taskId) => setDeleteConfirm({ open: true, message: t('board.deleteConfirm'), onConfirm: () => deleteTask(taskId) })}
+                  selectedTaskId={selectedTaskId}
+                  onViewTask={(taskId) => setSelectedTaskId(taskId)}
                   onEditTask={(task) => openTaskDetail(task, 0)}
                   onDeleteList={() => setDeleteConfirm({ open: true, message: t('goal.deleteConfirm'), onConfirm: () => deleteList(l.list.id) })}
                 />
@@ -340,7 +358,7 @@ function TaskDetailModal({
   const [detailTab, setDetailTab] = useState<'info' | 'subtask'>('info');
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [descDraft, setDescDraft] = useState(task.description || '');
-  const [descMode, setDescMode] = useState<'richtext' | 'markdown'>('richtext');
+  const [descMode, setDescMode] = useState<'richtext' | 'markdown'>('markdown');
   const descEditorRef = useRef<HTMLDivElement>(null);
   const mdTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newSubtask, setNewSubtask] = useState('');
@@ -372,6 +390,7 @@ function TaskDetailModal({
     if (newDesc !== (task.description || '')) {
       await updateTask(task.id, { description: newDesc });
       setDraft((d) => ({ ...d, description: newDesc }));
+      await onRefresh();
       toast.success(t('board.save'));
     }
     setIsEditingDesc(false);
@@ -381,10 +400,23 @@ function TaskDetailModal({
     const desc = task.description || '';
     setDescDraft(desc);
     setIsEditingDesc(true);
-    if (descMode === 'richtext' && descEditorRef.current) {
-      descEditorRef.current.innerHTML = desc;
-    }
   };
+
+  useEffect(() => {
+    if (!isEditingDesc) return;
+    requestAnimationFrame(() => {
+      if (descMode === 'markdown') {
+        const ta = mdTextareaRef.current;
+        ta?.focus();
+        const pos = ta?.value.length ?? 0;
+        ta?.setSelectionRange(pos, pos);
+        ta?.scrollTo({ top: ta.scrollHeight });
+      } else if (descEditorRef.current) {
+        descEditorRef.current.innerHTML = descDraft;
+        descEditorRef.current.focus();
+      }
+    });
+  }, [isEditingDesc, descMode]);
 
   // ============ Rich Text commands ============
   const execCmd = (cmd: string, value?: string) => {
@@ -411,21 +443,33 @@ function TaskDetailModal({
   };
 
   // ============ Markdown helpers ============
-  const insertMd = (before: string, after = '') => {
-    const ta = mdTextareaRef.current;
-    if (!ta) return;
+  const replaceMdRange = (
+    ta: HTMLTextAreaElement,
+    start: number,
+    end: number,
+    text: string,
+    cursorOffset = text.length,
+  ) => {
     const scrollTop = ta.scrollTop;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const selected = descDraft.substring(start, end);
-    const newText = descDraft.substring(0, start) + before + selected + after + descDraft.substring(end);
+    const newText = descDraft.substring(0, start) + text + descDraft.substring(end);
     setDescDraft(newText);
     requestAnimationFrame(() => {
       ta.focus();
       ta.scrollTop = scrollTop;
-      const newPos = start + before.length + selected.length;
-      ta.setSelectionRange(newPos, newPos);
+      const next = start + cursorOffset;
+      ta.setSelectionRange(next, next);
     });
+  };
+
+  const insertMd = (before: string, after = '') => {
+    const ta = mdTextareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = descDraft.substring(start, end);
+    const inserted = before + selected + after;
+    const cursorOffset = before === '```\n' ? before.length : before.length + selected.length;
+    replaceMdRange(ta, start, end, inserted, cursorOffset);
   };
 
   const handleMdKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -434,56 +478,54 @@ function TaskDetailModal({
       const ta = e.currentTarget;
       const start = ta.selectionStart;
       const end = ta.selectionEnd;
-      const newText = descDraft.substring(0, start) + '   ' + descDraft.substring(end);
-      setDescDraft(newText);
-      requestAnimationFrame(() => {
-        ta.setSelectionRange(start + 3, start + 3);
-      });
+      replaceMdRange(ta, start, end, '  ');
       return;
     }
     if (e.key === 'Enter') {
       e.preventDefault();
       const ta = e.currentTarget;
       const start = ta.selectionStart;
+      const end = ta.selectionEnd;
       const lineStart = descDraft.lastIndexOf('\n', start - 1) + 1;
       const currentLine = descDraft.substring(lineStart, start);
 
-      // Check for ordered list pattern: "1. ", "2. ", etc.
-      const olMatch = currentLine.match(/^(\d+)\.\s/);
-      // Check for unordered list pattern: "- ", "* ", "+ "
-      const ulMatch = currentLine.match(/^([*-+])\s/);
+      const olMatch = currentLine.match(/^(\s*)(\d+)\.\s(.*)$/);
+      const ulMatch = currentLine.match(/^(\s*)([-*+])\s(.*)$/);
+      const quoteMatch = currentLine.match(/^(\s*)>\s?(.*)$/);
+      const headingMatch = currentLine.match(/^(#{1,6})\s*$/);
 
       let insert = '\n';
       if (olMatch) {
-        const nextNum = parseInt(olMatch[1]) + 1;
-        // If current line only has the prefix (empty item), remove it instead
-        if (currentLine.trim() === `${olMatch[1]}.`) {
-          const before = descDraft.substring(0, lineStart);
-          const after = descDraft.substring(start);
-          setDescDraft(before + after);
-          requestAnimationFrame(() => { ta.setSelectionRange(lineStart, lineStart); });
+        const [, indent, number, rest] = olMatch;
+        if (rest.trim() === '') {
+          replaceMdRange(ta, lineStart, start, '');
           return;
         }
-        insert = `\n${nextNum}. `;
+        insert = `\n${indent}${parseInt(number, 10) + 1}. `;
       } else if (ulMatch) {
-        // If current line only has the prefix (empty item), remove it
-        if (currentLine.trim() === ulMatch[1]) {
-          const before = descDraft.substring(0, lineStart);
-          const after = descDraft.substring(start);
-          setDescDraft(before + after);
-          requestAnimationFrame(() => { ta.setSelectionRange(lineStart, lineStart); });
+        const [, indent, marker, rest] = ulMatch;
+        if (rest.trim() === '') {
+          replaceMdRange(ta, lineStart, start, '');
           return;
         }
-        insert = `\n${ulMatch[1]} `;
+        insert = `\n${indent}${marker} `;
+      } else if (quoteMatch) {
+        const [, indent, rest] = quoteMatch;
+        insert = rest.trim() ? `\n${indent}> ` : '\n';
+      } else if (headingMatch) {
+        insert = '\n\n';
       }
 
-      const newText = descDraft.substring(0, start) + insert + descDraft.substring(start);
-      setDescDraft(newText);
-      requestAnimationFrame(() => {
-        const newPos = start + insert.length;
-        ta.setSelectionRange(newPos, newPos);
-      });
+      replaceMdRange(ta, start, end, insert);
     }
+  };
+
+  const setEditorMode = (mode: 'richtext' | 'markdown') => {
+    if (mode === descMode) return;
+    if (descMode === 'richtext' && descEditorRef.current) {
+      setDescDraft(descEditorRef.current.innerHTML);
+    }
+    setDescMode(mode);
   };
 
   const descHtml = task.description || '';
@@ -572,10 +614,10 @@ function TaskDetailModal({
                 <div className="space-y-2">
                   {/* Mode toggle */}
                   <div className="flex items-center gap-1">
-                    <button className={`text-xs px-2 py-1 rounded-l-md border border-border ${descMode === 'richtext' ? 'bg-primary/10 text-primary border-primary' : 'bg-surface-2/30 text-text-muted hover:text-text'}`}
-                      onClick={() => setDescMode('richtext')}><Type size={12} className="inline mr-1" />{t('board.richTextMode')}</button>
-                    <button className={`text-xs px-2 py-1 rounded-r-md border border-l-0 border-border ${descMode === 'markdown' ? 'bg-primary/10 text-primary border-primary' : 'bg-surface-2/30 text-text-muted hover:text-text'}`}
-                      onClick={() => setDescMode('markdown')}><FileText size={12} className="inline mr-1" />{t('board.markdownMode')}</button>
+                    <button className={`text-xs px-2 py-1 rounded-l-md border ${descMode === 'richtext' ? 'bg-primary text-white border-primary shadow-sm' : 'border-border bg-surface-2/30 text-text-muted hover:text-text'}`}
+                      onClick={() => setEditorMode('richtext')}><Type size={12} className="inline mr-1" />{t('board.richTextMode')}</button>
+                    <button className={`text-xs px-2 py-1 rounded-r-md border border-l-0 ${descMode === 'markdown' ? 'bg-primary text-white border-primary shadow-sm' : 'border-border bg-surface-2/30 text-text-muted hover:text-text'}`}
+                      onClick={() => setEditorMode('markdown')}><FileText size={12} className="inline mr-1" />{t('board.markdownMode')}</button>
                   </div>
 
                   {/* Editor container — toolbar + content as one visual unit */}
@@ -623,7 +665,6 @@ function TaskDetailModal({
                       <div ref={descEditorRef} contentEditable suppressContentEditableWarning
                         className="p-4 min-h-[250px] max-h-[50vh] overflow-y-auto text-sm outline-none prose prose-sm max-w-none"
                         style={{ background: 'var(--surface-2)' }}
-                        dangerouslySetInnerHTML={{ __html: descDraft }}
                         onInput={(e) => setDescDraft((e.target as HTMLDivElement).innerHTML)}
                         onKeyDown={handleRtKeyDown}
                         onSelect={updateRtStates}
@@ -730,12 +771,13 @@ function TaskCardContent({ task }: { task: TaskWithSubtasks }) {
 
 function SortableListColumn({ list, index, editingListId, editListName, setEditListName,
   onStartRenameList, onConfirmRenameList, onCancelRenameList,
-  onAddTask, onToggleTask, onDeleteTask, onEditTask, onDeleteList }: {
+  onAddTask, onToggleTask, onDeleteTask, selectedTaskId, onViewTask, onEditTask, onDeleteList }: {
   list: ListWithTasks; index: number; editingListId: string | null; editListName: string;
   setEditListName: (v: string) => void; onStartRenameList: (id: string, name: string) => void;
   onConfirmRenameList: () => void; onCancelRenameList: () => void;
   onAddTask: (title: string) => Promise<void>; onToggleTask: (id: string) => void;
-  onDeleteTask: (id: string) => void; onEditTask: (t: TaskWithSubtasks) => void; onDeleteList: () => void;
+  onDeleteTask: (id: string) => void; selectedTaskId: string | null; onViewTask: (id: string) => void;
+  onEditTask: (t: TaskWithSubtasks) => void; onDeleteList: () => void;
 }) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -776,6 +818,8 @@ function SortableListColumn({ list, index, editingListId, editListName, setEditL
             {list.tasks.map((task, idx) => (
               <SortableTaskCard key={task.id} task={task} index={idx}
                 onToggle={() => onToggleTask(task.id)} onDelete={() => onDeleteTask(task.id)}
+                isSelected={selectedTaskId === task.id}
+                onView={() => onViewTask(task.id)}
                 onEdit={() => onEditTask(task)} />
             ))}
           </div>
@@ -794,8 +838,9 @@ function SortableListColumn({ list, index, editingListId, editListName, setEditL
 
 // ============ Sortable Task Card ============
 
-function SortableTaskCard({ task, index, onToggle, onDelete, onEdit }: {
-  task: TaskWithSubtasks; index: number; onToggle: () => void; onDelete: () => void; onEdit: () => void;
+function SortableTaskCard({ task, index, isSelected, onToggle, onDelete, onView, onEdit }: {
+  task: TaskWithSubtasks; index: number; isSelected: boolean; onToggle: () => void; onDelete: () => void;
+  onView: () => void; onEdit: () => void;
 }) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -808,8 +853,9 @@ function SortableTaskCard({ task, index, onToggle, onDelete, onEdit }: {
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="rounded-lg p-2.5 border border-border group cursor-pointer"
-      {...attributes} {...listeners} onClick={onEdit}>
+    <div ref={setNodeRef} style={style}
+      className={`rounded-lg p-2.5 border group cursor-pointer transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
+      {...attributes} {...listeners} onClick={onView} onDoubleClick={onEdit}>
       <div className="flex items-start gap-2">
         <button onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
