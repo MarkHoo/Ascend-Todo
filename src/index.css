@@ -21,6 +21,11 @@ body,
   margin-top: 0.75rem;
 }
 
+.prose .md-blank-lines {
+  display: block;
+  height: calc(var(--md-blank-lines, 1) * 1.1em);
+}
+
 .prose h1,
 .prose h2,
 .prose h3,

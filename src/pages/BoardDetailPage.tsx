@@ -6,7 +6,7 @@ import {
   ChevronRight, Type, FileText, Bold, Italic, Underline, Heading1, Heading2,
   List as ListIcon, ListOrdered, Link as LinkIcon, Code, Quote, Minus,
 } from 'lucide-react';
-import { marked } from 'marked';
+import { marked, type Tokens } from 'marked';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
 import {
@@ -74,8 +74,20 @@ function fmtDateTime(iso: string | undefined, lang: string): string {
   return (lang === 'zh-CN' || lang === 'zh-TW') ? d.format('YYYY年M月D日 HH:mm') : d.format('MMM D, YYYY HH:mm');
 }
 
-// Configure marked (v15 compatible)
-try { marked.use({ breaks: true, gfm: true }); } catch { /* fallback */ }
+// Keep Markdown blank-line tokens visible instead of letting the default
+// renderer discard them.
+try {
+  marked.use({
+    breaks: true,
+    gfm: true,
+    renderer: {
+      space(token: Tokens.Space) {
+        const blankLineCount = Math.max(1, (token.raw.match(/\n/g) || []).length - 1);
+        return `<div class="md-blank-lines" style="--md-blank-lines:${blankLineCount}" aria-hidden="true"></div>`;
+      },
+    },
+  });
+} catch { /* fallback */ }
 
 function decodeHtmlEntities(value: string): string {
   return value
