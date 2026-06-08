@@ -108,6 +108,12 @@
     "clickToView": "点击查看",
     "descPlaceholder": "双击此处开始编辑描述...",
     "noSubtasks": "暂无子任务",
+    "totalSubtasks": "共 {{count}} 个任务",
+    "hideCompleted": "隐藏已完成的",
+    "newSubtask": "新建",
+    "noLinkedSubtasks": "暂无关联任务",
+    "noVisibleSubtasks": "暂无可见子任务",
+    "quickSubtaskPlaceholder": "添加子任务（按回车键快速新建，Shift+回车完整新建）",
     "maxDepth": "已达到最大子任务嵌套层数（5层）"
   },
   "goal": {

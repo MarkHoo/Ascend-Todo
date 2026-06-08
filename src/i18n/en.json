@@ -108,6 +108,12 @@
     "clickToView": "Click to view",
     "descPlaceholder": "Double-click here to start editing description...",
     "noSubtasks": "No subtasks yet",
+    "totalSubtasks": "{{count}} tasks",
+    "hideCompleted": "Hide completed",
+    "newSubtask": "New",
+    "noLinkedSubtasks": "No linked tasks",
+    "noVisibleSubtasks": "No visible subtasks",
+    "quickSubtaskPlaceholder": "Add subtask (Enter to quick create, Shift+Enter for full create)",
     "maxDepth": "Maximum subtask nesting depth reached (5 levels)"
   },
   "goal": {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { boardsApi, listsApi, tasksApi } from '@/api';
-import type { Board, BoardWithLists, TaskWithSubtasks } from '@/types';
+import type { Board, BoardWithLists, Task, TaskWithSubtasks } from '@/types';
 
 const REMINDERS_CHANGED_EVENT = 'ascend:reminders-changed';
 
@@ -17,7 +17,7 @@ interface State {
   createList: (boardId: string, name: string) => Promise<void>;
   renameList: (id: string, name: string) => Promise<void>;
   deleteList: (id: string) => Promise<void>;
-  createTask: (listId: string, title: string, parentId?: string | null) => Promise<void>;
+  createTask: (listId: string, title: string, parentId?: string | null) => Promise<Task>;
   getTask: (taskId: string) => Promise<TaskWithSubtasks>;
   toggleTask: (id: string) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
@@ -93,9 +93,10 @@ export const useBoardStore = create<State>((set, get) => ({
     if (cur) await get().fetchBoard(cur.board.id);
   },
   createTask: async (listId, title, parentId) => {
-    await tasksApi.create({ listId, title, parentId: parentId || undefined });
+    const task = await tasksApi.create({ listId, title, parentId: parentId || undefined });
     const cur = get().currentBoard;
     if (cur) await get().fetchBoard(cur.board.id);
+    return task;
   },
   getTask: async (taskId) => {
     return await tasksApi.get(taskId);

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft, Plus, Pin, PinOff, Trash2, Calendar as CalIcon, Bell, Check, X,
-  ChevronRight, Bold, Italic,
+  ChevronRight, Bold, Italic, Edit3, EyeOff, ListTree, ArrowDownAZ,
   List as ListIcon, ListOrdered, Link as LinkIcon, Code, Quote, Minus,
 } from 'lucide-react';
 import { marked, type Tokens } from 'marked';
@@ -46,6 +46,8 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const MAX_NESTING = 5;
 const TOOL_ICON_SIZE = 15;
+
+type TaskStackEntry = { task: TaskWithSubtasks; depth: number; hideSubtaskTab?: boolean };
 
 function fmtTaskDueDate(iso: string | undefined): string {
   if (!iso) return '';
@@ -199,7 +201,7 @@ export function BoardDetailPage() {
   const [boardEditName, setBoardEditName] = useState('');
   const [boardEditDesc, setBoardEditDesc] = useState('');
   const [boardEditColor, setBoardEditColor] = useState<string | null>('#6366f1');
-  const [taskStack, setTaskStack] = useState<{ task: TaskWithSubtasks; depth: number }[]>([]);
+  const [taskStack, setTaskStack] = useState<TaskStackEntry[]>([]);
   const taskStackRef = useRef(taskStack);
   taskStackRef.current = taskStack;
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; onConfirm: () => void; message?: string }>({
@@ -260,18 +262,18 @@ export function BoardDetailPage() {
     setBoardEditOpen(false);
   };
 
-  const openTaskDetail = async (task: TaskWithSubtasks, depth = 0) => {
+  const openTaskDetail = async (task: TaskWithSubtasks, depth = 0, hideSubtaskTab = false) => {
     if (depth >= MAX_NESTING) { toast.error(t('board.maxDepth') || 'Max nesting depth reached'); return; }
     try {
       const fresh = await getTask(task.id);
       setTaskStack((prev) => {
         const truncated = prev.filter((s) => s.depth < depth);
-        return [...truncated, { task: fresh, depth }];
+        return [...truncated, { task: fresh, depth, hideSubtaskTab }];
       });
     } catch {
       setTaskStack((prev) => {
         const truncated = prev.filter((s) => s.depth < depth);
-        return [...truncated, { task, depth }];
+        return [...truncated, { task, depth, hideSubtaskTab }];
       });
     }
   };
@@ -382,10 +384,11 @@ export function BoardDetailPage() {
           key={entry.task.id}
           task={entry.task}
           depth={entry.depth}
+          hideSubtaskTab={entry.hideSubtaskTab}
           parentPath={taskStack.slice(0, idx).map((s) => ({ id: s.task.id, title: s.task.title }))}
           onClose={() => setTaskStack((prev) => prev.filter((_, i) => i < idx))}
           onNavigateToDepth={(targetDepth) => setTaskStack((prev) => prev.filter((_, i) => i <= targetDepth))}
-          onOpenChild={(child, d) => openTaskDetail(child, d)}
+          onOpenChild={(child, d, hideSubtaskTab) => openTaskDetail(child, d, hideSubtaskTab)}
           onDelete={(taskId) => setDeleteConfirm({
             open: true, message: t('board.deleteConfirm'),
             onConfirm: async () => {
@@ -442,14 +445,15 @@ export function BoardDetailPage() {
 // ============ Task Detail Modal ============
 
 function TaskDetailModal({
-  task, depth, parentPath, onClose, onNavigateToDepth, onOpenChild, onDelete, onRefresh,
+  task, depth, hideSubtaskTab, parentPath, onClose, onNavigateToDepth, onOpenChild, onDelete, onRefresh,
 }: {
   task: TaskWithSubtasks;
   depth: number;
+  hideSubtaskTab?: boolean;
   parentPath: { id: string; title: string }[];
   onClose: () => void;
   onNavigateToDepth: (depth: number) => void;
-  onOpenChild: (task: TaskWithSubtasks, depth: number) => void;
+  onOpenChild: (task: TaskWithSubtasks, depth: number, hideSubtaskTab?: boolean) => void;
   onDelete: (id: string) => void;
   onRefresh: () => void;
 }) {
@@ -467,7 +471,12 @@ function TaskDetailModal({
   const [descDraft, setDescDraft] = useState(task.description || '');
   const mdTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newSubtask, setNewSubtask] = useState('');
-  const canHaveSubtasks = depth < MAX_NESTING - 1;
+  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [hideCompletedSubtasks, setHideCompletedSubtasks] = useState(false);
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
+  const quickSubtaskRef = useRef<HTMLInputElement>(null);
+  const canHaveSubtasks = depth < MAX_NESTING - 1 && !hideSubtaskTab;
 
   // Sync draft when task changes
   useEffect(() => {
@@ -483,6 +492,12 @@ function TaskDetailModal({
       setDetailTab('info');
     }
   }, [canHaveSubtasks, detailTab]);
+
+  useEffect(() => {
+    if (isAddingSubtask) {
+      requestAnimationFrame(() => quickSubtaskRef.current?.focus());
+    }
+  }, [isAddingSubtask]);
 
   // Auto-save
   useAutoSave(
@@ -601,6 +616,40 @@ function TaskDetailModal({
   };
 
   const descHtml = task.description || '';
+  const visibleSubtasks = hideCompletedSubtasks ? task.subtasks.filter((s) => !s.isCompleted) : task.subtasks;
+  const completedSubtasks = task.subtasks.filter((s) => s.isCompleted).length;
+  const subtaskProgress = task.subtasks.length > 0 ? completedSubtasks / task.subtasks.length : 0;
+
+  const createSubtask = async (openFull = false, keepAdding = false) => {
+    const title = newSubtask.trim();
+    if (!title) return;
+    const created = await createTask(task.listId, title, task.id);
+    setNewSubtask('');
+    if (openFull || !keepAdding) {
+      setIsAddingSubtask(false);
+    } else {
+      requestAnimationFrame(() => quickSubtaskRef.current?.focus());
+    }
+    await onRefresh();
+    if (openFull) {
+      try {
+        const fresh = await useBoardStore.getState().getTask(created.id);
+        onOpenChild(fresh, depth + 1, true);
+      } catch {
+        onOpenChild({ ...created, subtasks: [] } as TaskWithSubtasks, depth + 1, true);
+      }
+    }
+  };
+
+  const saveSubtaskTitle = async (subtask: TaskWithSubtasks) => {
+    const title = editingSubtaskTitle.trim();
+    if (title && title !== subtask.title) {
+      await updateTask(subtask.id, { title });
+      await onRefresh();
+    }
+    setEditingSubtaskId(null);
+    setEditingSubtaskTitle('');
+  };
 
   return (
     <Modal open={true} onClose={onClose} title={t('board.taskDetail')} size="xl">
@@ -732,35 +781,84 @@ function TaskDetailModal({
             </div>
           </div>
         ) : (
-          <div className="space-y-2">
-            {task.subtasks.length === 0 && (
-              <div className="text-sm text-text-muted text-center py-4">{t('board.noSubtasks')}</div>
-            )}
-            {task.subtasks.map((s) => (
-              <SubtaskCard key={s.id} subtask={s}
-                onToggle={async () => { await toggleTask(s.id); onRefresh(); }}
-                onDelete={() => onDelete(s.id)}
-                onClick={() => onOpenChild(s, depth + 1)} />
-            ))}
-            <div className="flex items-center gap-2 mt-2">
-              <Input value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)}
-                placeholder={t('board.addSubtask').replace('+ ', '')}
-                onKeyDown={async (e) => {
-                  if (e.key === 'Enter' && newSubtask.trim()) {
-                    await createTask(task.listId, newSubtask.trim(), task.id);
-                    setNewSubtask('');
-                    onRefresh();
-                  }
-                }}
-                className="flex-1" />
-              <Button size="sm" onClick={async () => {
-                if (newSubtask.trim()) {
-                  await createTask(task.listId, newSubtask.trim(), task.id);
-                  setNewSubtask('');
-                  onRefresh();
-                }
-              }}><Plus size={14} /></Button>
+          <div className="min-h-[360px]">
+            <div className="flex items-center justify-between gap-4 py-3 border-b border-border">
+              <div className="flex items-center gap-5 text-sm text-text-muted">
+                <span>{t('board.totalSubtasks', { count: task.subtasks.length })}</span>
+                <button className={`inline-flex items-center gap-1 hover:text-primary ${hideCompletedSubtasks ? 'text-primary' : ''}`}
+                  onClick={() => setHideCompletedSubtasks((v) => !v)}>
+                  <EyeOff size={15} /> {t('board.hideCompleted')}
+                </button>
+                <button className="inline-flex items-center gap-1 hover:text-primary">
+                  <ArrowDownAZ size={15} />
+                </button>
+              </div>
+              <div className="flex items-center gap-4">
+                {task.subtasks.length > 0 && (
+                  <div className="hidden sm:flex items-center gap-2">
+                    <div className="w-48 h-2 rounded-full bg-surface-2 overflow-hidden">
+                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${subtaskProgress * 100}%` }} />
+                    </div>
+                    <span className="text-sm text-text-muted tabular-nums">{Math.round(subtaskProgress * 100)}%</span>
+                  </div>
+                )}
+                <button className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary"
+                  onClick={() => setIsAddingSubtask(true)}>
+                  <Plus size={16} /> {t('board.newSubtask')}
+                </button>
+              </div>
             </div>
+
+            {visibleSubtasks.length === 0 && !isAddingSubtask ? (
+              <div className="h-64 flex flex-col items-center justify-center text-text-muted">
+                <div className="w-16 h-16 rounded-lg bg-surface-2/60 flex items-center justify-center mb-4">
+                  <ListTree size={28} className="opacity-50" />
+                </div>
+                <div className="text-sm">{task.subtasks.length === 0 ? t('board.noLinkedSubtasks') : t('board.noVisibleSubtasks')}</div>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {visibleSubtasks.map((s) => (
+                  <SubtaskRow key={s.id} subtask={s}
+                    isEditing={editingSubtaskId === s.id}
+                    editingTitle={editingSubtaskTitle}
+                    onEditingTitleChange={setEditingSubtaskTitle}
+                    onStartEdit={() => { setEditingSubtaskId(s.id); setEditingSubtaskTitle(s.title); }}
+                    onCancelEdit={() => { setEditingSubtaskId(null); setEditingSubtaskTitle(''); }}
+                    onSaveEdit={() => saveSubtaskTitle(s)}
+                    onToggle={async () => { await toggleTask(s.id); onRefresh(); }}
+                    onDelete={() => onDelete(s.id)}
+                    onClick={() => onOpenChild(s, depth + 1)} />
+                ))}
+              </div>
+            )}
+
+            {isAddingSubtask && (
+              <div className="pt-4">
+                <input ref={quickSubtaskRef}
+                  className="input w-full h-12"
+                  value={newSubtask}
+                  onChange={(e) => setNewSubtask(e.target.value)}
+                  placeholder={t('board.quickSubtaskPlaceholder')}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      await createSubtask(e.shiftKey, !e.shiftKey);
+                    }
+                    if (e.key === 'Escape') {
+                      setIsAddingSubtask(false);
+                      setNewSubtask('');
+                    }
+                  }}
+                />
+                <div className="flex items-center justify-end gap-3 mt-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setIsAddingSubtask(false); setNewSubtask(''); }}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button size="sm" onClick={() => createSubtask(false)}>{t('common.confirm')}</Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -905,6 +1003,72 @@ function SortableTaskCard({ task, index, isSelected, onToggle, onDelete, onView,
 }
 
 // ============ Subtask Card ============
+
+function SubtaskRow({
+  subtask, isEditing, editingTitle, onEditingTitleChange, onStartEdit, onCancelEdit, onSaveEdit,
+  onToggle, onDelete, onClick,
+}: {
+  subtask: TaskWithSubtasks;
+  isEditing: boolean;
+  editingTitle: string;
+  onEditingTitleChange: (value: string) => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const status = (subtask.status || 'not_started') as TaskStatus;
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_120px_120px_80px] items-center gap-3 min-h-14 text-sm group hover:bg-surface-2/30 cursor-pointer transition-colors"
+      onClick={onClick}>
+      <div className="flex items-center gap-3 min-w-0 px-2">
+        <button onClick={(e) => { e.stopPropagation(); onToggle(); }}
+          className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0"
+          style={{ borderColor: subtask.isCompleted ? 'var(--primary)' : 'var(--border)', background: subtask.isCompleted ? 'var(--primary)' : 'transparent' }}>
+          {subtask.isCompleted && <span className="text-white text-[10px]">✓</span>}
+        </button>
+        {isEditing ? (
+          <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+            <input className="input h-9 flex-1 min-w-0" value={editingTitle}
+              onChange={(e) => onEditingTitleChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSaveEdit();
+                if (e.key === 'Escape') onCancelEdit();
+              }}
+              autoFocus />
+            <button className="btn-ghost p-1" onClick={onSaveEdit}><Check size={14} className="text-green-500" /></button>
+            <button className="btn-ghost p-1" onClick={onCancelEdit}><X size={14} /></button>
+          </div>
+        ) : (
+          <span className={`truncate font-medium ${subtask.isCompleted ? 'line-through text-text-muted' : ''}`}>{subtask.title}</span>
+        )}
+      </div>
+      <div className="text-sm text-text-muted">{subtask.dueAt ? fmtTaskDueDate(subtask.dueAt) : ''}</div>
+      <div>
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white"
+          style={{ background: STATUS_COLORS[status] || 'var(--text-muted)' }}>{statusLabel(status, t)}</span>
+      </div>
+      <div className="flex items-center justify-end gap-1 pr-2">
+        {!isEditing && (
+          <>
+            <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost p-1" title={t('common.edit')}>
+              <Edit3 size={14} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost p-1" title={t('common.delete')}>
+              <Trash2 size={14} />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SubtaskCard({ subtask, onToggle, onDelete, onClick }: {
   subtask: TaskWithSubtasks; onToggle: () => void; onDelete: () => void; onClick: () => void;
