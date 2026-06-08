@@ -125,6 +125,7 @@ export interface KeyResultWithLogs {
 }
 
 export interface LinkedTask {
+  krId?: string | null;
   id: string;
   title: string;
   isCompleted: boolean;
@@ -150,7 +151,7 @@ export interface GoalWithDetails {
   category?: string | null;
   startDate?: string | null;
   weight: number;
-  status: 'active' | 'completed' | 'abandoned' | 'archived';
+  status: 'draft' | 'active' | 'completed' | 'abandoned' | 'archived';
   reviewScore?: number | null;
   reviewNote?: string | null;
   period: GoalPeriod;

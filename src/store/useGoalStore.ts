@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { goalsApi, milestonesApi, keyResultsApi } from '@/api';
-import type { GoalPeriod, GoalWithDetails, KeyResultWithLogs } from '@/types';
+import type { Goal, GoalPeriod, GoalWithDetails } from '@/types';
 
 interface State {
   goals: GoalWithDetails[];
@@ -8,7 +8,7 @@ interface State {
   loading: boolean;
   fetchGoals: () => Promise<void>;
   fetchGoal: (id: string) => Promise<void>;
-  createGoal: (params: { title: string; description?: string | null; color?: string | null; icon?: string | null; dueAt?: string | null; parentGoalId?: string | null; period?: GoalPeriod; startDate?: string | null }) => Promise<void>;
+  createGoal: (params: { title: string; description?: string | null; color?: string | null; icon?: string | null; dueAt?: string | null; parentGoalId?: string | null; period?: GoalPeriod; startDate?: string | null; status?: 'draft' | 'active' }) => Promise<Goal>;
   updateGoal: (id: string, patch: Record<string, unknown>) => Promise<void>;
   deleteGoal: (id: string) => Promise<void>;
   archiveGoal: (id: string) => Promise<void>;
@@ -43,8 +43,9 @@ export const useGoalStore = create<State>((set, get) => ({
   },
 
   createGoal: async (params) => {
-    await goalsApi.create(params);
+    const goal = await goalsApi.create(params);
     await get().fetchGoals();
+    return goal;
   },
 
   updateGoal: async (id, patch) => {

@@ -173,6 +173,7 @@ pub struct KeyResultWithLogs {
 
 camel! {
 pub struct LinkedTask {
+    pub kr_id: Option<String>,
     pub id: String,
     pub title: String,
     pub is_completed: bool,

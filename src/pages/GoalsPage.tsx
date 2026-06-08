@@ -1,653 +1,991 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Target, Trash2, Calendar as CalIcon, ChevronDown, ChevronRight,
-  Check, X, TrendingUp, CheckCircle2, ListTodo, Star, Archive
+  Activity, CalendarDays, Check, ChevronDown, ChevronRight, Circle, ClipboardList,
+  Edit3, HelpCircle, Link2Off, MoreHorizontal, Plus, Save, Target, Trash2, X,
 } from 'lucide-react';
+import { goalsApi, keyResultsApi } from '@/api';
 import { useGoalStore } from '@/store/useGoalStore';
 import { Button } from '@/components/common/Button';
-import { Modal } from '@/components/common/Modal';
 import { DeleteConfirmModal } from '@/components/common/DeleteConfirmModal';
 import { Input, Textarea } from '@/components/common/Input';
-import { DateTimePicker } from '@/components/common/DateTimePicker';
-import { ColorPicker } from '@/components/common/ColorPicker';
+import { Modal } from '@/components/common/Modal';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { toast } from '@/components/common/Toast';
 import { dayjs } from '@/utils/date';
-import type { GoalPeriod, GoalWithDetails, KeyResult, Milestone } from '@/types';
+import type { GoalWithDetails, KeyResult, KeyResultWithLogs, LinkedTask } from '@/types';
 
-const MAX_DEPTH = 5;
-
-const PERIOD_OPTIONS: GoalPeriod[] = ['Q1', 'Q2', 'Q3', 'Q4', 'yearly', 'custom'];
-
-const KR_TYPE_OPTIONS = ['metric', 'boolean', 'task'] as const;
+type SortField = 'title' | 'progress';
+type SortDirection = 'asc' | 'desc';
+type GoalStatus = 'draft' | 'active';
+type KRType = 'metric' | 'boolean';
+type DetailTab = 'krs' | 'tasks';
 
 interface DraftKR {
+  id?: string;
   title: string;
-  type: 'metric' | 'boolean' | 'task';
+  type: KRType;
   startValue: number;
   targetValue: number;
+  currentValue: number;
   unit: string;
   weight: number;
 }
 
+const blankKR = (weight = 100): DraftKR => ({
+  title: '',
+  type: 'metric',
+  startValue: 0,
+  targetValue: 100,
+  currentValue: 0,
+  unit: '%',
+  weight,
+});
+
+const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));
+const clampProgress = (value: number) => Math.max(0, Math.min(1, value));
+
+const krProgress = (kr: KeyResult) => {
+  if (kr.type === 'boolean') return kr.isCompleted ? 1 : 0;
+  const range = kr.targetValue - kr.startValue;
+  if (Math.abs(range) < Number.EPSILON) return 0;
+  return clampProgress((kr.currentValue - kr.startValue) / range);
+};
+
+const progressColor = (progress: number) => {
+  if (progress <= 0) return '#cbd5e1';
+  if (progress < 0.5) return '#f6c453';
+  return '#68d391';
+};
+
+const healthState = (progress: number): 'normal' | 'risk' | 'behind' => {
+  if (progress >= 0.6) return 'normal';
+  if (progress >= 0.25) return 'risk';
+  return 'behind';
+};
+
+const normalizeKRs = (items: DraftKR[]) => {
+  if (items.length === 0) return [];
+  const normalized = items.map((item) => ({ ...item, weight: clamp(item.weight) }));
+  const previousWeight = normalized.slice(0, -1).reduce((sum, item) => sum + item.weight, 0);
+  normalized[normalized.length - 1] = {
+    ...normalized[normalized.length - 1],
+    weight: clamp(100 - previousWeight),
+  };
+  return normalized;
+};
+
+const krToDraft = (kr: KeyResult): DraftKR => ({
+  id: kr.id,
+  title: kr.title,
+  type: kr.type === 'boolean' ? 'boolean' : 'metric',
+  startValue: kr.type === 'boolean' ? 0 : kr.startValue,
+  targetValue: kr.type === 'boolean' ? 1 : kr.targetValue,
+  currentValue: kr.currentValue,
+  unit: kr.type === 'boolean' ? '' : (kr.unit || '%'),
+  weight: kr.weight,
+});
+
 export function GoalsPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { goals, fetchGoals, createGoal, createKeyResult, deleteGoal, updateGoal,
-    createMilestone, toggleMilestone, deleteMilestone } = useGoalStore();
+  const {
+    goals, fetchGoals, createGoal, createKeyResult, updateGoal,
+    deleteGoal, checkInKeyResult, toggleKeyResult, deleteKeyResult, unlinkTaskFromKR,
+  } = useGoalStore();
 
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<GoalWithDetails | null>(null);
+  const [formTitle, setFormTitle] = useState('');
+  const [formParentId, setFormParentId] = useState('');
+  const [formDueAt, setFormDueAt] = useState('');
+  const [draftKRs, setDraftKRs] = useState<DraftKR[]>([blankKR()]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  // Create goal form state
-  const [title, setTitle] = useState('');
-  const [desc, setDesc] = useState('');
-  const [period, setPeriod] = useState<GoalPeriod>('yearly');
-  const [customStart, setCustomStart] = useState<string | null>(null);
-  const [customDue, setCustomDue] = useState<string | null>(null);
-  const [color, setColor] = useState<string | null>('#10b981');
-  const [parentId, setParentId] = useState<string | null>(null);
-  const [draftKRs, setDraftKRs] = useState<DraftKR[]>([]);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; onConfirm: () => void }>({ open: false, onConfirm: () => {} });
+  const [sortField, setSortField] = useState<SortField>('title');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [detailGoal, setDetailGoal] = useState<GoalWithDetails | null>(null);
+  const [detailKRs, setDetailKRs] = useState<KeyResultWithLogs[]>([]);
+  const [detailTab, setDetailTab] = useState<DetailTab>('krs');
+  const [workingValues, setWorkingValues] = useState<Record<string, number>>({});
+  const [workingDone, setWorkingDone] = useState<Record<string, boolean>>({});
+  const [progressComment, setProgressComment] = useState('');
+  const [showHistory, setShowHistory] = useState(true);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [pendingClose, setPendingClose] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean;
+    title?: string;
+    message?: string;
+    onConfirm: () => Promise<void>;
+  }>({ open: false, onConfirm: async () => {} });
 
   useEffect(() => {
     fetchGoals();
   }, [fetchGoals]);
 
-  const flattenForParent = (gs: GoalWithDetails[], depth = 0): GoalWithDetails[] => {
-    const out: GoalWithDetails[] = [];
-    const visit = (g: GoalWithDetails, d: number) => {
-      if (d < MAX_DEPTH - 1) {
-        out.push(g);
-        g.subGoals.forEach((sg) => visit(sg, d + 1));
-      }
+  const allGoals = useMemo(() => {
+    const result: GoalWithDetails[] = [];
+    const visit = (items: GoalWithDetails[]) => {
+      items.forEach((goal) => {
+        result.push(goal);
+        visit(goal.subGoals);
+      });
     };
-    gs.forEach((g) => visit(g, depth));
-    return out;
+    visit(goals);
+    return result;
+  }, [goals]);
+
+  const sortedGoals = useMemo(() => {
+    return [...goals].sort((a, b) => {
+      const comparison = sortField === 'title'
+        ? a.title.localeCompare(b.title, 'zh-CN')
+        : a.progress - b.progress;
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [goals, sortDirection, sortField]);
+
+  const displayKRs = normalizeKRs(draftKRs);
+  const totalWeight = displayKRs.reduce((sum, kr) => sum + kr.weight, 0);
+
+  const pathForGoal = (goal: GoalWithDetails | null) => {
+    if (!goal) return [];
+    const byId = new Map(allGoals.map((item) => [item.id, item]));
+    const path: GoalWithDetails[] = [];
+    let current: GoalWithDetails | undefined = goal;
+    while (current) {
+      path.unshift(current);
+      current = current.parentGoalId ? byId.get(current.parentGoalId) : undefined;
+    }
+    return path;
   };
-  const allGoals = flattenForParent(goals);
+
+  const hasUnsavedDetail = () => {
+    return detailKRs.some((kr) => {
+      if (kr.type === 'boolean') return (workingDone[kr.id] ?? kr.isCompleted) !== kr.isCompleted;
+      return (workingValues[kr.id] ?? kr.currentValue) !== kr.currentValue;
+    }) || progressComment.trim().length > 0;
+  };
+
+  const resetGoalForm = () => {
+    setFormTitle('');
+    setFormParentId('');
+    setFormDueAt('');
+    setDraftKRs([blankKR()]);
+    setEditingGoal(null);
+  };
+
+  const openCreate = () => {
+    resetGoalForm();
+    setCreateOpen(true);
+  };
+
+  const openEdit = () => {
+    if (!detailGoal) return;
+    setEditingGoal(detailGoal);
+    setFormTitle(detailGoal.title);
+    setFormParentId(detailGoal.parentGoalId || '');
+    setFormDueAt(detailGoal.dueAt ? dayjs(detailGoal.dueAt).format('YYYY-MM-DD') : '');
+    setDraftKRs(detailKRs.length > 0 ? detailKRs.map(krToDraft) : [blankKR()]);
+    setCreateOpen(true);
+    setMoreOpen(false);
+  };
+
+  const closeGoalForm = () => {
+    setCreateOpen(false);
+    resetGoalForm();
+  };
+
+  const updateDraftKR = (index: number, patch: Partial<DraftKR>) => {
+    setDraftKRs((items) => normalizeKRs(items.map((item, idx) => {
+      if (idx !== index) return item;
+      const next = { ...item, ...patch };
+      if (patch.type === 'boolean') {
+        next.startValue = 0;
+        next.targetValue = 1;
+        next.currentValue = item.currentValue > 0 ? 1 : 0;
+        next.unit = '';
+      }
+      if (patch.type === 'metric' && !next.unit) {
+        next.unit = '%';
+        next.targetValue = next.targetValue || 100;
+      }
+      return next;
+    })));
+  };
 
   const addDraftKR = () => {
-    setDraftKRs([...draftKRs, { title: '', type: 'metric', startValue: 0, targetValue: 100, unit: '', weight: 20 }]);
+    const normalized = normalizeKRs(draftKRs);
+    const remaining = clamp(100 - normalized.reduce((sum, kr) => sum + kr.weight, 0));
+    setDraftKRs(normalizeKRs([...normalized, blankKR(remaining)]));
   };
 
-  const removeDraftKR = (idx: number) => {
-    setDraftKRs(draftKRs.filter((_, i) => i !== idx));
+  const removeDraftKR = (index: number) => {
+    setDraftKRs((items) => {
+      const next = items.filter((_, idx) => idx !== index);
+      return normalizeKRs(next.length > 0 ? next : [blankKR()]);
+    });
   };
 
-  const updateDraftKR = (idx: number, patch: Partial<DraftKR>) => {
-    setDraftKRs(draftKRs.map((kr, i) => i === idx ? { ...kr, ...patch } : kr));
-  };
-
-  const onCreate = async () => {
-    if (!title.trim()) {
+  const saveGoal = async (status: GoalStatus) => {
+    if (!formTitle.trim()) {
       toast.error(t('goal.required'));
       return;
     }
-    const dueAt = period === 'custom' ? customDue : undefined;
-    const startDate = period === 'custom' ? customStart : undefined;
-    await createGoal({
-      title: title.trim(),
-      description: desc || undefined,
-      color,
-      dueAt: dueAt || undefined,
-      parentGoalId: parentId || undefined,
-      period,
-      startDate: startDate || undefined,
-    });
-    // Create draft KRs for the newly created goal
-    // We need to find the goal id from the refreshed list
-    await fetchGoals();
-    const newGoal = useGoalStore.getState().goals.find(g => g.title === title.trim() && g.parentGoalId === parentId);
-    if (newGoal && draftKRs.length > 0) {
-      for (const kr of draftKRs) {
-        if (kr.title.trim()) {
-          await createKeyResult({
-            goalId: newGoal.id,
+
+    const validKRs = displayKRs.filter((kr) => kr.title.trim());
+    if (validKRs.length > 0 && totalWeight !== 100) {
+      toast.error(t('goal.weightMustEqual100'));
+      return;
+    }
+
+    if (editingGoal) {
+      await updateGoal(editingGoal.id, {
+        title: formTitle.trim(),
+        parentGoalId: formParentId || null,
+        dueAt: formDueAt || null,
+      });
+      const existingIds = new Set(detailKRs.map((kr) => kr.id));
+      const keptIds = new Set(validKRs.filter((kr) => kr.id).map((kr) => kr.id!));
+      for (const kr of validKRs) {
+        if (kr.id) {
+          await keyResultsApi.update({
+            id: kr.id,
             title: kr.title.trim(),
             krType: kr.type,
-            startValue: kr.type === 'metric' ? kr.startValue : undefined,
-            targetValue: kr.type === 'metric' ? kr.targetValue : undefined,
-            unit: kr.unit || undefined,
+            startValue: kr.type === 'metric' ? kr.startValue : 0,
+            targetValue: kr.type === 'metric' ? kr.targetValue : 1,
+            unit: kr.type === 'metric' ? kr.unit : '',
+            weight: kr.weight,
+          });
+        } else {
+          await createKeyResult({
+            goalId: editingGoal.id,
+            title: kr.title.trim(),
+            krType: kr.type,
+            startValue: kr.type === 'metric' ? kr.startValue : 0,
+            targetValue: kr.type === 'metric' ? kr.targetValue : 1,
+            unit: kr.type === 'metric' ? kr.unit : undefined,
             weight: kr.weight,
           });
         }
       }
+      for (const id of existingIds) {
+        if (!keptIds.has(id)) await deleteKeyResult(id);
+      }
+      closeGoalForm();
+      await fetchGoals();
+      await refreshDetail();
+      toast.success(t('board.save'));
+      return;
     }
-    setOpen(false);
-    setTitle('');
-    setDesc('');
-    setPeriod('yearly');
-    setCustomStart(null);
-    setCustomDue(null);
-    setColor('#10b981');
-    setParentId(null);
-    setDraftKRs([]);
+
+    const created = await createGoal({
+      title: formTitle.trim(),
+      parentGoalId: formParentId || undefined,
+      dueAt: formDueAt || undefined,
+      period: formDueAt ? 'custom' : undefined,
+      status,
+    });
+    for (const kr of validKRs) {
+      await createKeyResult({
+        goalId: created.id,
+        title: kr.title.trim(),
+        krType: kr.type,
+        startValue: kr.type === 'metric' ? kr.startValue : 0,
+        targetValue: kr.type === 'metric' ? kr.targetValue : 1,
+        unit: kr.type === 'metric' ? kr.unit : undefined,
+        weight: kr.weight,
+      });
+    }
+    closeGoalForm();
+    toast.success(status === 'draft' ? t('goal.draftSaved') : t('goal.created'));
   };
 
-  const periodLabel = (p: GoalPeriod) => {
-    const year = dayjs().year();
-    switch (p) {
-      case 'Q1': return `Q1 ${year}`;
-      case 'Q2': return `Q2 ${year}`;
-      case 'Q3': return `Q3 ${year}`;
-      case 'Q4': return `Q4 ${year}`;
-      case 'yearly': return `${year}`;
-      case 'custom': return t('goal.periodCustom');
+  const setSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
     }
   };
 
-  const krTypeIcon = (type: string) => {
-    switch (type) {
-      case 'metric': return <TrendingUp size={14} />;
-      case 'boolean': return <CheckCircle2 size={14} />;
-      case 'task': return <ListTodo size={14} />;
-      default: return <TrendingUp size={14} />;
+  const openDetail = async (goal: GoalWithDetails) => {
+    setDetailGoal(goal);
+    setDetailTab('krs');
+    setMoreOpen(false);
+    const krs = await keyResultsApi.list(goal.id);
+    setDetailKRs(krs);
+    setWorkingValues(Object.fromEntries(krs.map((kr) => [kr.id, kr.currentValue])));
+    setWorkingDone(Object.fromEntries(krs.map((kr) => [kr.id, kr.isCompleted])));
+    setProgressComment('');
+  };
+
+  const refreshDetail = async () => {
+    if (!detailGoal) return;
+    const [goal, krs] = await Promise.all([
+      goalsApi.get(detailGoal.id),
+      keyResultsApi.list(detailGoal.id),
+    ]);
+    setDetailGoal(goal);
+    setDetailKRs(krs);
+    setWorkingValues(Object.fromEntries(krs.map((kr) => [kr.id, kr.currentValue])));
+    setWorkingDone(Object.fromEntries(krs.map((kr) => [kr.id, kr.isCompleted])));
+  };
+
+  const requestCloseDetail = () => {
+    if (hasUnsavedDetail()) {
+      setPendingClose(true);
+      return;
     }
+    setDetailGoal(null);
+  };
+
+  const updateAllKRProgress = async () => {
+    for (const kr of detailKRs) {
+      if (kr.type === 'boolean') {
+        const nextDone = workingDone[kr.id] ?? kr.isCompleted;
+        if (nextDone !== kr.isCompleted) await toggleKeyResult(kr.id);
+      } else {
+        const nextValue = workingValues[kr.id] ?? kr.currentValue;
+        if (nextValue !== kr.currentValue || progressComment.trim()) {
+          await checkInKeyResult(kr.id, nextValue, progressComment.trim() || undefined);
+        }
+      }
+    }
+    setProgressComment('');
+    await refreshDetail();
+    toast.success(t('goal.progressUpdated'));
+  };
+
+  const confirmUpdateAndClose = async () => {
+    await updateAllKRProgress();
+    setPendingClose(false);
+    setDetailGoal(null);
+  };
+
+  const finishGoal = async () => {
+    if (!detailGoal) return;
+    await updateGoal(detailGoal.id, { status: 'completed' });
+    await refreshDetail();
+    toast.success(t('goal.goalCompleted'));
+  };
+
+  const unlinkTask = async (task: LinkedTask) => {
+    if (!task.krId) return;
+    setDeleteConfirm({
+      open: true,
+      title: t('goal.unlinkTask'),
+      message: t('goal.unlinkTaskConfirm'),
+      onConfirm: async () => {
+        await unlinkTaskFromKR(task.krId!, task.id);
+        await refreshDetail();
+      },
+    });
   };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-5">
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Target size={22} />
           {t('goal.title')}
         </h1>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={openCreate}>
           <Plus size={16} />
           {t('goal.addGoal')}
         </Button>
       </div>
 
-      {goals.length === 0 ? (
-        <div className="card p-12 text-center text-text-muted">
-          <Target size={32} className="mx-auto mb-2 opacity-50" />
-          <div>{t('goal.noGoals')}</div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {goals.map((g) => (
-            <GoalCard
-              key={g.id}
-              goal={g}
-              level={0}
-              expanded={expanded}
-              setExpanded={setExpanded}
-              onCreateMilestone={createMilestone}
-              onToggleMilestone={toggleMilestone}
-              onDeleteMilestone={async (id) => setDeleteConfirm({ open: true, onConfirm: async () => { await deleteMilestone(id); } })}
-              onDeleteGoal={async (id) => setDeleteConfirm({ open: true, onConfirm: async () => { await deleteGoal(id); } })}
-              onUpdateGoal={updateGoal}
-              onOpenDetail={(id) => navigate(`/goals/${id}`)}
-              onAddSubGoal={(pid) => {
-                setParentId(pid);
-                setOpen(true);
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Create Goal Modal */}
-      <Modal
-        open={open}
-        onClose={() => { setOpen(false); setParentId(null); }}
-        title={parentId ? t('goal.addSubGoal').replace('+ ', '') : t('goal.addGoal')}
-        size="lg"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => { setOpen(false); setParentId(null); }}>
-              {t('common.cancel')}
-            </Button>
-            <Button onClick={onCreate}>{t('common.create')}</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {/* Goal Name */}
-          <Input
-            label={`${t('goal.title')} *`}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={t('goal.title')}
-          />
-
-          {/* Period */}
-          <div>
-            <label className="label">{t('goal.period')} *</label>
-            <div className="flex gap-2">
-              {PERIOD_OPTIONS.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    period === p
-                      ? 'bg-primary text-white'
-                      : 'bg-surface-2 text-text-muted hover:bg-surface-3'
-                  }`}
-                >
-                  {periodLabel(p)}
-                </button>
-              ))}
-            </div>
-            {period === 'custom' && (
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <div>
-                  <label className="label">{t('goal.startDate')}</label>
-                  <DateTimePicker value={customStart} onChange={setCustomStart} />
-                </div>
-                <div>
-                  <label className="label">{t('goal.due')}</label>
-                  <DateTimePicker value={customDue} onChange={setCustomDue} />
-                </div>
-              </div>
-            )}
+      <div className="border border-border overflow-x-auto bg-surface">
+        <div className="min-w-[760px]">
+          <div className="grid grid-cols-[minmax(0,1fr)_340px_110px] border-b border-border text-sm font-semibold">
+            <SortHeader label={t('goal.title')} active={sortField === 'title'} direction={sortDirection} onClick={() => setSort('title')} />
+            <SortHeader label={t('goal.progress')} active={sortField === 'progress'} direction={sortDirection} onClick={() => setSort('progress')} />
+            <div className="px-4 py-3 text-center border-l border-border">{t('goal.weight')}</div>
           </div>
 
-          {/* Parent Goal */}
-          {!parentId && (
-            <div>
-              <label className="label">{t('goal.subGoals')}</label>
-              <select
-                className="input"
-                value={parentId || ''}
-                onChange={(e) => setParentId(e.target.value || null)}
-              >
-                <option value="">-</option>
-                {allGoals.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.title}
-                  </option>
-                ))}
-              </select>
+          {sortedGoals.length === 0 ? (
+            <div className="py-16 text-center text-text-muted">
+              <Target size={30} className="mx-auto mb-2 opacity-40" />
+              {t('goal.noGoals')}
             </div>
+          ) : (
+            sortedGoals.map((goal, index) => (
+              <GoalTreeRows
+                key={goal.id}
+                goal={goal}
+                level={0}
+                indexPath={[index + 1]}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                onOpen={openDetail}
+              />
+            ))
           )}
-
-          {/* Description */}
-          <Textarea
-            label={t('goal.subGoals')}
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-          />
-
-          {/* Draft Key Results */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="label">{t('goal.keyResult')}</label>
-              <Button size="sm" variant="ghost" onClick={addDraftKR}>
-                <Plus size={14} /> {t('goal.addKRInline')}
-              </Button>
-            </div>
-            {draftKRs.length === 0 && (
-              <div className="text-sm text-text-muted text-center py-2">
-                {t('goal.addKRInline')}
-              </div>
-            )}
-            <div className="space-y-2">
-              {draftKRs.map((kr, idx) => (
-                <div key={idx} className="border border-border rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    {/* KR Type Tabs */}
-                    <div className="card p-0.5 flex items-center text-xs gap-0.5">
-                      {KR_TYPE_OPTIONS.map((m) => (
-                        <button
-                          key={m}
-                          onClick={() => updateDraftKR(idx, { type: m })}
-                          className={`px-2 py-1 rounded-md flex items-center gap-1 ${
-                            kr.type === m ? 'bg-primary text-white' : 'text-text-muted'
-                          }`}
-                        >
-                          {krTypeIcon(m)}
-                          {t(`goal.${m}`)}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      className="btn-ghost p-0.5 ml-auto"
-                      onClick={() => removeDraftKR(idx)}
-                    >
-                      <X size={14} className="text-text-muted" />
-                    </button>
-                  </div>
-                  <Input
-                    value={kr.title}
-                    onChange={(e) => updateDraftKR(idx, { title: e.target.value })}
-                    placeholder={t('goal.krTitle')}
-                  />
-                  {kr.type === 'metric' && (
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      <Input
-                        label={t('goal.startValue')}
-                        type="number"
-                        value={kr.startValue}
-                        onChange={(e) => updateDraftKR(idx, { startValue: Number(e.target.value) || 0 })}
-                      />
-                      <Input
-                        label={t('goal.targetValue')}
-                        type="number"
-                        value={kr.targetValue}
-                        onChange={(e) => updateDraftKR(idx, { targetValue: Number(e.target.value) || 100 })}
-                      />
-                      <Input
-                        label={t('goal.unit')}
-                        value={kr.unit}
-                        onChange={(e) => updateDraftKR(idx, { unit: e.target.value })}
-                        placeholder="km / 次 / 本"
-                      />
-                    </div>
-                  )}
-                  <Input
-                    label={t('goal.weight')}
-                    type="number"
-                    value={kr.weight}
-                    onChange={(e) => updateDraftKR(idx, { weight: Math.max(1, Math.min(100, Number(e.target.value) || 20)) })}
-                    className="mt-2"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Color */}
-          <div>
-            <label className="label">{t('board.boardColor')}</label>
-            <ColorPicker value={color} onChange={setColor} />
-          </div>
         </div>
-      </Modal>
+      </div>
+
+      <GoalFormModal
+        open={createOpen}
+        editing={!!editingGoal}
+        title={formTitle}
+        parentId={formParentId}
+        dueAt={formDueAt}
+        goals={allGoals}
+        currentGoalId={editingGoal?.id}
+        draftKRs={displayKRs}
+        totalWeight={totalWeight}
+        onTitleChange={setFormTitle}
+        onParentChange={setFormParentId}
+        onDueAtChange={setFormDueAt}
+        onKRChange={updateDraftKR}
+        onKRDelete={removeDraftKR}
+        onKRAdd={addDraftKR}
+        onClose={closeGoalForm}
+        onSaveDraft={() => saveGoal('draft')}
+        onConfirm={() => saveGoal('active')}
+      />
+
+      <GoalDetailModal
+        goal={detailGoal}
+        path={pathForGoal(detailGoal)}
+        keyResults={detailKRs}
+        tab={detailTab}
+        workingValues={workingValues}
+        workingDone={workingDone}
+        progressComment={progressComment}
+        showHistory={showHistory}
+        moreOpen={moreOpen}
+        onClose={requestCloseDetail}
+        onEdit={openEdit}
+        onMoreToggle={() => setMoreOpen((value) => !value)}
+        onTabChange={setDetailTab}
+        onValueChange={(id, value) => setWorkingValues((state) => ({ ...state, [id]: value }))}
+        onDoneChange={(id, value) => setWorkingDone((state) => ({ ...state, [id]: value }))}
+        onCommentChange={setProgressComment}
+        onUpdate={updateAllKRProgress}
+        onToggleHistory={() => setShowHistory((value) => !value)}
+        onFinish={finishGoal}
+        onDelete={() => detailGoal && setDeleteConfirm({
+          open: true,
+          onConfirm: async () => {
+            await deleteGoal(detailGoal.id);
+            setDetailGoal(null);
+          },
+        })}
+        onUnlinkTask={unlinkTask}
+      />
+
+      <UnsavedConfirmModal
+        open={pendingClose}
+        onDiscard={() => {
+          setPendingClose(false);
+          setDetailGoal(null);
+        }}
+        onCancel={() => setPendingClose(false)}
+        onConfirm={confirmUpdateAndClose}
+      />
 
       <DeleteConfirmModal
         open={deleteConfirm.open}
-        onClose={() => setDeleteConfirm({ ...deleteConfirm, open: false })}
+        title={deleteConfirm.title}
+        message={deleteConfirm.message}
+        onClose={() => setDeleteConfirm((state) => ({ ...state, open: false }))}
         onConfirm={deleteConfirm.onConfirm}
       />
     </div>
   );
 }
 
-// ─── GoalCard ───
+function SortHeader({ label, active, direction, onClick }: {
+  label: string;
+  active: boolean;
+  direction: SortDirection;
+  onClick: () => void;
+}) {
+  return (
+    <button className="px-4 py-3 flex items-center gap-1 text-left hover:bg-surface-2" onClick={onClick}>
+      {label}
+      <span className={active ? 'text-primary text-xs' : 'text-text-muted/50 text-xs'}>
+        {active ? (direction === 'desc' ? 'down' : 'up') : 'up/down'}
+      </span>
+    </button>
+  );
+}
 
-function GoalCard({
-  goal,
-  level,
-  expanded,
-  setExpanded,
-  onCreateMilestone,
-  onToggleMilestone,
-  onDeleteMilestone,
-  onDeleteGoal,
-  onUpdateGoal,
-  onOpenDetail,
-  onAddSubGoal,
+function GoalTreeRows({
+  goal, level, indexPath, expanded, setExpanded, onOpen,
 }: {
   goal: GoalWithDetails;
   level: number;
+  indexPath: number[];
   expanded: Record<string, boolean>;
-  setExpanded: (r: Record<string, boolean>) => void;
-  onCreateMilestone: (goalId: string, title: string) => Promise<void>;
-  onToggleMilestone: (id: string) => Promise<void>;
-  onDeleteMilestone: (id: string) => Promise<void>;
-  onDeleteGoal: (id: string) => Promise<void>;
-  onUpdateGoal: (id: string, patch: { title?: string; description?: string | null; color?: string | null; icon?: string | null; dueAt?: string | null }) => Promise<void>;
-  onOpenDetail: (id: string) => void;
-  onAddSubGoal: (parentId: string) => void;
+  setExpanded: (expanded: Record<string, boolean>) => void;
+  onOpen: (goal: GoalWithDetails) => void;
 }) {
   const { t } = useTranslation();
   const isOpen = expanded[goal.id] ?? true;
-  const [newMs, setNewMs] = useState('');
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(goal.title);
-  const toggle = () => setExpanded({ ...expanded, [goal.id]: !isOpen });
-
-  const saveTitle = async () => {
-    if (titleDraft.trim() && titleDraft.trim() !== goal.title) {
-      await onUpdateGoal(goal.id, { title: titleDraft.trim() });
-    }
-    setEditingTitle(false);
-  };
-
-  const canAddSubGoal = level < MAX_DEPTH - 1;
-
-  const periodLabel = (p: string) => {
-    const year = dayjs().year();
-    switch (p) {
-      case 'Q1': return `Q1 ${year}`;
-      case 'Q2': return `Q2 ${year}`;
-      case 'Q3': return `Q3 ${year}`;
-      case 'Q4': return `Q4 ${year}`;
-      case 'yearly': return `${year}`;
-      case 'custom': return t('goal.periodCustom');
-      default: return `${year}`;
-    }
-  };
-
-  const krTypeIcon = (type: string) => {
-    switch (type) {
-      case 'metric': return <TrendingUp size={12} className="text-blue-500" />;
-      case 'boolean': return <CheckCircle2 size={12} className="text-green-500" />;
-      case 'task': return <ListTodo size={12} className="text-purple-500" />;
-      default: return <TrendingUp size={12} />;
-    }
-  };
-
-  // Progress color based on time elapsed
-  const progressColor = (() => {
-    if (!goal.startDate || !goal.dueAt) return goal.color || 'var(--primary)';
-    const now = dayjs();
-    const start = dayjs(goal.startDate);
-    const end = dayjs(goal.dueAt);
-    const totalDays = end.diff(start, 'day');
-    if (totalDays <= 0) return 'var(--success)';
-    const elapsed = now.diff(start, 'day');
-    const timeRate = Math.min(100, (elapsed / totalDays) * 100);
-    const progressPct = goal.progress * 100;
-    const gap = timeRate - progressPct;
-    if (gap <= 0) return 'var(--success)';
-    if (gap <= 20) return 'var(--warning)';
-    return 'var(--danger)';
-  })();
+  const hasChildren = goal.keyResults.length > 0 || goal.subGoals.length > 0;
+  const label = `O${indexPath[indexPath.length - 1]}`;
 
   return (
-    <div className="card" style={{ marginLeft: level * 20 }}>
-      <div className="p-4 flex items-start gap-3">
-        <button onClick={toggle} className="btn-ghost p-0.5 mt-0.5">
-          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        </button>
-        <div
-          className="w-2.5 h-10 rounded-full shrink-0"
-          style={{ background: goal.color || 'var(--primary)' }}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            {editingTitle ? (
-              <div className="flex items-center gap-1 flex-1">
-                <input
-                  className="input py-0.5 px-1 text-sm flex-1 font-semibold"
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') saveTitle();
-                    if (e.key === 'Escape') { setEditingTitle(false); setTitleDraft(goal.title); }
-                  }}
-                  autoFocus
-                />
-                <button className="btn-ghost p-0.5" onClick={saveTitle}>
-                  <Check size={14} className="text-green-500" />
-                </button>
-                <button className="btn-ghost p-0.5" onClick={() => { setEditingTitle(false); setTitleDraft(goal.title); }}>
-                  <X size={14} className="text-text-muted" />
-                </button>
-              </div>
-            ) : (
-              <h3
-                className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
-                onClick={() => onOpenDetail(goal.id)}
-                onDoubleClick={() => { setEditingTitle(true); setTitleDraft(goal.title); }}
-                title={t('goal.renameGoal')}
-              >
-                {goal.title}
-              </h3>
-            )}
-            {/* Period chip */}
-            <span className="chip text-xs">{periodLabel(goal.period)}</span>
-            <span className="text-xs text-text-muted">{Math.round(goal.progress * 100)}%</span>
-          </div>
-          {goal.description && (
-            <div className="text-xs text-text-muted mt-0.5 line-clamp-2">{goal.description}</div>
-          )}
-          {/* Progress bar */}
-          <div className="mt-2 flex items-center gap-2">
-            <ProgressBar value={goal.progress} color={progressColor} className="flex-1" />
-          </div>
-          {/* KR summary list */}
-          {goal.keyResults.length > 0 && (
-            <div className="mt-2 space-y-1">
-              {goal.keyResults.map((kr) => {
-                const krProgress = kr.type === 'boolean'
-                  ? (kr.isCompleted ? 100 : 0)
-                  : kr.type === 'metric'
-                    ? Math.max(0, Math.min(100, ((kr.currentValue - kr.startValue) / (kr.targetValue - kr.startValue)) * 100))
-                    : Math.max(0, Math.min(100, ((kr.currentValue - kr.startValue) / (kr.targetValue - kr.startValue)) * 100));
-                return (
-                  <div key={kr.id} className="flex items-center gap-2 text-xs">
-                    {krTypeIcon(kr.type)}
-                    <span className="truncate flex-1">{kr.title}</span>
-                    <ProgressBar value={krProgress / 100} height={4} color={progressColor} className="w-24" />
-                    <span className="text-text-muted font-mono w-16 text-right">
-                      {kr.type === 'metric'
-                        ? `${kr.currentValue}/${kr.targetValue}${kr.unit || ''}`
-                        : kr.type === 'boolean'
-                          ? (kr.isCompleted ? '✓' : '○')
-                          : `${Math.round(kr.currentValue)}/${Math.round(kr.targetValue)}`}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {goal.dueAt && (
-            <div className="mt-1.5 flex items-center gap-1 text-xs text-text-muted">
-              <CalIcon size={11} />
-              {dayjs(goal.dueAt).format('YYYY-MM-DD')}
-            </div>
-          )}
+    <>
+      <div className="grid grid-cols-[minmax(0,1fr)_340px_110px] min-h-16 items-center border-b border-border hover:bg-surface-2/40">
+        <div className="px-4 flex items-center gap-3 min-w-0" style={{ paddingLeft: 18 + level * 26 }}>
+          <button className="btn-ghost p-0.5 text-text-muted" onClick={() => setExpanded({ ...expanded, [goal.id]: !isOpen })} disabled={!hasChildren}>
+            {hasChildren ? (isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : <span className="inline-block w-4" />}
+          </button>
+          <span className="rounded-full bg-primary/10 text-primary text-sm font-semibold px-3 py-1">{label}</span>
+          <button className="truncate font-semibold text-left hover:text-primary" onClick={() => onOpen(goal)}>{goal.title}</button>
+          {goal.status === 'draft' && <span className="text-[10px] px-1.5 py-0.5 border border-warning/40 text-warning">{t('goal.draft')}</span>}
         </div>
-        <div className="flex items-center gap-1">
-          {canAddSubGoal && (
-            <Button size="sm" variant="ghost" onClick={() => onAddSubGoal(goal.id)}>
-              <Plus size={12} />
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={() => onDeleteGoal(goal.id)}
-          >
-            <Trash2 size={12} />
-          </Button>
-        </div>
+        <ProgressCell progress={goal.progress} />
+        <div className="px-4 text-center text-sm text-text-muted border-l border-border">-</div>
       </div>
 
-      {isOpen && (
-        <div className="px-4 pb-4">
-          {goal.milestones.length > 0 && (
-            <div className="mb-2 text-xs font-semibold text-text-muted uppercase">
-              {t('goal.milestones')}
+      {isOpen && goal.keyResults.map((kr, index) => {
+        const progress = krProgress(kr);
+        return (
+          <div key={kr.id} className="grid grid-cols-[minmax(0,1fr)_340px_110px] min-h-14 items-center border-b border-border bg-surface-2/20">
+            <div className="px-4 flex items-center gap-3 min-w-0 text-sm" style={{ paddingLeft: 54 + level * 26 }}>
+              <span className="text-border">|-</span>
+              <span className="rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-semibold">KR{index + 1}</span>
+              <span className="truncate">{kr.title}</span>
             </div>
-          )}
-          <div className="space-y-1 mb-2">
-            {goal.milestones.map((m) => (
-              <MilestoneRow
-                key={m.id}
-                m={m}
-                onToggle={() => onToggleMilestone(m.id)}
-                onDelete={() => onDeleteMilestone(m.id)}
-              />
-            ))}
+            <ProgressCell progress={progress} />
+            <div className="px-4 text-center text-sm tabular-nums border-l border-border">{kr.weight}%</div>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              value={newMs}
-              onChange={(e) => setNewMs(e.target.value)}
-              placeholder={t('goal.addMilestone').replace('+ ', '')}
-              className="input flex-1"
-              onKeyDown={async (e) => {
-                if (e.key === 'Enter' && newMs.trim()) {
-                  await onCreateMilestone(goal.id, newMs.trim());
-                  setNewMs('');
-                }
-              }}
-            />
-            <Button
-              size="sm"
-              onClick={async () => {
-                if (newMs.trim()) {
-                  await onCreateMilestone(goal.id, newMs.trim());
-                  setNewMs('');
-                }
-              }}
-            >
-              <Plus size={14} />
-            </Button>
-          </div>
+        );
+      })}
 
-          {goal.subGoals.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {goal.subGoals.map((sg) => (
-                <GoalCard
-                  key={sg.id}
-                  goal={sg}
-                  level={level + 1}
-                  expanded={expanded}
-                  setExpanded={setExpanded}
-                  onCreateMilestone={onCreateMilestone}
-                  onToggleMilestone={onToggleMilestone}
-                  onDeleteMilestone={onDeleteMilestone}
-                  onDeleteGoal={onDeleteGoal}
-                  onUpdateGoal={onUpdateGoal}
-                  onOpenDetail={onOpenDetail}
-                  onAddSubGoal={onAddSubGoal}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {isOpen && goal.subGoals.map((subGoal, index) => (
+        <GoalTreeRows
+          key={subGoal.id}
+          goal={subGoal}
+          level={level + 1}
+          indexPath={[...indexPath, index + 1]}
+          expanded={expanded}
+          setExpanded={setExpanded}
+          onOpen={onOpen}
+        />
+      ))}
+    </>
+  );
+}
+
+function ProgressCell({ progress }: { progress: number }) {
+  return (
+    <div className="px-4 flex items-center gap-3 border-l border-border">
+      <ProgressBar value={progress} color={progressColor(progress)} className="w-36" />
+      <span className="w-16 text-sm tabular-nums">{(progress * 100).toFixed(progress * 100 % 1 === 0 ? 0 : 2)}%</span>
     </div>
   );
 }
 
-function MilestoneRow({
-  m,
-  onToggle,
-  onDelete,
+function GoalFormModal({
+  open, editing, title, parentId, dueAt, goals, currentGoalId, draftKRs, totalWeight,
+  onTitleChange, onParentChange, onDueAtChange, onKRChange, onKRDelete, onKRAdd,
+  onClose, onSaveDraft, onConfirm,
 }: {
-  m: Milestone;
-  onToggle: () => void;
+  open: boolean;
+  editing: boolean;
+  title: string;
+  parentId: string;
+  dueAt: string;
+  goals: GoalWithDetails[];
+  currentGoalId?: string;
+  draftKRs: DraftKR[];
+  totalWeight: number;
+  onTitleChange: (value: string) => void;
+  onParentChange: (value: string) => void;
+  onDueAtChange: (value: string) => void;
+  onKRChange: (index: number, patch: Partial<DraftKR>) => void;
+  onKRDelete: (index: number) => void;
+  onKRAdd: () => void;
+  onClose: () => void;
+  onSaveDraft: () => void;
+  onConfirm: () => void;
+}) {
+  const { t } = useTranslation();
+  const parentOptions = goals.filter((goal) => goal.id !== currentGoalId);
+  const parentDisabled = parentOptions.length === 0;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={editing ? t('goal.editGoal') : t('goal.addGoal')}
+      size="xl"
+      footer={
+        <div className="w-full flex items-center justify-end gap-3">
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          {!editing && (
+            <Button variant="outline" onClick={onSaveDraft}>
+              <Save size={15} /> {t('goal.saveDraft')}
+            </Button>
+          )}
+          <Button onClick={onConfirm}>
+            <Check size={15} /> {t('common.confirm')}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        <Input label={`${t('goal.goalName')} *`} value={title} onChange={(event) => onTitleChange(event.target.value)} placeholder={t('goal.goalNamePlaceholder')} autoFocus />
+
+        <div className={editing ? 'grid grid-cols-2 gap-6' : ''}>
+          <div>
+            <label className="label">{t('goal.parentGoal')}</label>
+            <select className="input w-full disabled:bg-surface-2 disabled:text-text-muted" value={parentId} onChange={(event) => onParentChange(event.target.value)} disabled={parentDisabled}>
+              <option value="">{t('goal.parentGoalPlaceholder')}</option>
+              {parentOptions.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
+            </select>
+          </div>
+          {editing && (
+            <Input label={`${t('goal.due')} *`} type="date" value={dueAt} onChange={(event) => onDueAtChange(event.target.value)} />
+          )}
+        </div>
+
+        <section className="border-t border-border pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 font-semibold">
+              <span className="text-xs px-1.5 py-0.5 rounded bg-primary text-white">KR</span>
+              {t('goal.keyResult')}
+              <HelpCircle size={14} className="text-text-muted" />
+            </div>
+            <div className={totalWeight === 100 ? 'text-sm text-text-muted' : 'text-sm text-red-500 font-medium'}>
+              {t('goal.totalWeight')}: {totalWeight}%
+            </div>
+          </div>
+
+          <div className="space-y-3 max-h-[46vh] overflow-y-auto pr-2">
+            {draftKRs.map((kr, index) => (
+              <DraftKRRow
+                key={kr.id || index}
+                kr={kr}
+                isLast={index === draftKRs.length - 1}
+                onChange={(patch) => onKRChange(index, patch)}
+                onDelete={() => onKRDelete(index)}
+              />
+            ))}
+          </div>
+
+          <button className="mt-3 inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary" onClick={onKRAdd}>
+            <Plus size={16} /> {t('goal.addKR')}
+          </button>
+        </section>
+      </div>
+    </Modal>
+  );
+}
+
+function DraftKRRow({ kr, isLast, onChange, onDelete }: {
+  kr: DraftKR;
+  isLast: boolean;
+  onChange: (patch: Partial<DraftKR>) => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center gap-2 text-sm group">
-      <button
-        onClick={onToggle}
-        className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0"
-        style={{
-          borderColor: m.isCompleted ? 'var(--primary)' : 'var(--border)',
-          background: m.isCompleted ? 'var(--primary)' : 'transparent',
-        }}
-      >
-        {m.isCompleted && <span className="text-white text-[10px]">✓</span>}
-      </button>
-      <span className={`flex-1 ${m.isCompleted ? 'line-through text-text-muted' : ''}`}>{m.title}</span>
-      <button
-        onClick={() => onDelete()}
-        className="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost p-0.5"
-      >
-        <Trash2 size={12} />
-      </button>
+    <div className="border-b border-border pb-3">
+      <div className="grid grid-cols-[24px_minmax(0,1fr)_190px_32px] gap-3 items-start">
+        <ChevronDown size={16} className="text-text-muted mt-3" />
+        <Input value={kr.title} onChange={(event) => onChange({ title: event.target.value })} placeholder={t('goal.krTitlePlaceholder')} />
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-text-muted">{t('goal.weight')}</span>
+          <input className="input h-10 w-24 disabled:bg-surface-2 disabled:text-text-muted" type="number" min={0} max={100} value={kr.weight} disabled={isLast}
+            onChange={(event) => onChange({ weight: clamp(Number(event.target.value) || 0) })} />
+          <span className="text-sm">%</span>
+        </div>
+        <button className="btn-ghost p-2 text-text-muted hover:text-red-500" onClick={onDelete} title={t('common.delete')}>
+          <Trash2 size={16} />
+        </button>
+      </div>
+      <div className="grid grid-cols-[160px_180px_220px_220px] gap-4 mt-2 ml-9 items-end">
+        <select className="input h-10" value={kr.type} onChange={(event) => onChange({ type: event.target.value as KRType })}>
+          <option value="metric">{t('goal.metricProgress')}</option>
+          <option value="boolean">{t('goal.boolean')}</option>
+        </select>
+        <Input label={t('goal.unit')} value={kr.unit} disabled={kr.type === 'boolean'} onChange={(event) => onChange({ unit: event.target.value })} placeholder="%" />
+        <Input label={t('goal.startValue')} type={kr.type === 'metric' ? 'number' : 'text'} value={kr.type === 'metric' ? kr.startValue : t('goal.notCompleted')} disabled={kr.type === 'boolean'}
+          onChange={(event) => onChange({ startValue: Number(event.target.value) || 0 })} />
+        <Input label={t('goal.targetValue')} type={kr.type === 'metric' ? 'number' : 'text'} value={kr.type === 'metric' ? kr.targetValue : t('goal.completed')} disabled={kr.type === 'boolean'}
+          onChange={(event) => onChange({ targetValue: Number(event.target.value) || 0 })} />
+      </div>
+    </div>
+  );
+}
+
+function GoalDetailModal({
+  goal, path, keyResults, tab, workingValues, workingDone, progressComment,
+  showHistory, moreOpen, onClose, onEdit, onMoreToggle, onTabChange, onValueChange,
+  onDoneChange, onCommentChange, onUpdate, onToggleHistory, onFinish, onDelete, onUnlinkTask,
+}: {
+  goal: GoalWithDetails | null;
+  path: GoalWithDetails[];
+  keyResults: KeyResultWithLogs[];
+  tab: DetailTab;
+  workingValues: Record<string, number>;
+  workingDone: Record<string, boolean>;
+  progressComment: string;
+  showHistory: boolean;
+  moreOpen: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onMoreToggle: () => void;
+  onTabChange: (tab: DetailTab) => void;
+  onValueChange: (id: string, value: number) => void;
+  onDoneChange: (id: string, value: boolean) => void;
+  onCommentChange: (value: string) => void;
+  onUpdate: () => Promise<void>;
+  onToggleHistory: () => void;
+  onFinish: () => Promise<void>;
+  onDelete: () => void;
+  onUnlinkTask: (task: LinkedTask) => void;
+}) {
+  const { t } = useTranslation();
+  if (!goal) return null;
+
+  const history = keyResults
+    .flatMap((kr) => kr.logs.map((log) => ({ ...log, krTitle: kr.title })))
+    .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf());
+
+  return (
+    <Modal open={true} onClose={onClose} size="xl">
+      <div className={`grid ${showHistory ? 'grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1'} gap-0 -m-5`}>
+        <div className="p-5 border-r border-border min-w-0">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div className="min-w-0">
+              <div className="text-sm text-text-muted mb-5 flex items-center gap-2">
+                <span>{t('goal.parentGoal')}:</span>
+                {path.length > 1 ? path.slice(0, -1).map((item) => <span key={item.id} className="text-primary">{item.title}</span>) : <span>{t('goal.none')}</span>}
+              </div>
+              <h2 className="text-2xl font-semibold truncate">{goal.title}</h2>
+            </div>
+            <div className="flex items-center gap-1 relative">
+              <button className="btn-ghost p-2" onClick={onEdit} title={t('goal.editGoal')}><Edit3 size={18} /></button>
+              <button className="btn-ghost p-2 bg-primary/10" onClick={onMoreToggle}><MoreHorizontal size={18} /></button>
+              <button className="btn-ghost p-2" onClick={onClose}><X size={18} /></button>
+              {moreOpen && (
+                <div className="absolute right-8 top-10 w-44 bg-surface border border-border shadow-lg z-10">
+                  <button className="w-full text-left px-4 py-3 hover:bg-surface-2" onClick={onFinish}>{t('goal.finishGoal')}</button>
+                  <button className="w-full text-left px-4 py-3 hover:bg-surface-2 text-red-500" onClick={onDelete}>{t('common.delete')}</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <section className="mb-5">
+            <div className="text-sm text-text-muted mb-2">{t('goal.overallProgress')}</div>
+            <div className="flex items-center gap-3 max-w-sm">
+              <ProgressBar value={goal.progress} color={progressColor(goal.progress)} className="flex-1" />
+              <span className="text-primary tabular-nums">{(goal.progress * 100).toFixed(2)}%</span>
+              <HelpCircle size={15} className="text-primary" />
+            </div>
+            <div className="text-xs text-text-muted mt-4">
+              {goal.dueAt && <span>{t('goal.due')}: {dayjs(goal.dueAt).format('M月D日 HH:mm')}</span>}
+              <span className="ml-6">{t('board.updatedAt')}: {dayjs(goal.updatedAt).format('M月D日 HH:mm')}</span>
+            </div>
+          </section>
+
+          <div className="flex items-center justify-between border-b border-border mb-4">
+            <div className="flex items-center gap-6">
+              <TabButton active={tab === 'krs'} onClick={() => onTabChange('krs')} label={`${t('goal.keyResult')} ${keyResults.length}`} />
+              <TabButton active={tab === 'tasks'} onClick={() => onTabChange('tasks')} label={`${t('goal.relatedTasks')} ${goal.linkedTasks.length}`} />
+            </div>
+            <Button size="sm" variant="ghost" onClick={onToggleHistory}>
+              <Activity size={14} /> {t('goal.progressHistory')}
+            </Button>
+          </div>
+
+          {tab === 'krs' ? (
+            <KeyResultsPanel
+              goal={goal}
+              keyResults={keyResults}
+              workingValues={workingValues}
+              workingDone={workingDone}
+              progressComment={progressComment}
+              onValueChange={onValueChange}
+              onDoneChange={onDoneChange}
+              onCommentChange={onCommentChange}
+              onUpdate={onUpdate}
+            />
+          ) : (
+            <RelatedTasksPanel tasks={goal.linkedTasks} onUnlink={onUnlinkTask} />
+          )}
+
+          <div className="flex items-center gap-5 text-xs text-text-muted mt-5 pt-3">
+            <span>{t('board.createdAt')} {dayjs(goal.createdAt).format('YYYY年M月D日 HH:mm')}</span>
+            <span>{t('board.updatedAt')} {dayjs(goal.updatedAt).format('YYYY年M月D日 HH:mm')}</span>
+          </div>
+        </div>
+
+        <aside className={showHistory ? 'p-5 bg-surface-2/30' : 'hidden'}>
+          <h4 className="font-semibold border-b border-primary pb-3 mb-4 text-primary">{t('goal.progressHistory')}</h4>
+          <div className="relative pl-5 space-y-5 before:absolute before:left-[6px] before:top-2 before:bottom-2 before:w-px before:bg-border">
+            {history.map((item) => (
+              <div key={item.id} className="relative">
+                <span className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-primary border-2 border-surface" />
+                <div className="text-xs text-text-muted">{dayjs(item.createdAt).format('YYYY年 M月D日 HH:mm')}</div>
+                <div className="text-sm mt-0.5">{item.krTitle}: {item.oldValue} -&gt; {item.newValue}</div>
+                {item.comment && <div className="text-xs text-text-muted mt-1 whitespace-pre-wrap">{item.comment}</div>}
+              </div>
+            ))}
+            <div className="relative">
+              <span className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-text-muted border-2 border-surface" />
+              <div className="text-xs text-text-muted">{dayjs(goal.createdAt).format('YYYY年 M月D日 HH:mm')}</div>
+              <div className="text-sm mt-0.5">{t('goal.goalCreated')}</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </Modal>
+  );
+}
+
+function TabButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button className={`py-3 text-sm font-medium border-b-2 ${active ? 'text-primary border-primary' : 'text-text-muted border-transparent'}`} onClick={onClick}>
+      {label}
+    </button>
+  );
+}
+
+function KeyResultsPanel({
+  goal, keyResults, workingValues, workingDone, progressComment,
+  onValueChange, onDoneChange, onCommentChange, onUpdate,
+}: {
+  goal: GoalWithDetails;
+  keyResults: KeyResultWithLogs[];
+  workingValues: Record<string, number>;
+  workingDone: Record<string, boolean>;
+  progressComment: string;
+  onValueChange: (id: string, value: number) => void;
+  onDoneChange: (id: string, value: boolean) => void;
+  onCommentChange: (value: string) => void;
+  onUpdate: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <div className="text-sm text-text-muted mb-3">{t('goal.totalKR', { count: keyResults.length })}</div>
+      <div className="grid grid-cols-[minmax(0,1fr)_260px_80px_120px] text-sm text-text-muted border-b border-border pb-2">
+        <span>{t('goal.keyResult')}</span>
+        <span>{t('goal.progress')}</span>
+        <span>{t('goal.weight')}</span>
+        <span>{t('goal.status')}</span>
+      </div>
+      <div>
+        {keyResults.map((kr) => {
+          const progress = kr.type === 'boolean' ? ((workingDone[kr.id] ?? kr.isCompleted) ? 1 : 0) : krProgress({ ...kr, currentValue: workingValues[kr.id] ?? kr.currentValue });
+          return (
+            <div key={kr.id} className="border-b border-border py-3">
+              <div className="grid grid-cols-[minmax(0,1fr)_260px_80px_120px] items-center gap-3">
+                <div className="font-medium truncate flex items-center gap-2"><ChevronDown size={15} className="text-text-muted" />{kr.title}</div>
+                <div className="flex items-center gap-3">
+                  <ProgressBar value={progress} color={progressColor(progress)} className="flex-1" />
+                  <span className="w-12 text-sm tabular-nums">{(progress * 100).toFixed(0)}%</span>
+                </div>
+                <span>{kr.weight}%</span>
+                <HealthLights active={healthState(progress)} />
+              </div>
+              <div className="mt-3 pl-6 flex items-center gap-5">
+                {kr.type === 'boolean' ? (
+                  <>
+                    <span className="text-sm text-text-muted">{t('goal.currentProgress')}</span>
+                    <div className="inline-flex rounded border border-border overflow-hidden">
+                      <button className={`px-4 py-1.5 text-sm ${(workingDone[kr.id] ?? kr.isCompleted) ? 'bg-surface' : 'bg-primary text-white'}`} onClick={() => onDoneChange(kr.id, false)}>{t('goal.notCompleted')}</button>
+                      <button className={`px-4 py-1.5 text-sm ${(workingDone[kr.id] ?? kr.isCompleted) ? 'bg-primary text-white' : 'bg-surface'}`} onClick={() => onDoneChange(kr.id, true)}>{t('goal.completed')}</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Input label={t('goal.currentProgress')} type="number" value={workingValues[kr.id] ?? kr.currentValue} onChange={(event) => onValueChange(kr.id, Number(event.target.value) || 0)} />
+                    <span className="pb-2 text-sm">{kr.unit || ''}</span>
+                    <span className="pb-2 text-sm text-text-muted">{t('goal.startValue')} {kr.startValue}{kr.unit || ''}</span>
+                    <span className="pb-2 text-sm text-text-muted">{t('goal.targetValue')} {kr.targetValue}{kr.unit || ''}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <Textarea className="mt-4 min-h-[150px]" value={progressComment} onChange={(event) => onCommentChange(event.target.value)} placeholder={t('goal.commentPlaceholder')} />
+      <div className="mt-4 flex items-center gap-3">
+        <Button onClick={onUpdate}>{t('goal.updateKR')}</Button>
+        <HelpCircle size={16} className="text-text-muted" />
+      </div>
+      <div className="sr-only">{goal.id}</div>
+    </>
+  );
+}
+
+function RelatedTasksPanel({ tasks, onUnlink }: { tasks: LinkedTask[]; onUnlink: (task: LinkedTask) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm text-text-muted mb-3">
+        <span>{t('goal.totalRelatedTasks', { count: tasks.length })}</span>
+        <span className="inline-flex items-center gap-3"><Plus size={15} />{t('common.add')} <ClipboardList size={15} />{t('goal.linkTask')}</span>
+      </div>
+      <div className="border-t border-border">
+        {tasks.length === 0 && <div className="py-10 text-center text-text-muted">{t('common.empty')}</div>}
+        {tasks.map((task) => (
+          <div key={`${task.krId}-${task.id}`} className="group grid grid-cols-[minmax(0,1fr)_160px_120px_42px] items-center min-h-14 border-b border-border">
+            <div className="px-4 font-medium truncate">{task.title}</div>
+            <div className="text-sm text-text-muted">{task.boardName}/{task.listName}</div>
+            <span className={`justify-self-start text-xs px-3 py-1 rounded-full ${task.isCompleted ? 'bg-green-500/15 text-green-600' : 'bg-red-500/15 text-red-500'}`}>
+              {task.isCompleted ? t('goal.completed') : t('board.statusNotStarted')}
+            </span>
+            <button className="opacity-0 group-hover:opacity-100 btn-ghost p-1 text-primary" onClick={() => onUnlink(task)} title={t('goal.unlinkTask')}>
+              <Link2Off size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UnsavedConfirmModal({ open, onDiscard, onCancel, onConfirm }: {
+  open: boolean;
+  onDiscard: () => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal open={open} onClose={onCancel} title={t('goal.confirmUpdate')} size="sm">
+      <div className="space-y-5">
+        <p className="text-sm text-text-muted">{t('goal.confirmUpdateMessage')}</p>
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="ghost" onClick={onDiscard}>{t('goal.discardUpdate')}</Button>
+          <Button variant="outline" onClick={onCancel}>{t('common.cancel')}</Button>
+          <Button onClick={onConfirm}>{t('common.confirm')}</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function HealthLights({ active }: { active: 'normal' | 'risk' | 'behind' }) {
+  const lights = [
+    { key: 'normal', color: '#2dd4bf' },
+    { key: 'risk', color: '#f59e0b' },
+    { key: 'behind', color: '#fb7185' },
+  ] as const;
+  return (
+    <div className="flex items-center gap-3" title={active}>
+      {lights.map((light) => (
+        <Circle
+          key={light.key}
+          size={17}
+          fill={active === light.key ? light.color : 'transparent'}
+          color={light.color}
+          strokeWidth={active === light.key ? 3 : 1.6}
+        />
+      ))}
     </div>
   );
 }

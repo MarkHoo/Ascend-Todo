@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft, Plus, Pin, PinOff, Trash2, Calendar as CalIcon, Bell, Check, X,
-  ChevronRight, Type, FileText, Bold, Italic, Underline, Heading1, Heading2,
+  ChevronRight, Bold, Italic,
   List as ListIcon, ListOrdered, Link as LinkIcon, Code, Quote, Minus,
 } from 'lucide-react';
 import { marked, type Tokens } from 'marked';
@@ -465,11 +465,8 @@ function TaskDetailModal({
   const [detailTab, setDetailTab] = useState<'info' | 'subtask'>('info');
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [descDraft, setDescDraft] = useState(task.description || '');
-  const [descMode, setDescMode] = useState<'richtext' | 'markdown'>('markdown');
-  const descEditorRef = useRef<HTMLDivElement>(null);
   const mdTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newSubtask, setNewSubtask] = useState('');
-  const [rtActiveStates, setRtActiveStates] = useState<Record<string, boolean>>({});
   const canHaveSubtasks = depth < MAX_NESTING - 1;
 
   // Sync draft when task changes
@@ -498,9 +495,7 @@ function TaskDetailModal({
   );
 
   const handleSaveDescription = async () => {
-    const newDesc = descMode === 'richtext'
-      ? (descEditorRef.current?.innerHTML || '')
-      : descDraft;
+    const newDesc = descDraft;
     if (newDesc !== (task.description || '')) {
       await updateTask(task.id, { description: newDesc });
       setDraft((d) => ({ ...d, description: newDesc }));
@@ -519,42 +514,13 @@ function TaskDetailModal({
   useEffect(() => {
     if (!isEditingDesc) return;
     requestAnimationFrame(() => {
-      if (descMode === 'markdown') {
-        const ta = mdTextareaRef.current;
-        ta?.focus();
-        const pos = ta?.value.length ?? 0;
-        ta?.setSelectionRange(pos, pos);
-        ta?.scrollTo({ top: ta.scrollHeight });
-      } else if (descEditorRef.current) {
-        descEditorRef.current.innerHTML = descDraft;
-        descEditorRef.current.focus();
-      }
+      const ta = mdTextareaRef.current;
+      ta?.focus();
+      const pos = ta?.value.length ?? 0;
+      ta?.setSelectionRange(pos, pos);
+      ta?.scrollTo({ top: ta.scrollHeight });
     });
-  }, [isEditingDesc, descMode]);
-
-  // ============ Rich Text commands ============
-  const execCmd = (cmd: string, value?: string) => {
-    document.execCommand(cmd, false, value);
-    descEditorRef.current?.focus();
-    updateRtStates();
-  };
-
-  const updateRtStates = () => {
-    setRtActiveStates({
-      bold: document.queryCommandState('bold'),
-      italic: document.queryCommandState('italic'),
-      underline: document.queryCommandState('underline'),
-      insertUnorderedList: document.queryCommandState('insertUnorderedList'),
-      insertOrderedList: document.queryCommandState('insertOrderedList'),
-    });
-  };
-
-  const handleRtKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      document.execCommand('insertText', false, '   ');
-    }
-  };
+  }, [isEditingDesc]);
 
   // ============ Markdown helpers ============
   const replaceMdRange = (
@@ -634,16 +600,7 @@ function TaskDetailModal({
     }
   };
 
-  const setEditorMode = (mode: 'richtext' | 'markdown') => {
-    if (mode === descMode) return;
-    if (descMode === 'richtext' && descEditorRef.current) {
-      setDescDraft(descEditorRef.current.innerHTML);
-    }
-    setDescMode(mode);
-  };
-
   const descHtml = task.description || '';
-  const hasHtmlTags = /<[a-z][\s\S]*>/i.test(descHtml);
 
   return (
     <Modal open={true} onClose={onClose} title={t('board.taskDetail')} size="xl">
@@ -728,73 +685,35 @@ function TaskDetailModal({
               <label className="label">{t('board.taskDescription')}</label>
               {isEditingDesc ? (
                 <div className="space-y-2">
-                  {/* Mode toggle */}
-                  <div className="flex items-center gap-1">
-                    <button className={`h-8 text-xs px-2 rounded-l-md border inline-flex items-center gap-1 ${descMode === 'markdown' ? 'bg-primary text-white border-primary shadow-sm' : 'border-border bg-surface-2/30 text-text-muted hover:text-text'}`}
-                      onClick={() => setEditorMode('markdown')}><FileText size={TOOL_ICON_SIZE} />{t('board.markdownMode')}</button>
-                    <button className={`h-8 text-xs px-2 rounded-r-md border border-l-0 inline-flex items-center gap-1 ${descMode === 'richtext' ? 'bg-primary text-white border-primary shadow-sm' : 'border-border bg-surface-2/30 text-text-muted hover:text-text'}`}
-                      onClick={() => setEditorMode('richtext')}><Type size={TOOL_ICON_SIZE} />{t('board.richTextMode')}</button>
-                  </div>
-
                   {/* Editor container — toolbar + content as one visual unit */}
                   <div className="rounded-lg border border-border overflow-hidden">
                     {/* Toolbar */}
                     <div className="min-h-10 flex items-center gap-0.5 flex-wrap px-2 py-1.5 border-b border-border bg-surface-2/40">
-                      {descMode === 'richtext' ? (
-                        <>
-                          <ToolbarBtn active={rtActiveStates.bold} onClick={() => execCmd('bold')} title="Bold"><Bold size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn active={rtActiveStates.italic} onClick={() => execCmd('italic')} title="Italic"><Italic size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn active={rtActiveStates.underline} onClick={() => execCmd('underline')} title="Underline"><Underline size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'h1')} title="H1"><Heading1 size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'h2')} title="H2"><Heading2 size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn active={rtActiveStates.insertUnorderedList} onClick={() => execCmd('insertUnorderedList')} title="Bullet List"><ListIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn active={rtActiveStates.insertOrderedList} onClick={() => execCmd('insertOrderedList')} title="Numbered List"><ListOrdered size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => { const url = prompt('URL:'); if (url) execCmd('createLink', url); }} title="Link"><LinkIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'blockquote')} title="Quote"><Quote size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => execCmd('formatBlock', 'pre')} title="Code"><Code size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                        </>
-                      ) : (
-                        <>
-                          <ToolbarBtn onClick={() => insertMd('**', '**')} title="Bold"><Bold size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('*', '*')} title="Italic"><Italic size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('~~', '~~')} title="Strikethrough"><Minus size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => insertMd('# ')} title="H1"><span className="text-xs font-bold">H1</span></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('## ')} title="H2"><span className="text-xs font-bold">H2</span></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('### ')} title="H3"><span className="text-xs font-bold">H3</span></ToolbarBtn>
-                          <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => insertMd('- ')} title="Bullet List"><ListIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('1. ')} title="Ordered List"><ListOrdered size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <div className="w-px h-4 bg-border mx-0.5" />
-                          <ToolbarBtn onClick={() => insertMd('[', '](url)')} title="Link"><LinkIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('> ')} title="Quote"><Quote size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('`', '`')} title="Inline Code"><Code size={TOOL_ICON_SIZE} /></ToolbarBtn>
-                          <ToolbarBtn onClick={() => insertMd('```\n', '\n```')} title="Code Block"><span className="text-[10px] font-mono">```</span></ToolbarBtn>
-                        </>
-                      )}
+                      <ToolbarBtn onClick={() => insertMd('**', '**')} title="Bold"><Bold size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                      <ToolbarBtn onClick={() => insertMd('*', '*')} title="Italic"><Italic size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                      <ToolbarBtn onClick={() => insertMd('~~', '~~')} title="Strikethrough"><Minus size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                      <div className="w-px h-4 bg-border mx-0.5" />
+                      <ToolbarBtn onClick={() => insertMd('# ')} title="H1"><span className="text-xs font-bold">H1</span></ToolbarBtn>
+                      <ToolbarBtn onClick={() => insertMd('## ')} title="H2"><span className="text-xs font-bold">H2</span></ToolbarBtn>
+                      <ToolbarBtn onClick={() => insertMd('### ')} title="H3"><span className="text-xs font-bold">H3</span></ToolbarBtn>
+                      <div className="w-px h-4 bg-border mx-0.5" />
+                      <ToolbarBtn onClick={() => insertMd('- ')} title="Bullet List"><ListIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                      <ToolbarBtn onClick={() => insertMd('1. ')} title="Ordered List"><ListOrdered size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                      <div className="w-px h-4 bg-border mx-0.5" />
+                      <ToolbarBtn onClick={() => insertMd('[', '](url)')} title="Link"><LinkIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                      <ToolbarBtn onClick={() => insertMd('> ')} title="Quote"><Quote size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                      <ToolbarBtn onClick={() => insertMd('`', '`')} title="Inline Code"><Code size={TOOL_ICON_SIZE} /></ToolbarBtn>
+                      <ToolbarBtn onClick={() => insertMd('```\n', '\n```')} title="Code Block"><span className="text-[10px] font-mono">```</span></ToolbarBtn>
                     </div>
                     {/* Editor area */}
-                    {descMode === 'richtext' ? (
-                      <div ref={descEditorRef} contentEditable suppressContentEditableWarning
-                        className="p-4 min-h-[250px] max-h-[50vh] overflow-y-auto text-sm outline-none prose prose-sm max-w-none"
-                        style={{ background: 'var(--surface-2)' }}
-                        onInput={(e) => setDescDraft((e.target as HTMLDivElement).innerHTML)}
-                        onKeyDown={handleRtKeyDown}
-                        onSelect={updateRtStates}
-                        onClick={updateRtStates} />
-                    ) : (
-                      <textarea ref={mdTextareaRef}
-                        className="w-full min-h-[250px] max-h-[50vh] overflow-y-auto p-4 text-sm font-mono outline-none resize-none"
-                        style={{ background: 'var(--surface-2)', fontFamily: 'ui-monospace, monospace' }}
-                        value={descDraft}
-                        onChange={(e) => setDescDraft(e.target.value)}
-                        onKeyDown={handleMdKeyDown}
-                        placeholder="## Markdown supported..."
-                      />
-                    )}
+                    <textarea ref={mdTextareaRef}
+                      className="w-full min-h-[250px] max-h-[50vh] overflow-y-auto p-4 text-sm font-mono outline-none resize-none"
+                      style={{ background: 'var(--surface-2)', fontFamily: 'ui-monospace, monospace' }}
+                      value={descDraft}
+                      onChange={(e) => setDescDraft(e.target.value)}
+                      onKeyDown={handleMdKeyDown}
+                      placeholder="## Markdown supported..."
+                    />
                   </div>
 
                   <div className="flex items-center gap-2 justify-end">
@@ -805,12 +724,9 @@ function TaskDetailModal({
               ) : (
                 <div className="p-4 rounded-lg border border-border bg-surface-2/50 min-h-[120px] max-h-[50vh] overflow-y-auto text-sm cursor-pointer hover:border-primary/50 transition-colors prose prose-sm max-w-none"
                   onDoubleClick={startEditingDesc}>
-                  {hasHtmlTags
-                    ? <div dangerouslySetInnerHTML={{ __html: descHtml }} />
-                    : descHtml
-                      ? <div dangerouslySetInnerHTML={{ __html: renderMarkdown(descHtml) }} />
-                      : <span className="text-text-muted italic">{t('board.descPlaceholder')}</span>
-                  }
+                  {descHtml
+                    ? <div dangerouslySetInnerHTML={{ __html: renderMarkdown(descHtml) }} />
+                    : <span className="text-text-muted italic">{t('board.descPlaceholder')}</span>}
                 </div>
               )}
             </div>

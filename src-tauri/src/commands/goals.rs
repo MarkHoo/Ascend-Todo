@@ -191,7 +191,7 @@ fn load_key_results_for_goal(c: &Connection, goal_id: &str) -> AppResult<Vec<cra
 
 fn load_linked_tasks(c: &Connection, goal_id: &str) -> AppResult<Vec<crate::models::LinkedTask>> {
     let mut stmt = c.prepare(
-        "SELECT t.id, t.title, t.is_completed, b.name, l.name
+        "SELECT gt.kr_id, t.id, t.title, t.is_completed, b.name, l.name
          FROM goal_tasks gt
          JOIN tasks t ON t.id = gt.task_id
          JOIN lists l ON l.id = t.list_id
@@ -201,11 +201,12 @@ fn load_linked_tasks(c: &Connection, goal_id: &str) -> AppResult<Vec<crate::mode
     )?;
     let rows = stmt.query_map(params![goal_id], |r| {
         Ok(crate::models::LinkedTask {
-            id: r.get(0)?,
-            title: r.get(1)?,
-            is_completed: r.get::<_, i64>(2)? != 0,
-            board_name: r.get(3)?,
-            list_name: r.get(4)?,
+            kr_id: r.get(0)?,
+            id: r.get(1)?,
+            title: r.get(2)?,
+            is_completed: r.get::<_, i64>(3)? != 0,
+            board_name: r.get(4)?,
+            list_name: r.get(5)?,
         })
     })?;
     let mut out = Vec::new();
@@ -287,6 +288,7 @@ pub fn create_goal(
     parent_goal_id: Option<String>,
     period: Option<String>,
     start_date: Option<String>,
+    status: Option<String>,
 ) -> AppResult<Goal> {
     let c = conn(&state);
     let id = new_id();
@@ -300,6 +302,7 @@ pub fn create_goal(
         .unwrap_or(-1);
 
     let p = period.unwrap_or_else(|| "yearly".to_string());
+    let goal_status = status.unwrap_or_else(|| "active".to_string());
     let (computed_start, computed_due) = compute_period_dates(&p);
     // For custom period, use provided dates; otherwise use computed dates
     let final_start = if p == "custom" { start_date } else { computed_start };
@@ -309,8 +312,8 @@ pub fn create_goal(
         "INSERT INTO goals
             (id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
              progress_mode, progress_value, progress_total, category, start_date, weight, status, period)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'percentage', 0, 100, NULL, ?, 5, 'active', ?)",
-        params![id, title, description, color, icon, final_due, parent_goal_id, max_pos + 1, now, now, final_start, p],
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'percentage', 0, 100, NULL, ?, 5, ?, ?)",
+        params![id, title, description, color, icon, final_due, parent_goal_id, max_pos + 1, now, now, final_start, goal_status, p],
     )?;
     Ok(Goal {
         id,
@@ -329,7 +332,7 @@ pub fn create_goal(
         category: None,
         start_date: final_start,
         weight: 5,
-        status: "active".to_string(),
+        status: goal_status,
         review_score: None,
         review_note: None,
         period: p,
@@ -345,17 +348,20 @@ pub fn update_goal(
     color: Option<Option<String>>,
     icon: Option<Option<String>>,
     due_at: Option<Option<String>>,
+    parent_goal_id: Option<Option<String>>,
     progress_mode: Option<String>,
     progress_value: Option<f64>,
     progress_total: Option<f64>,
     period: Option<String>,
     start_date: Option<Option<String>>,
+    status: Option<String>,
 ) -> AppResult<()> {
     let c = conn(&state);
     let mut desc_v = None::<Option<String>>;
     let mut color_v = None::<Option<String>>;
     let mut icon_v = None::<Option<String>>;
     let mut due_v = None::<Option<String>>;
+    let mut parent_v = None::<Option<String>>;
     let mut start_v = None::<Option<String>>;
     if let Some(d) = description {
         desc_v = Some(d);
@@ -368,6 +374,9 @@ pub fn update_goal(
     }
     if let Some(d) = due_at {
         due_v = Some(d);
+    }
+    if let Some(d) = parent_goal_id {
+        parent_v = Some(d);
     }
     if let Some(d) = start_date {
         start_v = Some(d);
@@ -395,11 +404,13 @@ pub fn update_goal(
             color = CASE WHEN ? THEN ? ELSE color END,
             icon = CASE WHEN ? THEN ? ELSE icon END,
             due_at = CASE WHEN ? THEN ? ELSE due_at END,
+            parent_goal_id = CASE WHEN ? THEN ? ELSE parent_goal_id END,
             progress_mode = COALESCE(?, progress_mode),
             progress_value = COALESCE(?, progress_value),
             progress_total = COALESCE(?, progress_total),
             period = COALESCE(?, period),
             start_date = CASE WHEN ? THEN ? ELSE start_date END,
+            status = COALESCE(?, status),
             updated_at = ?
          WHERE id = ?",
         params![
@@ -408,9 +419,11 @@ pub fn update_goal(
             color_v.is_some() as i64, color_v.unwrap_or(None),
             icon_v.is_some() as i64, icon_v.unwrap_or(None),
             final_due.is_some() as i64, final_due.unwrap_or(None),
+            parent_v.is_some() as i64, parent_v.unwrap_or(None),
             progress_mode, progress_value, progress_total,
             period,
             final_start.is_some() as i64, final_start.unwrap_or(None),
+            status,
             now(), id,
         ],
     )?;

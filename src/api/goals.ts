@@ -13,6 +13,7 @@ export const goalsApi = {
     parentGoalId?: string | null;
     period?: GoalPeriod;
     startDate?: string | null;
+    status?: 'draft' | 'active';
   }) => invoke<Goal>('create_goal', params),
   update: (params: {
     id: string;
@@ -21,11 +22,13 @@ export const goalsApi = {
     color?: string | null;
     icon?: string | null;
     dueAt?: string | null;
+    parentGoalId?: string | null;
     progressMode?: string;
     progressValue?: number;
     progressTotal?: number;
     period?: GoalPeriod;
     startDate?: string | null;
+    status?: 'draft' | 'active' | 'completed' | 'abandoned' | 'archived';
   }) => invoke<void>('update_goal', params),
   delete: (id: string) => invoke<void>('delete_goal', { id }),
   archive: (id: string) => invoke<void>('archive_goal', { id }),
@@ -58,6 +61,7 @@ export const keyResultsApi = {
   update: (params: {
     id: string;
     title?: string;
+    krType?: string;
     startValue?: number;
     targetValue?: number;
     unit?: string;

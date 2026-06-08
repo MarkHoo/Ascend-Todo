@@ -177,22 +177,30 @@ pub fn update_key_result(
     state: State<DbState>,
     id: String,
     title: Option<String>,
+    kr_type: Option<String>,
     start_value: Option<f64>,
     target_value: Option<f64>,
     unit: Option<String>,
     weight: Option<i32>,
 ) -> AppResult<()> {
     let c = conn(&state);
+    let goal_id: String = c.query_row(
+        "SELECT goal_id FROM key_results WHERE id = ?",
+        params![id],
+        |r| r.get(0),
+    )?;
     c.execute(
         "UPDATE key_results SET
             title = COALESCE(?, title),
+            type = COALESCE(?, type),
             start_value = COALESCE(?, start_value),
             target_value = COALESCE(?, target_value),
             unit = COALESCE(?, unit),
             weight = COALESCE(?, weight)
          WHERE id = ?",
-        params![title, start_value, target_value, unit, weight, id],
+        params![title, kr_type, start_value, target_value, unit, weight, id],
     )?;
+    recalc_goal_progress(&c, &goal_id)?;
     Ok(())
 }
 
