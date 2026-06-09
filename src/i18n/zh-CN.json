@@ -206,7 +206,11 @@
     "searchTaskPlaceholder": "搜索任务标题（按Enter搜索）",
     "totalTasks": "{{count}} 个任务",
     "noKeyResultForTaskLink": "请先创建关键结果后再关联任务。",
-    "taskTitle": "标题"
+    "taskTitle": "标题",
+    "draftBox": "草稿箱",
+    "noDrafts": "暂无目标草稿",
+    "continueDraft": "继续编辑",
+    "goalDetail": "目标详情"
   },
   "calendar": {
     "title": "日历",

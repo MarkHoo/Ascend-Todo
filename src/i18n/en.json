@@ -206,7 +206,11 @@
     "searchTaskPlaceholder": "Search task title (Enter to select)",
     "totalTasks": "{{count}} tasks",
     "noKeyResultForTaskLink": "Create a key result before linking tasks.",
-    "taskTitle": "Title"
+    "taskTitle": "Title",
+    "draftBox": "Draft box",
+    "noDrafts": "No goal drafts",
+    "continueDraft": "Continue editing",
+    "goalDetail": "Goal details"
   },
   "calendar": {
     "title": "Calendar",

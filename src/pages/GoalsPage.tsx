@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Activity, CalendarDays, Check, ChevronDown, ChevronRight, Circle, ClipboardList,
-  Edit3, HelpCircle, Link2, Link2Off, MoreHorizontal, Plus, Save, Search, Target, Trash2, X,
+  Edit3, FileText, HelpCircle, Link2, Link2Off, MoreHorizontal, Plus, Save, Search, Target, Trash2, X,
 } from 'lucide-react';
 import { goalsApi, keyResultsApi, tasksApi } from '@/api';
 import { useGoalStore } from '@/store/useGoalStore';
@@ -120,6 +120,8 @@ export function GoalsPage() {
   const [formParentId, setFormParentId] = useState('');
   const [formDueAt, setFormDueAt] = useState('');
   const [draftKRs, setDraftKRs] = useState<DraftKR[]>([blankKR()]);
+  const [formOriginalKRIds, setFormOriginalKRIds] = useState<string[]>([]);
+  const [draftBoxOpen, setDraftBoxOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -159,14 +161,23 @@ export function GoalsPage() {
     return result;
   }, [goals]);
 
+  const visibleGoals = useMemo(() => {
+    const pickVisible = (items: GoalWithDetails[]): GoalWithDetails[] => items
+      .filter((goal) => goal.status !== 'draft')
+      .map((goal) => ({ ...goal, subGoals: pickVisible(goal.subGoals) }));
+    return pickVisible(goals);
+  }, [goals]);
+
+  const draftGoals = useMemo(() => allGoals.filter((goal) => goal.status === 'draft'), [allGoals]);
+
   const sortedGoals = useMemo(() => {
-    return [...goals].sort((a, b) => {
+    return [...visibleGoals].sort((a, b) => {
       const comparison = sortField === 'title'
         ? a.title.localeCompare(b.title, 'zh-CN')
         : a.progress - b.progress;
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [goals, sortDirection, sortField]);
+  }, [visibleGoals, sortDirection, sortField]);
 
   const displayKRs = normalizeKRs(draftKRs);
   const totalWeight = displayKRs.reduce((sum, kr) => sum + kr.weight, 0);
@@ -195,6 +206,7 @@ export function GoalsPage() {
     setFormParentId('');
     setFormDueAt('');
     setDraftKRs([blankKR()]);
+    setFormOriginalKRIds([]);
     setEditingGoal(null);
   };
 
@@ -210,8 +222,21 @@ export function GoalsPage() {
     setFormParentId(detailGoal.parentGoalId || '');
     setFormDueAt(detailGoal.dueAt ? dayjs(detailGoal.dueAt).format('YYYY-MM-DD') : '');
     setDraftKRs(detailKRs.length > 0 ? detailKRs.map(krToDraft) : [blankKR()]);
+    setFormOriginalKRIds(detailKRs.map((kr) => kr.id));
     setCreateOpen(true);
     setMoreOpen(false);
+  };
+
+  const openDraft = async (goal: GoalWithDetails) => {
+    const krs = await keyResultsApi.list(goal.id);
+    setEditingGoal(goal);
+    setFormTitle(goal.title);
+    setFormParentId(goal.parentGoalId || '');
+    setFormDueAt(goal.dueAt ? dayjs(goal.dueAt).format('YYYY-MM-DD') : '');
+    setDraftKRs(krs.length > 0 ? krs.map(krToDraft) : [blankKR()]);
+    setFormOriginalKRIds(krs.map((kr) => kr.id));
+    setDraftBoxOpen(false);
+    setCreateOpen(true);
   };
 
   const closeGoalForm = () => {
@@ -267,8 +292,9 @@ export function GoalsPage() {
         title: formTitle.trim(),
         parentGoalId: formParentId || null,
         dueAt: formDueAt || null,
+        status,
       });
-      const existingIds = new Set(detailKRs.map((kr) => kr.id));
+      const existingIds = new Set(formOriginalKRIds);
       const keptIds = new Set(validKRs.filter((kr) => kr.id).map((kr) => kr.id!));
       for (const kr of validKRs) {
         if (kr.id) {
@@ -298,7 +324,7 @@ export function GoalsPage() {
       }
       closeGoalForm();
       await fetchGoals();
-      await refreshDetail();
+      if (detailGoal?.id === editingGoal.id) await refreshDetail();
       toast.success(t('board.save'));
       return;
     }
@@ -432,18 +458,27 @@ export function GoalsPage() {
           <Target size={22} />
           {t('goal.title')}
         </h1>
-        <Button onClick={openCreate}>
-          <Plus size={16} />
-          {t('goal.addGoal')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setDraftBoxOpen(true)}>
+            <FileText size={16} />
+            {t('goal.draftBox')}
+            {draftGoals.length > 0 && <span className="ml-1 text-xs text-text-muted">({draftGoals.length})</span>}
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus size={16} />
+            {t('goal.addGoal')}
+          </Button>
+        </div>
       </div>
 
-      <div className="border border-border overflow-x-auto bg-surface">
-        <div className="min-w-[760px]">
-          <div className="grid grid-cols-[minmax(0,1fr)_340px_110px] border-b border-border text-sm font-semibold">
+      <div className="overflow-x-auto bg-surface">
+        <div className="min-w-[900px] relative">
+          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-10" style={{ right: 460 }} />
+          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-10" style={{ right: 140 }} />
+          <div className="grid grid-cols-[minmax(0,1fr)_320px_140px] border-b border-border text-[15px] font-semibold text-text">
             <SortHeader label={t('goal.title')} active={sortField === 'title'} direction={sortDirection} onClick={() => setSort('title')} />
             <SortHeader label={t('goal.progress')} active={sortField === 'progress'} direction={sortDirection} onClick={() => setSort('progress')} />
-            <div className="px-4 py-3 text-center border-l border-border">{t('goal.weight')}</div>
+            <div className="px-4 py-3 text-center">{t('goal.weight')}</div>
           </div>
 
           {sortedGoals.length === 0 ? (
@@ -467,25 +502,11 @@ export function GoalsPage() {
         </div>
       </div>
 
-      <GoalFormModal
-        open={createOpen}
-        editing={!!editingGoal}
-        title={formTitle}
-        parentId={formParentId}
-        dueAt={formDueAt}
-        goals={allGoals}
-        currentGoalId={editingGoal?.id}
-        draftKRs={displayKRs}
-        totalWeight={totalWeight}
-        onTitleChange={setFormTitle}
-        onParentChange={setFormParentId}
-        onDueAtChange={setFormDueAt}
-        onKRChange={updateDraftKR}
-        onKRDelete={removeDraftKR}
-        onKRAdd={addDraftKR}
-        onClose={closeGoalForm}
-        onSaveDraft={() => saveGoal('draft')}
-        onConfirm={() => saveGoal('active')}
+      <DraftBoxModal
+        open={draftBoxOpen}
+        drafts={draftGoals}
+        onClose={() => setDraftBoxOpen(false)}
+        onOpenDraft={openDraft}
       />
 
       <GoalDetailModal
@@ -549,6 +570,27 @@ export function GoalsPage() {
         onClose={() => setDeleteConfirm((state) => ({ ...state, open: false }))}
         onConfirm={deleteConfirm.onConfirm}
       />
+
+      <GoalFormModal
+        open={createOpen}
+        editing={!!editingGoal}
+        title={formTitle}
+        parentId={formParentId}
+        dueAt={formDueAt}
+        goals={allGoals}
+        currentGoalId={editingGoal?.id}
+        draftKRs={displayKRs}
+        totalWeight={totalWeight}
+        onTitleChange={setFormTitle}
+        onParentChange={setFormParentId}
+        onDueAtChange={setFormDueAt}
+        onKRChange={updateDraftKR}
+        onKRDelete={removeDraftKR}
+        onKRAdd={addDraftKR}
+        onClose={closeGoalForm}
+        onSaveDraft={() => saveGoal('draft')}
+        onConfirm={() => saveGoal('active')}
+      />
     </div>
   );
 }
@@ -560,10 +602,10 @@ function SortHeader({ label, active, direction, onClick }: {
   onClick: () => void;
 }) {
   return (
-    <button className="px-4 py-3 flex items-center gap-1 text-left hover:bg-surface-2" onClick={onClick}>
+    <button className="px-6 py-3.5 flex items-center gap-1 text-left hover:bg-surface-2" onClick={onClick}>
       {label}
-      <span className={active ? 'text-primary text-xs' : 'text-text-muted/50 text-xs'}>
-        {active ? (direction === 'desc' ? 'down' : 'up') : 'up/down'}
+      <span className={active ? 'text-primary text-xs' : 'text-text-muted/40 text-xs'}>
+        {active ? (direction === 'desc' ? '↓' : '↑') : '↕'}
       </span>
     </button>
   );
@@ -582,34 +624,39 @@ function GoalTreeRows({
   const { t } = useTranslation();
   const isOpen = expanded[goal.id] ?? true;
   const hasChildren = goal.keyResults.length > 0 || goal.subGoals.length > 0;
-  const label = `O${indexPath[indexPath.length - 1]}`;
+  const isChildGoal = level > 0;
 
   return (
     <>
-      <div className="grid grid-cols-[minmax(0,1fr)_340px_110px] min-h-16 items-center border-b border-border hover:bg-surface-2/40">
-        <div className="px-4 flex items-center gap-3 min-w-0" style={{ paddingLeft: 18 + level * 26 }}>
-          <button className="btn-ghost p-0.5 text-text-muted" onClick={() => setExpanded({ ...expanded, [goal.id]: !isOpen })} disabled={!hasChildren}>
+      <div className={`grid grid-cols-[minmax(0,1fr)_320px_140px] min-h-[58px] items-center border-b border-border hover:bg-surface-2/30 ${isChildGoal ? 'bg-surface-2/10' : ''}`}>
+        <div className="px-6 flex items-center gap-2 min-w-0 relative" style={{ paddingLeft: 24 + level * 30 }}>
+          {isChildGoal && (
+            <>
+              <span className="absolute top-0 bottom-0 border-l border-dashed border-border" style={{ left: 34 + (level - 1) * 30 }} />
+              <span className="absolute w-5 border-t border-dashed border-border" style={{ left: 34 + (level - 1) * 30, top: '50%' }} />
+            </>
+          )}
+          <button className="btn-ghost p-0.5 text-text-muted shrink-0" onClick={() => setExpanded({ ...expanded, [goal.id]: !isOpen })} disabled={!hasChildren}>
             {hasChildren ? (isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : <span className="inline-block w-4" />}
           </button>
-          <span className="rounded-full bg-primary/10 text-primary text-sm font-semibold px-3 py-1">{label}</span>
-          <button className="truncate font-semibold text-left hover:text-primary" onClick={() => onOpen(goal)}>{goal.title}</button>
-          {goal.status === 'draft' && <span className="text-[10px] px-1.5 py-0.5 border border-warning/40 text-warning">{t('goal.draft')}</span>}
+          <button className="truncate font-semibold text-left hover:text-primary text-[15px]" onClick={() => onOpen(goal)}>{goal.title}</button>
         </div>
         <ProgressCell progress={goal.progress} />
-        <div className="px-4 text-center text-sm text-text-muted border-l border-border">-</div>
+        <div className="px-4 text-center text-sm text-text-muted">-</div>
       </div>
 
       {isOpen && goal.keyResults.map((kr, index) => {
         const progress = krProgress(kr);
         return (
-          <div key={kr.id} className="grid grid-cols-[minmax(0,1fr)_340px_110px] min-h-14 items-center border-b border-border bg-surface-2/20">
-            <div className="px-4 flex items-center gap-3 min-w-0 text-sm" style={{ paddingLeft: 54 + level * 26 }}>
-              <span className="text-border">|-</span>
-              <span className="rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-semibold">KR{index + 1}</span>
+          <div key={kr.id} className="grid grid-cols-[minmax(0,1fr)_320px_140px] min-h-[58px] items-center border-b border-border bg-surface-2/10">
+            <div className="px-6 flex items-center gap-3 min-w-0 text-sm relative" style={{ paddingLeft: 56 + level * 30 }}>
+              <span className="absolute top-0 bottom-0 border-l border-dashed border-border" style={{ left: 34 + level * 30 }} />
+              <span className="absolute w-5 border-t border-dashed border-border" style={{ left: 34 + level * 30, top: '50%' }} />
+              <span className="w-2 h-2 rounded-full border border-border bg-surface shrink-0" />
               <span className="truncate">{kr.title}</span>
             </div>
             <ProgressCell progress={progress} />
-            <div className="px-4 text-center text-sm tabular-nums border-l border-border">{kr.weight}%</div>
+            <div className="px-4 text-center text-sm tabular-nums">{kr.weight}%</div>
           </div>
         );
       })}
@@ -631,10 +678,43 @@ function GoalTreeRows({
 
 function ProgressCell({ progress }: { progress: number }) {
   return (
-    <div className="px-4 flex items-center gap-3 border-l border-border">
-      <ProgressBar value={progress} color={progressColor(progress)} className="w-36" />
+    <div className="px-6 flex items-center gap-4">
+      <ProgressBar value={progress} color={progressColor(progress)} className="w-32" />
       <span className="w-16 text-sm tabular-nums">{(progress * 100).toFixed(progress * 100 % 1 === 0 ? 0 : 2)}%</span>
     </div>
+  );
+}
+
+function DraftBoxModal({
+  open, drafts, onClose, onOpenDraft,
+}: {
+  open: boolean;
+  drafts: GoalWithDetails[];
+  onClose: () => void;
+  onOpenDraft: (goal: GoalWithDetails) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal open={open} onClose={onClose} title={t('goal.draftBox')} size="md">
+      <div className="space-y-2 max-h-[420px] overflow-y-auto">
+        {drafts.length === 0 ? (
+          <div className="py-12 text-center text-sm text-text-muted">{t('goal.noDrafts')}</div>
+        ) : (
+          drafts.map((goal) => (
+            <button
+              key={goal.id}
+              className="w-full grid grid-cols-[minmax(0,1fr)_118px_54px_76px] items-center gap-3 px-3 py-2.5 border border-border hover:border-primary/40 hover:bg-surface-2/40 text-left transition-colors"
+              onClick={() => onOpenDraft(goal)}
+            >
+              <div className="min-w-0 font-semibold truncate text-sm">{goal.title}</div>
+              <span className="text-xs text-text-muted tabular-nums">{dayjs(goal.updatedAt).format('MM-DD HH:mm')}</span>
+              <span className="justify-self-start text-xs px-2 py-0.5 border border-warning/40 text-warning">{t('goal.draft')}</span>
+              <span className="justify-self-end text-sm text-primary">{t('goal.continueDraft')}</span>
+            </button>
+          ))
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -663,7 +743,7 @@ function GoalFormModal({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
-  const parentOptions = goals.filter((goal) => goal.id !== currentGoalId);
+  const parentOptions = goals.filter((goal) => goal.id !== currentGoalId && goal.status !== 'draft');
   const parentDisabled = parentOptions.length === 0;
 
   return (
@@ -774,7 +854,7 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
 
 function GoalDetailModal({
   goal, path, keyResults, tab, workingValues, workingDone, progressComment,
-  showHistory, moreOpen, onClose, onEdit, onMoreToggle, onTabChange, onValueChange,
+  showHistory: _showHistory, moreOpen, onClose, onEdit, onMoreToggle, onTabChange, onValueChange,
   onDoneChange, onCommentChange, onUpdate, onToggleHistory, onFinish, onDelete, onUnlinkTask, onLinkTask,
 }: {
   goal: GoalWithDetails | null;
@@ -809,28 +889,30 @@ function GoalDetailModal({
 
   return (
     <Modal open={true} onClose={onClose} size="xl">
-      <div className={`grid ${showHistory ? 'grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1'} gap-0 -m-5`}>
-        <div className="p-5 border-r border-border min-w-0">
-          <div className="flex items-start justify-between gap-4 mb-5">
-            <div className="min-w-0">
+      <div className="-m-5 flex flex-col max-h-[90vh]">
+        <div className="h-[52px] px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
+          <h3 className="text-base font-semibold">{t('goal.goalDetail')}</h3>
+          <div className="flex items-center gap-1 relative">
+            <button className="btn-ghost p-2" onClick={onEdit} title={t('goal.editGoal')}><Edit3 size={18} /></button>
+            <button className="btn-ghost p-2 bg-primary/10" onClick={onMoreToggle}><MoreHorizontal size={18} /></button>
+            <button className="btn-ghost p-2" onClick={onClose}><X size={18} /></button>
+            {moreOpen && (
+              <div className="absolute right-8 top-10 w-44 bg-surface border border-border shadow-lg z-20">
+                <button className="w-full text-left px-4 py-3 hover:bg-surface-2" onClick={onFinish}>{t('goal.finishGoal')}</button>
+                <button className="w-full text-left px-4 py-3 hover:bg-surface-2 text-red-500" onClick={onDelete}>{t('common.delete')}</button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-0 min-h-0 flex-1">
+          <div className="p-5 border-r border-border min-w-0 overflow-y-auto">
+            <div className="mb-5">
               <div className="text-sm text-text-muted mb-5 flex items-center gap-2">
                 <span>{t('goal.parentGoal')}:</span>
                 {path.length > 1 ? path.slice(0, -1).map((item) => <span key={item.id} className="text-primary">{item.title}</span>) : <span>{t('goal.none')}</span>}
               </div>
               <h2 className="text-2xl font-semibold truncate">{goal.title}</h2>
             </div>
-            <div className="flex items-center gap-1 relative">
-              <button className="btn-ghost p-2" onClick={onEdit} title={t('goal.editGoal')}><Edit3 size={18} /></button>
-              <button className="btn-ghost p-2 bg-primary/10" onClick={onMoreToggle}><MoreHorizontal size={18} /></button>
-              <button className="btn-ghost p-2" onClick={onClose}><X size={18} /></button>
-              {moreOpen && (
-                <div className="absolute right-8 top-10 w-44 bg-surface border border-border shadow-lg z-10">
-                  <button className="w-full text-left px-4 py-3 hover:bg-surface-2" onClick={onFinish}>{t('goal.finishGoal')}</button>
-                  <button className="w-full text-left px-4 py-3 hover:bg-surface-2 text-red-500" onClick={onDelete}>{t('common.delete')}</button>
-                </div>
-              )}
-            </div>
-          </div>
 
           <section className="mb-5">
             <div className="text-sm text-text-muted mb-2">{t('goal.overallProgress')}</div>
@@ -845,14 +927,9 @@ function GoalDetailModal({
             </div>
           </section>
 
-          <div className="flex items-center justify-between border-b border-border mb-4">
-            <div className="flex items-center gap-6">
-              <TabButton active={tab === 'krs'} onClick={() => onTabChange('krs')} label={`${t('goal.keyResult')} ${keyResults.length}`} />
-              <TabButton active={tab === 'tasks'} onClick={() => onTabChange('tasks')} label={`${t('goal.relatedTasks')} ${goal.linkedTasks.length}`} />
-            </div>
-            <Button size="sm" variant="ghost" onClick={onToggleHistory}>
-              <Activity size={14} /> {t('goal.progressHistory')}
-            </Button>
+          <div className="flex items-center gap-6 border-b border-border mb-4">
+            <TabButton active={tab === 'krs'} onClick={() => onTabChange('krs')} label={`${t('goal.keyResult')} ${keyResults.length}`} />
+            <TabButton active={tab === 'tasks'} onClick={() => onTabChange('tasks')} label={`${t('goal.relatedTasks')} ${goal.linkedTasks.length}`} />
           </div>
 
           {tab === 'krs' ? (
@@ -877,8 +954,11 @@ function GoalDetailModal({
           </div>
         </div>
 
-        <aside className={showHistory ? 'p-5 bg-surface-2/30' : 'hidden'}>
-          <h4 className="font-semibold border-b border-primary pb-3 mb-4 text-primary">{t('goal.progressHistory')}</h4>
+        <aside className="p-5 bg-surface-2/30 overflow-y-auto">
+          <div className="pt-[176px]">
+          <h4 className="font-semibold border-b-2 border-primary py-3 mb-4 text-primary inline-flex items-center gap-2">
+            <Activity size={14} /> {t('goal.progressHistory')}
+          </h4>
           <div className="relative pl-5 space-y-5 before:absolute before:left-[6px] before:top-2 before:bottom-2 before:w-px before:bg-border">
             {history.map((item) => (
               <div key={item.id} className="relative">
@@ -894,7 +974,9 @@ function GoalDetailModal({
               <div className="text-sm mt-0.5">{t('goal.goalCreated')}</div>
             </div>
           </div>
+          </div>
         </aside>
+        </div>
       </div>
     </Modal>
   );
