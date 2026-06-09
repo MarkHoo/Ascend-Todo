@@ -131,6 +131,10 @@ export interface LinkedTask {
   isCompleted: boolean;
   boardName: string;
   listName: string;
+  dueAt?: string | null;
+  status: Task['status'];
+  priority?: Task['priority'];
+  startAt?: string | null;
 }
 
 export interface GoalWithDetails {

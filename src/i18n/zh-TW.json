@@ -201,7 +201,12 @@
     "unlinkTaskConfirm": "確認解除此任務關聯？",
     "confirmUpdate": "確認更新",
     "confirmUpdateMessage": "檢測到有關鍵結果變更後沒有提交更新，是否更新本次操作？",
-    "discardUpdate": "放棄更新"
+    "discardUpdate": "放棄更新",
+    "selectRelatedTask": "選擇相關任務",
+    "searchTaskPlaceholder": "搜尋任務標題（按 Enter 搜尋）",
+    "totalTasks": "{{count}} 個任務",
+    "noKeyResultForTaskLink": "請先建立關鍵結果後再關聯任務。",
+    "taskTitle": "標題"
   },
   "calendar": {
     "title": "日曆",

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Activity, CalendarDays, Check, ChevronDown, ChevronRight, Circle, ClipboardList,
-  Edit3, HelpCircle, Link2Off, MoreHorizontal, Plus, Save, Target, Trash2, X,
+  Edit3, HelpCircle, Link2, Link2Off, MoreHorizontal, Plus, Save, Search, Target, Trash2, X,
 } from 'lucide-react';
-import { goalsApi, keyResultsApi } from '@/api';
+import { goalsApi, keyResultsApi, tasksApi } from '@/api';
 import { useGoalStore } from '@/store/useGoalStore';
 import { Button } from '@/components/common/Button';
 import { DeleteConfirmModal } from '@/components/common/DeleteConfirmModal';
@@ -13,7 +13,7 @@ import { Modal } from '@/components/common/Modal';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { toast } from '@/components/common/Toast';
 import { dayjs } from '@/utils/date';
-import type { GoalWithDetails, KeyResult, KeyResultWithLogs, LinkedTask } from '@/types';
+import type { GoalWithDetails, KeyResult, KeyResultWithLogs, LinkedTask, Task } from '@/types';
 
 type SortField = 'title' | 'progress';
 type SortDirection = 'asc' | 'desc';
@@ -58,6 +58,27 @@ const progressColor = (progress: number) => {
   return '#68d391';
 };
 
+type TaskStatusLike = Pick<Task, 'isCompleted' | 'status'>;
+
+const taskStatusLabel = (task: TaskStatusLike, t: (key: string) => string) => {
+  if (task.isCompleted) return t('board.statusCompleted');
+  const labels: Record<Task['status'], string> = {
+    not_started: t('board.statusNotStarted'),
+    in_progress: t('board.statusInProgress'),
+    long_term: t('board.statusLongTerm'),
+    completed: t('board.statusCompleted'),
+    closed: t('board.statusClosed'),
+  };
+  return labels[task.status] || t('board.statusNotStarted');
+};
+
+const taskStatusClass = (task: TaskStatusLike) => {
+  if (task.isCompleted || task.status === 'completed') return 'bg-green-500/15 text-green-600';
+  if (task.status === 'in_progress' || task.status === 'long_term') return 'bg-amber-500/15 text-amber-600';
+  if (task.status === 'closed') return 'bg-slate-500/15 text-slate-500';
+  return 'bg-red-500/15 text-red-500';
+};
+
 const healthState = (progress: number): 'normal' | 'risk' | 'behind' => {
   if (progress >= 0.6) return 'normal';
   if (progress >= 0.25) return 'risk';
@@ -90,7 +111,7 @@ export function GoalsPage() {
   const { t } = useTranslation();
   const {
     goals, fetchGoals, createGoal, createKeyResult, updateGoal,
-    deleteGoal, checkInKeyResult, toggleKeyResult, deleteKeyResult, unlinkTaskFromKR,
+    deleteGoal, checkInKeyResult, toggleKeyResult, deleteKeyResult, linkTaskToKR, unlinkTaskFromKR,
   } = useGoalStore();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -111,6 +132,10 @@ export function GoalsPage() {
   const [showHistory, setShowHistory] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
+  const [taskLinkOpen, setTaskLinkOpen] = useState(false);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [taskSearch, setTaskSearch] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{
     open: boolean;
     title?: string;
@@ -383,6 +408,23 @@ export function GoalsPage() {
     });
   };
 
+  const openTaskLink = async () => {
+    if (!detailGoal) return;
+    const tasks = await tasksApi.listAll();
+    setAllTasks(tasks);
+    setTaskSearch('');
+    setSelectedTaskId('');
+    setTaskLinkOpen(true);
+  };
+
+  const confirmTaskLink = async () => {
+    if (!selectedTaskId || detailKRs.length === 0) return;
+    await linkTaskToKR(detailKRs[0].id, selectedTaskId);
+    setTaskLinkOpen(false);
+    setSelectedTaskId('');
+    await refreshDetail();
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-5">
@@ -474,6 +516,20 @@ export function GoalsPage() {
           },
         })}
         onUnlinkTask={unlinkTask}
+        onLinkTask={openTaskLink}
+      />
+
+      <TaskLinkModal
+        open={taskLinkOpen}
+        tasks={allTasks}
+        linkedTaskIds={new Set(detailGoal?.linkedTasks.map((task) => task.id) || [])}
+        search={taskSearch}
+        selectedTaskId={selectedTaskId}
+        canConfirm={detailKRs.length > 0}
+        onSearchChange={setTaskSearch}
+        onSelect={setSelectedTaskId}
+        onClose={() => setTaskLinkOpen(false)}
+        onConfirm={confirmTaskLink}
       />
 
       <UnsavedConfirmModal
@@ -719,7 +775,7 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
 function GoalDetailModal({
   goal, path, keyResults, tab, workingValues, workingDone, progressComment,
   showHistory, moreOpen, onClose, onEdit, onMoreToggle, onTabChange, onValueChange,
-  onDoneChange, onCommentChange, onUpdate, onToggleHistory, onFinish, onDelete, onUnlinkTask,
+  onDoneChange, onCommentChange, onUpdate, onToggleHistory, onFinish, onDelete, onUnlinkTask, onLinkTask,
 }: {
   goal: GoalWithDetails | null;
   path: GoalWithDetails[];
@@ -742,6 +798,7 @@ function GoalDetailModal({
   onFinish: () => Promise<void>;
   onDelete: () => void;
   onUnlinkTask: (task: LinkedTask) => void;
+  onLinkTask: () => void;
 }) {
   const { t } = useTranslation();
   if (!goal) return null;
@@ -811,7 +868,7 @@ function GoalDetailModal({
               onUpdate={onUpdate}
             />
           ) : (
-            <RelatedTasksPanel tasks={goal.linkedTasks} onUnlink={onUnlinkTask} />
+            <RelatedTasksPanel tasks={goal.linkedTasks} onUnlink={onUnlinkTask} onLink={onLinkTask} />
           )}
 
           <div className="flex items-center gap-5 text-xs text-text-muted mt-5 pt-3">
@@ -921,22 +978,25 @@ function KeyResultsPanel({
   );
 }
 
-function RelatedTasksPanel({ tasks, onUnlink }: { tasks: LinkedTask[]; onUnlink: (task: LinkedTask) => void }) {
+function RelatedTasksPanel({ tasks, onUnlink, onLink }: { tasks: LinkedTask[]; onUnlink: (task: LinkedTask) => void; onLink: () => void }) {
   const { t } = useTranslation();
   return (
     <div>
       <div className="flex items-center justify-between text-sm text-text-muted mb-3">
         <span>{t('goal.totalRelatedTasks', { count: tasks.length })}</span>
-        <span className="inline-flex items-center gap-3"><Plus size={15} />{t('common.add')} <ClipboardList size={15} />{t('goal.linkTask')}</span>
+        <button className="inline-flex items-center gap-2 hover:text-primary transition-colors" onClick={onLink}>
+          <Link2 size={15} />{t('goal.linkTask')}
+        </button>
       </div>
       <div className="border-t border-border">
         {tasks.length === 0 && <div className="py-10 text-center text-text-muted">{t('common.empty')}</div>}
         {tasks.map((task) => (
-          <div key={`${task.krId}-${task.id}`} className="group grid grid-cols-[minmax(0,1fr)_160px_120px_42px] items-center min-h-14 border-b border-border">
+          <div key={`${task.krId}-${task.id}`} className="group grid grid-cols-[minmax(0,1fr)_180px_140px_120px_42px] items-center min-h-14 border-b border-border">
             <div className="px-4 font-medium truncate">{task.title}</div>
             <div className="text-sm text-text-muted">{task.boardName}/{task.listName}</div>
-            <span className={`justify-self-start text-xs px-3 py-1 rounded-full ${task.isCompleted ? 'bg-green-500/15 text-green-600' : 'bg-red-500/15 text-red-500'}`}>
-              {task.isCompleted ? t('goal.completed') : t('board.statusNotStarted')}
+            <div className="text-sm text-text-muted">{task.dueAt ? dayjs(task.dueAt).format('YYYY-MM-DD') : ''}</div>
+            <span className={`justify-self-start text-xs px-3 py-1 rounded-full ${taskStatusClass(task)}`}>
+              {taskStatusLabel(task, t)}
             </span>
             <button className="opacity-0 group-hover:opacity-100 btn-ghost p-1 text-primary" onClick={() => onUnlink(task)} title={t('goal.unlinkTask')}>
               <Link2Off size={16} />
@@ -945,6 +1005,109 @@ function RelatedTasksPanel({ tasks, onUnlink }: { tasks: LinkedTask[]; onUnlink:
         ))}
       </div>
     </div>
+  );
+}
+
+function TaskLinkModal({
+  open, tasks, linkedTaskIds, search, selectedTaskId, canConfirm,
+  onSearchChange, onSelect, onClose, onConfirm,
+}: {
+  open: boolean;
+  tasks: Task[];
+  linkedTaskIds: Set<string>;
+  search: string;
+  selectedTaskId: string;
+  canConfirm: boolean;
+  onSearchChange: (value: string) => void;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const filteredTasks = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    return tasks.filter((task) => {
+      if (linkedTaskIds.has(task.id)) return false;
+      if (!keyword) return true;
+      return task.title.toLowerCase().includes(keyword);
+    });
+  }, [linkedTaskIds, search, tasks]);
+
+  const selectedTask = filteredTasks.find((task) => task.id === selectedTaskId);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t('goal.selectRelatedTask')}
+      size="xl"
+      footer={(
+        <div className="w-full flex items-center justify-end gap-3">
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button onClick={onConfirm} disabled={!selectedTask || !canConfirm}>{t('common.confirm')}</Button>
+        </div>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-5 border-b border-border pb-4">
+          <div className="relative flex-1">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+            <input
+              className="input w-full pl-10 h-11"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && filteredTasks[0]) onSelect(filteredTasks[0].id);
+              }}
+              placeholder={t('goal.searchTaskPlaceholder')}
+              autoFocus
+            />
+          </div>
+          <div className="text-sm text-text-muted min-w-24">{t('goal.totalTasks', { count: filteredTasks.length })}</div>
+        </div>
+
+        {!canConfirm && (
+          <div className="rounded border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+            {t('goal.noKeyResultForTaskLink')}
+          </div>
+        )}
+
+        <div className="max-h-[520px] overflow-y-auto border border-border">
+          <div className="grid grid-cols-[44px_minmax(0,1fr)_150px_150px_150px] text-sm font-medium text-text-muted border-b border-border bg-surface-2/40 sticky top-0">
+            <div className="px-3 py-3"></div>
+            <div className="px-4 py-3">{t('goal.taskTitle')}</div>
+            <div className="px-4 py-3 border-l border-border">{t('goal.status')}</div>
+            <div className="px-4 py-3 border-l border-border">{t('board.currentPriority')}</div>
+            <div className="px-4 py-3 border-l border-border">{t('board.dueDate')}</div>
+          </div>
+          {filteredTasks.length === 0 ? (
+            <div className="py-12 text-center text-sm text-text-muted">{t('common.empty')}</div>
+          ) : (
+            filteredTasks.map((task) => (
+              <button
+                key={task.id}
+                className={`w-full grid grid-cols-[44px_minmax(0,1fr)_150px_150px_150px] items-center min-h-14 text-left border-b border-border last:border-b-0 hover:bg-surface-2/50 ${selectedTaskId === task.id ? 'bg-primary/5' : ''}`}
+                onClick={() => onSelect(task.id)}
+              >
+                <div className="px-3">
+                  <span className={`block w-4 h-4 rounded border ${selectedTaskId === task.id ? 'bg-primary border-primary' : 'border-border'}`}>
+                    {selectedTaskId === task.id && <Check size={14} className="text-white" />}
+                  </span>
+                </div>
+                <div className="px-4 font-medium truncate">{task.title}</div>
+                <div className="px-4 border-l border-border">
+                  <span className={`text-xs px-3 py-1 rounded-full ${taskStatusClass(task)}`}>
+                    {taskStatusLabel(task, t)}
+                  </span>
+                </div>
+                <div className="px-4 border-l border-border text-sm">{task.priority ? t(`board.priority${task.priority.charAt(0).toUpperCase()}${task.priority.slice(1)}`) : t('board.priorityNone')}</div>
+                <div className="px-4 border-l border-border text-sm">{task.dueAt ? dayjs(task.dueAt).format('YYYY-MM-DD') : ''}</div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

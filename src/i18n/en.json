@@ -201,7 +201,12 @@
     "unlinkTaskConfirm": "Unlink this task from the goal?",
     "confirmUpdate": "Confirm update",
     "confirmUpdateMessage": "Detected key result changes that have not been submitted. Update this operation?",
-    "discardUpdate": "Discard update"
+    "discardUpdate": "Discard update",
+    "selectRelatedTask": "Select related task",
+    "searchTaskPlaceholder": "Search task title (Enter to select)",
+    "totalTasks": "{{count}} tasks",
+    "noKeyResultForTaskLink": "Create a key result before linking tasks.",
+    "taskTitle": "Title"
   },
   "calendar": {
     "title": "Calendar",

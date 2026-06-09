@@ -191,7 +191,7 @@ fn load_key_results_for_goal(c: &Connection, goal_id: &str) -> AppResult<Vec<cra
 
 fn load_linked_tasks(c: &Connection, goal_id: &str) -> AppResult<Vec<crate::models::LinkedTask>> {
     let mut stmt = c.prepare(
-        "SELECT gt.kr_id, t.id, t.title, t.is_completed, b.name, l.name
+        "SELECT gt.kr_id, t.id, t.title, t.is_completed, b.name, l.name, t.due_at, t.status, t.priority, t.start_at
          FROM goal_tasks gt
          JOIN tasks t ON t.id = gt.task_id
          JOIN lists l ON l.id = t.list_id
@@ -207,6 +207,10 @@ fn load_linked_tasks(c: &Connection, goal_id: &str) -> AppResult<Vec<crate::mode
             is_completed: r.get::<_, i64>(3)? != 0,
             board_name: r.get(4)?,
             list_name: r.get(5)?,
+            due_at: r.get(6)?,
+            status: r.get(7)?,
+            priority: r.get(8)?,
+            start_at: r.get(9)?,
         })
     })?;
     let mut out = Vec::new();

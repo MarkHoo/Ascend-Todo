@@ -179,6 +179,10 @@ pub struct LinkedTask {
     pub is_completed: bool,
     pub board_name: String,
     pub list_name: String,
+    pub due_at: Option<String>,
+    pub status: String,
+    pub priority: Option<String>,
+    pub start_at: Option<String>,
 }}
 
 // ============ Pomodoro ============
