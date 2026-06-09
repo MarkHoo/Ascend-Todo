@@ -57,6 +57,7 @@ export const keyResultsApi = {
     targetValue?: number;
     unit?: string;
     weight?: number;
+    healthStatus?: string;
   }) => invoke<KeyResult>('create_key_result', params),
   update: (params: {
     id: string;
@@ -66,6 +67,7 @@ export const keyResultsApi = {
     targetValue?: number;
     unit?: string;
     weight?: number;
+    healthStatus?: string;
   }) => invoke<void>('update_key_result', params),
   checkIn: (params: { krId: string; newValue: number; comment?: string }) =>
     invoke<KeyResultWithLogs>('check_in_kr', params),

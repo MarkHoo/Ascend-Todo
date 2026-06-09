@@ -125,6 +125,7 @@ pub struct KeyResult {
     pub current_value: f64,
     pub unit: Option<String>,
     pub weight: i32,
+    pub health_status: String,
     pub is_completed: bool,
     pub position: i32,
     pub created_at: String,

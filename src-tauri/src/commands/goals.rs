@@ -165,7 +165,7 @@ fn calc_kr_progress(kr: &crate::models::KeyResult) -> f64 {
 fn load_key_results_for_goal(c: &Connection, goal_id: &str) -> AppResult<Vec<crate::models::KeyResult>> {
     let mut stmt = c.prepare(
         "SELECT id, goal_id, title, type, start_value, target_value, current_value,
-                unit, weight, is_completed, position, created_at
+                unit, weight, health_status, is_completed, position, created_at
          FROM key_results WHERE goal_id = ? ORDER BY position ASC",
     )?;
     let rows = stmt.query_map(params![goal_id], |r| {
@@ -179,9 +179,10 @@ fn load_key_results_for_goal(c: &Connection, goal_id: &str) -> AppResult<Vec<cra
             current_value: r.get(6)?,
             unit: r.get(7)?,
             weight: r.get(8)?,
-            is_completed: r.get::<_, i64>(9)? != 0,
-            position: r.get(10)?,
-            created_at: r.get(11)?,
+            health_status: r.get(9)?,
+            is_completed: r.get::<_, i64>(10)? != 0,
+            position: r.get(11)?,
+            created_at: r.get(12)?,
         })
     })?;
     let mut out = Vec::new();

@@ -233,6 +233,16 @@ pub fn migrate(conn: &Connection) -> AppResult<()> {
     }
     if user_version < 8 {
         let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(
+            r#"
+            ALTER TABLE key_results ADD COLUMN health_status TEXT NOT NULL DEFAULT 'normal';
+            "#,
+        )?;
+        tx.execute("PRAGMA user_version = 8;", params![])?;
+        tx.commit()?;
+    }
+    if user_version < 8 {
+        let tx = conn.unchecked_transaction()?;
         // Move existing subtasks into tasks table as child tasks (parent_task_id set)
         tx.execute_batch(
             r#"

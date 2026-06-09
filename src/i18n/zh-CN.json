@@ -137,7 +137,7 @@
     "keyResult": "关键结果",
     "addKR": "添加关键结果",
     "metric": "进度型",
-    "boolean": "完成/未完成",
+    "boolean": "未完成/完成",
     "task": "任务型",
     "milestoneType": "里程碑型",
     "weight": "权重",
@@ -163,8 +163,8 @@
     "addKRInline": "+ 添加关键结果",
     "krTitle": "关键结果名称",
     "krType": "类型",
-    "startValue": "起始值",
-    "targetValue": "目标值",
+    "startValue": "起始进度",
+    "targetValue": "目标进度",
     "unit": "单位",
     "linkTask": "关联任务",
     "unlinkTask": "取消关联",
@@ -210,7 +210,12 @@
     "draftBox": "草稿箱",
     "noDrafts": "暂无目标草稿",
     "continueDraft": "继续编辑",
-    "goalDetail": "目标详情"
+    "goalDetail": "目标详情",
+    "healthNormal": "可控",
+    "healthRisk": "有风险",
+    "healthBehind": "失控",
+    "deadline": "截至时间",
+    "updatedTime": "更新时间"
   },
   "calendar": {
     "title": "日历",

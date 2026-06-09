@@ -16,7 +16,7 @@ interface State {
   createMilestone: (goalId: string, title: string) => Promise<void>;
   toggleMilestone: (id: string) => Promise<void>;
   deleteMilestone: (id: string) => Promise<void>;
-  createKeyResult: (params: { goalId: string; title: string; krType: string; startValue?: number; targetValue?: number; unit?: string; weight?: number }) => Promise<void>;
+  createKeyResult: (params: { goalId: string; title: string; krType: string; startValue?: number; targetValue?: number; unit?: string; weight?: number; healthStatus?: string }) => Promise<void>;
   updateKeyResult: (id: string, patch: Record<string, unknown>) => Promise<void>;
   checkInKeyResult: (krId: string, newValue: number, comment?: string) => Promise<void>;
   toggleKeyResult: (id: string) => Promise<void>;

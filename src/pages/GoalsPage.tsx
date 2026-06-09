@@ -20,6 +20,7 @@ type SortDirection = 'asc' | 'desc';
 type GoalStatus = 'draft' | 'active';
 type KRType = 'metric' | 'boolean';
 type DetailTab = 'krs' | 'tasks';
+type KRHealth = 'normal' | 'risk' | 'behind';
 
 interface DraftKR {
   id?: string;
@@ -58,6 +59,22 @@ const progressColor = (progress: number) => {
   return '#68d391';
 };
 
+const KR_HEALTH_COLORS: Record<KRHealth, string> = {
+  normal: '#2dd4bf',
+  risk: '#f59e0b',
+  behind: '#fb7185',
+};
+
+const formatForDateTimeInput = (value?: string | null) => {
+  if (!value) return '';
+  return dayjs(value).format('YYYY-MM-DDTHH:mm');
+};
+
+const dateTimeInputToIso = (value: string) => {
+  if (!value) return undefined;
+  return dayjs(value).format('YYYY-MM-DDTHH:mm:ss');
+};
+
 type TaskStatusLike = Pick<Task, 'isCompleted' | 'status'>;
 
 const taskStatusLabel = (task: TaskStatusLike, t: (key: string) => string) => {
@@ -77,12 +94,6 @@ const taskStatusClass = (task: TaskStatusLike) => {
   if (task.status === 'in_progress' || task.status === 'long_term') return 'bg-amber-500/15 text-amber-600';
   if (task.status === 'closed') return 'bg-slate-500/15 text-slate-500';
   return 'bg-red-500/15 text-red-500';
-};
-
-const healthState = (progress: number): 'normal' | 'risk' | 'behind' => {
-  if (progress >= 0.6) return 'normal';
-  if (progress >= 0.25) return 'risk';
-  return 'behind';
 };
 
 const normalizeKRs = (items: DraftKR[]) => {
@@ -220,7 +231,7 @@ export function GoalsPage() {
     setEditingGoal(detailGoal);
     setFormTitle(detailGoal.title);
     setFormParentId(detailGoal.parentGoalId || '');
-    setFormDueAt(detailGoal.dueAt ? dayjs(detailGoal.dueAt).format('YYYY-MM-DD') : '');
+    setFormDueAt(formatForDateTimeInput(detailGoal.dueAt));
     setDraftKRs(detailKRs.length > 0 ? detailKRs.map(krToDraft) : [blankKR()]);
     setFormOriginalKRIds(detailKRs.map((kr) => kr.id));
     setCreateOpen(true);
@@ -232,7 +243,7 @@ export function GoalsPage() {
     setEditingGoal(goal);
     setFormTitle(goal.title);
     setFormParentId(goal.parentGoalId || '');
-    setFormDueAt(goal.dueAt ? dayjs(goal.dueAt).format('YYYY-MM-DD') : '');
+    setFormDueAt(formatForDateTimeInput(goal.dueAt));
     setDraftKRs(krs.length > 0 ? krs.map(krToDraft) : [blankKR()]);
     setFormOriginalKRIds(krs.map((kr) => kr.id));
     setDraftBoxOpen(false);
@@ -291,7 +302,7 @@ export function GoalsPage() {
       await updateGoal(editingGoal.id, {
         title: formTitle.trim(),
         parentGoalId: formParentId || null,
-        dueAt: formDueAt || null,
+        dueAt: dateTimeInputToIso(formDueAt) || null,
         status,
       });
       const existingIds = new Set(formOriginalKRIds);
@@ -332,7 +343,7 @@ export function GoalsPage() {
     const created = await createGoal({
       title: formTitle.trim(),
       parentGoalId: formParentId || undefined,
-      dueAt: formDueAt || undefined,
+      dueAt: dateTimeInputToIso(formDueAt),
       period: formDueAt ? 'custom' : undefined,
       status,
     });
@@ -451,6 +462,11 @@ export function GoalsPage() {
     await refreshDetail();
   };
 
+  const updateKRHealth = async (id: string, health: KRHealth) => {
+    await keyResultsApi.update({ id, healthStatus: health });
+    await refreshDetail();
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-5">
@@ -527,6 +543,7 @@ export function GoalsPage() {
         onDoneChange={(id, value) => setWorkingDone((state) => ({ ...state, [id]: value }))}
         onCommentChange={setProgressComment}
         onUpdate={updateAllKRProgress}
+        onHealthChange={updateKRHealth}
         onToggleHistory={() => setShowHistory((value) => !value)}
         onFinish={finishGoal}
         onDelete={() => detailGoal && setDeleteConfirm({
@@ -769,7 +786,7 @@ function GoalFormModal({
       <div className="space-y-5">
         <Input label={`${t('goal.goalName')} *`} value={title} onChange={(event) => onTitleChange(event.target.value)} placeholder={t('goal.goalNamePlaceholder')} autoFocus />
 
-        <div className={editing ? 'grid grid-cols-2 gap-6' : ''}>
+        <div className="grid grid-cols-2 gap-6">
           <div>
             <label className="label">{t('goal.parentGoal')}</label>
             <select className="input w-full disabled:bg-surface-2 disabled:text-text-muted" value={parentId} onChange={(event) => onParentChange(event.target.value)} disabled={parentDisabled}>
@@ -777,9 +794,7 @@ function GoalFormModal({
               {parentOptions.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
             </select>
           </div>
-          {editing && (
-            <Input label={`${t('goal.due')} *`} type="date" value={dueAt} onChange={(event) => onDueAtChange(event.target.value)} />
-          )}
+          <Input label={`${t('goal.deadline')} *`} type="datetime-local" value={dueAt} onChange={(event) => onDueAtChange(event.target.value)} />
         </div>
 
         <section className="border-t border-border pt-4">
@@ -822,6 +837,7 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  const unit = kr.unit || '%';
   return (
     <div className="border-b border-border pb-3">
       <div className="grid grid-cols-[24px_minmax(0,1fr)_190px_32px] gap-3 items-start">
@@ -837,16 +853,44 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
           <Trash2 size={16} />
         </button>
       </div>
-      <div className="grid grid-cols-[160px_180px_220px_220px] gap-4 mt-2 ml-9 items-end">
+      <div className="mt-2 ml-9 flex items-end gap-4 whitespace-nowrap">
         <select className="input h-10" value={kr.type} onChange={(event) => onChange({ type: event.target.value as KRType })}>
           <option value="metric">{t('goal.metricProgress')}</option>
           <option value="boolean">{t('goal.boolean')}</option>
         </select>
-        <Input label={t('goal.unit')} value={kr.unit} disabled={kr.type === 'boolean'} onChange={(event) => onChange({ unit: event.target.value })} placeholder="%" />
-        <Input label={t('goal.startValue')} type={kr.type === 'metric' ? 'number' : 'text'} value={kr.type === 'metric' ? kr.startValue : t('goal.notCompleted')} disabled={kr.type === 'boolean'}
-          onChange={(event) => onChange({ startValue: Number(event.target.value) || 0 })} />
-        <Input label={t('goal.targetValue')} type={kr.type === 'metric' ? 'number' : 'text'} value={kr.type === 'metric' ? kr.targetValue : t('goal.completed')} disabled={kr.type === 'boolean'}
-          onChange={(event) => onChange({ targetValue: Number(event.target.value) || 0 })} />
+        {kr.type === 'metric' ? (
+          <>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-text-muted">{t('goal.unit')}:</span>
+              <input className="input h-10 w-28" value={unit} onChange={(event) => onChange({ unit: event.target.value })} placeholder="%" />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-text-muted">{t('goal.startValue')}:</span>
+              <span className="relative inline-flex">
+                <input className="input h-10 w-36 pr-14" type="number" value={kr.startValue} onChange={(event) => onChange({ startValue: Number(event.target.value) || 0 })} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 max-w-12 truncate text-xs text-text-muted border-l border-border pl-2">{unit}</span>
+              </span>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-text-muted">{t('goal.targetValue')}:</span>
+              <span className="relative inline-flex">
+                <input className="input h-10 w-36 pr-14" type="number" value={kr.targetValue} onChange={(event) => onChange({ targetValue: Number(event.target.value) || 0 })} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 max-w-12 truncate text-xs text-text-muted border-l border-border pl-2">{unit}</span>
+              </span>
+            </label>
+          </>
+        ) : (
+          <>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-text-muted">{t('goal.startValue')}:</span>
+              <input className="input h-10 w-32 disabled:bg-surface-2 disabled:text-text-muted" value={t('goal.notCompleted')} disabled />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-text-muted">{t('goal.targetValue')}:</span>
+              <input className="input h-10 w-32 disabled:bg-surface-2 disabled:text-text-muted" value={t('goal.completed')} disabled />
+            </label>
+          </>
+        )}
       </div>
     </div>
   );
@@ -855,7 +899,7 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
 function GoalDetailModal({
   goal, path, keyResults, tab, workingValues, workingDone, progressComment,
   showHistory: _showHistory, moreOpen, onClose, onEdit, onMoreToggle, onTabChange, onValueChange,
-  onDoneChange, onCommentChange, onUpdate, onToggleHistory, onFinish, onDelete, onUnlinkTask, onLinkTask,
+  onDoneChange, onCommentChange, onUpdate, onHealthChange, onToggleHistory: _onToggleHistory, onFinish, onDelete, onUnlinkTask, onLinkTask,
 }: {
   goal: GoalWithDetails | null;
   path: GoalWithDetails[];
@@ -874,6 +918,7 @@ function GoalDetailModal({
   onDoneChange: (id: string, value: boolean) => void;
   onCommentChange: (value: string) => void;
   onUpdate: () => Promise<void>;
+  onHealthChange: (id: string, health: KRHealth) => Promise<void>;
   onToggleHistory: () => void;
   onFinish: () => Promise<void>;
   onDelete: () => void;
@@ -922,8 +967,8 @@ function GoalDetailModal({
               <HelpCircle size={15} className="text-primary" />
             </div>
             <div className="text-xs text-text-muted mt-4">
-              {goal.dueAt && <span>{t('goal.due')}: {dayjs(goal.dueAt).format('M月D日 HH:mm')}</span>}
-              <span className="ml-6">{t('board.updatedAt')}: {dayjs(goal.updatedAt).format('M月D日 HH:mm')}</span>
+              {goal.dueAt && <span>{t('goal.deadline')}: {dayjs(goal.dueAt).format('M月D日 HH:mm')}</span>}
+              <span className="ml-6">{t('goal.updatedTime')}: {dayjs(goal.updatedAt).format('M月D日 HH:mm')}</span>
             </div>
           </section>
 
@@ -943,6 +988,7 @@ function GoalDetailModal({
               onDoneChange={onDoneChange}
               onCommentChange={onCommentChange}
               onUpdate={onUpdate}
+              onHealthChange={onHealthChange}
             />
           ) : (
             <RelatedTasksPanel tasks={goal.linkedTasks} onUnlink={onUnlinkTask} onLink={onLinkTask} />
@@ -950,13 +996,13 @@ function GoalDetailModal({
 
           <div className="flex items-center gap-5 text-xs text-text-muted mt-5 pt-3">
             <span>{t('board.createdAt')} {dayjs(goal.createdAt).format('YYYY年M月D日 HH:mm')}</span>
-            <span>{t('board.updatedAt')} {dayjs(goal.updatedAt).format('YYYY年M月D日 HH:mm')}</span>
+            <span>{t('goal.updatedTime')} {dayjs(goal.updatedAt).format('YYYY年M月D日 HH:mm')}</span>
           </div>
         </div>
 
         <aside className="p-5 bg-surface-2/30 overflow-y-auto">
-          <div className="pt-[176px]">
-          <h4 className="font-semibold border-b-2 border-primary py-3 mb-4 text-primary inline-flex items-center gap-2">
+          <div>
+          <h4 className="font-semibold border-b-2 border-primary pb-3 mb-4 text-primary inline-flex items-center gap-2">
             <Activity size={14} /> {t('goal.progressHistory')}
           </h4>
           <div className="relative pl-5 space-y-5 before:absolute before:left-[6px] before:top-2 before:bottom-2 before:w-px before:bg-border">
@@ -992,7 +1038,7 @@ function TabButton({ active, label, onClick }: { active: boolean; label: string;
 
 function KeyResultsPanel({
   goal, keyResults, workingValues, workingDone, progressComment,
-  onValueChange, onDoneChange, onCommentChange, onUpdate,
+  onValueChange, onDoneChange, onCommentChange, onUpdate, onHealthChange,
 }: {
   goal: GoalWithDetails;
   keyResults: KeyResultWithLogs[];
@@ -1003,12 +1049,14 @@ function KeyResultsPanel({
   onDoneChange: (id: string, value: boolean) => void;
   onCommentChange: (value: string) => void;
   onUpdate: () => Promise<void>;
+  onHealthChange: (id: string, health: KRHealth) => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   return (
     <>
       <div className="text-sm text-text-muted mb-3">{t('goal.totalKR', { count: keyResults.length })}</div>
-      <div className="grid grid-cols-[minmax(0,1fr)_260px_80px_120px] text-sm text-text-muted border-b border-border pb-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_210px_70px_104px] text-sm text-text-muted border-b border-border pb-2">
         <span>{t('goal.keyResult')}</span>
         <span>{t('goal.progress')}</span>
         <span>{t('goal.weight')}</span>
@@ -1017,35 +1065,44 @@ function KeyResultsPanel({
       <div>
         {keyResults.map((kr) => {
           const progress = kr.type === 'boolean' ? ((workingDone[kr.id] ?? kr.isCompleted) ? 1 : 0) : krProgress({ ...kr, currentValue: workingValues[kr.id] ?? kr.currentValue });
+          const health = (kr.healthStatus || 'normal') as KRHealth;
+          const color = KR_HEALTH_COLORS[health] || KR_HEALTH_COLORS.normal;
+          const isCollapsed = collapsed[kr.id] === true;
           return (
             <div key={kr.id} className="border-b border-border py-3">
-              <div className="grid grid-cols-[minmax(0,1fr)_260px_80px_120px] items-center gap-3">
-                <div className="font-medium truncate flex items-center gap-2"><ChevronDown size={15} className="text-text-muted" />{kr.title}</div>
+              <div className="grid grid-cols-[minmax(0,1fr)_210px_70px_104px] items-center gap-3">
+                <button className="font-medium truncate flex items-center gap-2 text-left hover:text-primary" onClick={() => setCollapsed((state) => ({ ...state, [kr.id]: !isCollapsed }))}>
+                  {isCollapsed ? <ChevronRight size={15} className="text-text-muted" /> : <ChevronDown size={15} className="text-text-muted" />}
+                  <span className="truncate">{kr.title}</span>
+                </button>
                 <div className="flex items-center gap-3">
-                  <ProgressBar value={progress} color={progressColor(progress)} className="flex-1" />
+                  <ProgressBar value={progress} color={color} className="flex-1" />
                   <span className="w-12 text-sm tabular-nums">{(progress * 100).toFixed(0)}%</span>
                 </div>
                 <span>{kr.weight}%</span>
-                <HealthLights active={healthState(progress)} />
+                <HealthLights active={health} onChange={(next) => onHealthChange(kr.id, next)} />
               </div>
-              <div className="mt-3 pl-6 flex items-center gap-5">
-                {kr.type === 'boolean' ? (
-                  <>
-                    <span className="text-sm text-text-muted">{t('goal.currentProgress')}</span>
-                    <div className="inline-flex rounded border border-border overflow-hidden">
-                      <button className={`px-4 py-1.5 text-sm ${(workingDone[kr.id] ?? kr.isCompleted) ? 'bg-surface' : 'bg-primary text-white'}`} onClick={() => onDoneChange(kr.id, false)}>{t('goal.notCompleted')}</button>
-                      <button className={`px-4 py-1.5 text-sm ${(workingDone[kr.id] ?? kr.isCompleted) ? 'bg-primary text-white' : 'bg-surface'}`} onClick={() => onDoneChange(kr.id, true)}>{t('goal.completed')}</button>
+              {!isCollapsed && (
+                <div className="mt-3 ml-6 rounded border border-border bg-surface-2/30 px-4 py-3">
+                  {kr.type === 'boolean' ? (
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-text-muted shrink-0">{t('goal.currentProgress')}</span>
+                      <div className="inline-flex rounded border border-border overflow-hidden">
+                        <button className={`px-5 py-2 text-sm ${(workingDone[kr.id] ?? kr.isCompleted) ? 'bg-surface' : 'bg-primary text-white'}`} onClick={() => onDoneChange(kr.id, false)}>{t('goal.notCompleted')}</button>
+                        <button className={`px-5 py-2 text-sm ${(workingDone[kr.id] ?? kr.isCompleted) ? 'bg-primary text-white' : 'bg-surface'}`} onClick={() => onDoneChange(kr.id, true)}>{t('goal.completed')}</button>
+                      </div>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <Input label={t('goal.currentProgress')} type="number" value={workingValues[kr.id] ?? kr.currentValue} onChange={(event) => onValueChange(kr.id, Number(event.target.value) || 0)} />
-                    <span className="pb-2 text-sm">{kr.unit || ''}</span>
-                    <span className="pb-2 text-sm text-text-muted">{t('goal.startValue')} {kr.startValue}{kr.unit || ''}</span>
-                    <span className="pb-2 text-sm text-text-muted">{t('goal.targetValue')} {kr.targetValue}{kr.unit || ''}</span>
-                  </>
-                )}
-              </div>
+                  ) : (
+                    <div className="flex items-center gap-4 whitespace-nowrap">
+                      <span className="text-sm text-text-muted shrink-0">{t('goal.currentProgress')}</span>
+                      <input className="input h-9 w-32" type="number" value={workingValues[kr.id] ?? kr.currentValue} onChange={(event) => onValueChange(kr.id, Number(event.target.value) || 0)} />
+                      <span className="text-sm">{kr.unit || ''}</span>
+                      <span className="text-sm text-text-muted">{t('goal.startValue')} {kr.startValue}{kr.unit || ''}</span>
+                      <span className="text-sm text-text-muted">{t('goal.targetValue')} {kr.targetValue}{kr.unit || ''}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1214,22 +1271,32 @@ function UnsavedConfirmModal({ open, onDiscard, onCancel, onConfirm }: {
   );
 }
 
-function HealthLights({ active }: { active: 'normal' | 'risk' | 'behind' }) {
+function HealthLights({ active, onChange }: { active: KRHealth; onChange: (health: KRHealth) => void }) {
+  const { t } = useTranslation();
   const lights = [
-    { key: 'normal', color: '#2dd4bf' },
-    { key: 'risk', color: '#f59e0b' },
-    { key: 'behind', color: '#fb7185' },
+    { key: 'normal', color: KR_HEALTH_COLORS.normal, label: t('goal.healthNormal') },
+    { key: 'risk', color: KR_HEALTH_COLORS.risk, label: t('goal.healthRisk') },
+    { key: 'behind', color: KR_HEALTH_COLORS.behind, label: t('goal.healthBehind') },
   ] as const;
   return (
-    <div className="flex items-center gap-3" title={active}>
+    <div className="flex items-center gap-3">
       {lights.map((light) => (
-        <Circle
+        <button
           key={light.key}
-          size={17}
-          fill={active === light.key ? light.color : 'transparent'}
-          color={light.color}
-          strokeWidth={active === light.key ? 3 : 1.6}
-        />
+          className="relative group rounded-full p-0.5"
+          onClick={() => onChange(light.key)}
+          aria-label={light.label}
+        >
+          <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-text px-2 py-1 text-xs text-surface opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity">
+            {light.label}
+          </span>
+          <Circle
+            size={17}
+            fill={active === light.key ? light.color : 'transparent'}
+            color={light.color}
+            strokeWidth={active === light.key ? 3 : 1.6}
+          />
+        </button>
       ))}
     </div>
   );

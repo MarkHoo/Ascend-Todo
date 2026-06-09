@@ -12,7 +12,7 @@ fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
 pub fn load_kr_internal(c: &Connection, id: &str) -> AppResult<KeyResult> {
     Ok(c.query_row(
         "SELECT id, goal_id, title, type, start_value, target_value, current_value,
-                unit, weight, is_completed, position, created_at
+                unit, weight, health_status, is_completed, position, created_at
          FROM key_results WHERE id = ?",
         params![id],
         |r| {
@@ -26,9 +26,10 @@ pub fn load_kr_internal(c: &Connection, id: &str) -> AppResult<KeyResult> {
                 current_value: r.get(6)?,
                 unit: r.get(7)?,
                 weight: r.get(8)?,
-                is_completed: r.get::<_, i64>(9)? != 0,
-                position: r.get(10)?,
-                created_at: r.get(11)?,
+                health_status: r.get(9)?,
+                is_completed: r.get::<_, i64>(10)? != 0,
+                position: r.get(11)?,
+                created_at: r.get(12)?,
             })
         },
     )?)
@@ -133,6 +134,7 @@ pub fn create_key_result(
     target_value: Option<f64>,
     unit: Option<String>,
     weight: Option<i32>,
+    health_status: Option<String>,
 ) -> AppResult<KeyResult> {
     let c = conn(&state);
     let id = new_id();
@@ -152,9 +154,9 @@ pub fn create_key_result(
     c.execute(
         "INSERT INTO key_results
             (id, goal_id, title, type, start_value, target_value, current_value,
-             unit, weight, is_completed, position, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
-        params![id, goal_id, title, kr_type, sv, tv, sv, unit, w, max_pos + 1, n],
+             unit, weight, health_status, is_completed, position, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+        params![id, goal_id, title, kr_type, sv, tv, sv, unit, w, health_status.as_deref().unwrap_or("normal"), max_pos + 1, n],
     )?;
     Ok(KeyResult {
         id,
@@ -166,6 +168,7 @@ pub fn create_key_result(
         current_value: sv,
         unit,
         weight: w,
+        health_status: health_status.unwrap_or_else(|| "normal".to_string()),
         is_completed: false,
         position: max_pos + 1,
         created_at: n,
@@ -182,6 +185,7 @@ pub fn update_key_result(
     target_value: Option<f64>,
     unit: Option<String>,
     weight: Option<i32>,
+    health_status: Option<String>,
 ) -> AppResult<()> {
     let c = conn(&state);
     let goal_id: String = c.query_row(
@@ -196,9 +200,10 @@ pub fn update_key_result(
             start_value = COALESCE(?, start_value),
             target_value = COALESCE(?, target_value),
             unit = COALESCE(?, unit),
-            weight = COALESCE(?, weight)
+            weight = COALESCE(?, weight),
+            health_status = COALESCE(?, health_status)
          WHERE id = ?",
-        params![title, kr_type, start_value, target_value, unit, weight, id],
+        params![title, kr_type, start_value, target_value, unit, weight, health_status, id],
     )?;
     recalc_goal_progress(&c, &goal_id)?;
     Ok(())

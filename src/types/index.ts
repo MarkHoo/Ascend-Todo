@@ -92,6 +92,7 @@ export interface KeyResult {
   currentValue: number;
   unit?: string | null;
   weight: number;
+  healthStatus: 'normal' | 'risk' | 'behind';
   isCompleted: boolean;
   position: number;
   createdAt: ISODate;
@@ -116,6 +117,7 @@ export interface KeyResultWithLogs {
   currentValue: number;
   unit?: string | null;
   weight: number;
+  healthStatus: 'normal' | 'risk' | 'behind';
   isCompleted: boolean;
   position: number;
   createdAt: ISODate;

@@ -137,7 +137,7 @@
     "keyResult": "Key Result",
     "addKR": "Add Key Result",
     "metric": "Metric",
-    "boolean": "Boolean",
+    "boolean": "Not completed / Completed",
     "task": "Task",
     "milestoneType": "Milestone",
     "weight": "Weight",
@@ -163,8 +163,8 @@
     "addKRInline": "+ Add key result",
     "krTitle": "Key result name",
     "krType": "Type",
-    "startValue": "Start value",
-    "targetValue": "Target value",
+    "startValue": "Start progress",
+    "targetValue": "Target progress",
     "unit": "Unit",
     "linkTask": "Link task",
     "unlinkTask": "Unlink task",
@@ -210,7 +210,12 @@
     "draftBox": "Draft box",
     "noDrafts": "No goal drafts",
     "continueDraft": "Continue editing",
-    "goalDetail": "Goal details"
+    "goalDetail": "Goal details",
+    "healthNormal": "Controllable",
+    "healthRisk": "At risk",
+    "healthBehind": "Out of control",
+    "deadline": "Deadline",
+    "updatedTime": "Updated time"
   },
   "calendar": {
     "title": "Calendar",
