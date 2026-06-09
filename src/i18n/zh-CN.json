@@ -215,7 +215,10 @@
     "healthRisk": "有风险",
     "healthBehind": "失控",
     "deadline": "截至时间",
-    "updatedTime": "更新时间"
+    "updatedTime": "更新时间",
+    "krTypeHelp": "进度：可设置起始、目标进度，并实时更新进度情况    未完成/完成：评判关键结果的依据只有完成、未完成",
+    "overallProgressHelp": "根据关键结果的进度和权重计算得出",
+    "updateProgressHelp": "更新进度会对关键结果或目标统一进行更新，单独修改关键结果，数据不会生效"
   },
   "calendar": {
     "title": "日历",

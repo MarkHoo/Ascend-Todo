@@ -265,7 +265,7 @@ export function GoalsPage() {
         next.currentValue = item.currentValue > 0 ? 1 : 0;
         next.unit = '';
       }
-      if (patch.type === 'metric' && !next.unit) {
+      if (patch.type === 'metric' && next.unit === undefined) {
         next.unit = '%';
         next.targetValue = next.targetValue || 100;
       }
@@ -464,7 +464,7 @@ export function GoalsPage() {
 
   const updateKRHealth = async (id: string, health: KRHealth) => {
     await keyResultsApi.update({ id, healthStatus: health });
-    await refreshDetail();
+    setDetailKRs((items) => items.map((kr) => (kr.id === id ? { ...kr, healthStatus: health } : kr)));
   };
 
   return (
@@ -802,7 +802,7 @@ function GoalFormModal({
             <div className="flex items-center gap-2 font-semibold">
               <span className="text-xs px-1.5 py-0.5 rounded bg-primary text-white">KR</span>
               {t('goal.keyResult')}
-              <HelpCircle size={14} className="text-text-muted" />
+              <InfoTooltip text={t('goal.krTypeHelp')} />
             </div>
             <div className={totalWeight === 100 ? 'text-sm text-text-muted' : 'text-sm text-red-500 font-medium'}>
               {t('goal.totalWeight')}: {totalWeight}%
@@ -837,11 +837,14 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
-  const unit = kr.unit || '%';
+  const [collapsed, setCollapsed] = useState(false);
+  const unit = kr.unit ?? '%';
   return (
     <div className="border-b border-border pb-3">
       <div className="grid grid-cols-[24px_minmax(0,1fr)_190px_32px] gap-3 items-start">
-        <ChevronDown size={16} className="text-text-muted mt-3" />
+        <button className="btn-ghost p-0.5 text-text-muted mt-2" onClick={() => setCollapsed((value) => !value)} title={collapsed ? t('common.open') : t('common.close')}>
+          {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+        </button>
         <Input value={kr.title} onChange={(event) => onChange({ title: event.target.value })} placeholder={t('goal.krTitlePlaceholder')} />
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-muted">{t('goal.weight')}</span>
@@ -853,25 +856,25 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
           <Trash2 size={16} />
         </button>
       </div>
-      <div className="mt-2 ml-9 flex items-end gap-4 whitespace-nowrap">
-        <select className="input h-10" value={kr.type} onChange={(event) => onChange({ type: event.target.value as KRType })}>
+      {!collapsed && <div className="mt-2 ml-9 flex items-center gap-5 whitespace-nowrap overflow-x-auto pb-1">
+        <select className="input h-10 w-40 shrink-0" value={kr.type} onChange={(event) => onChange({ type: event.target.value as KRType })}>
           <option value="metric">{t('goal.metricProgress')}</option>
           <option value="boolean">{t('goal.boolean')}</option>
         </select>
         {kr.type === 'metric' ? (
           <>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm shrink-0">
               <span className="text-text-muted">{t('goal.unit')}:</span>
               <input className="input h-10 w-28" value={unit} onChange={(event) => onChange({ unit: event.target.value })} placeholder="%" />
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm shrink-0">
               <span className="text-text-muted">{t('goal.startValue')}:</span>
               <span className="relative inline-flex">
                 <input className="input h-10 w-36 pr-14" type="number" value={kr.startValue} onChange={(event) => onChange({ startValue: Number(event.target.value) || 0 })} />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 max-w-12 truncate text-xs text-text-muted border-l border-border pl-2">{unit}</span>
               </span>
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm shrink-0">
               <span className="text-text-muted">{t('goal.targetValue')}:</span>
               <span className="relative inline-flex">
                 <input className="input h-10 w-36 pr-14" type="number" value={kr.targetValue} onChange={(event) => onChange({ targetValue: Number(event.target.value) || 0 })} />
@@ -881,17 +884,17 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
           </>
         ) : (
           <>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm shrink-0">
               <span className="text-text-muted">{t('goal.startValue')}:</span>
               <input className="input h-10 w-32 disabled:bg-surface-2 disabled:text-text-muted" value={t('goal.notCompleted')} disabled />
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm shrink-0">
               <span className="text-text-muted">{t('goal.targetValue')}:</span>
               <input className="input h-10 w-32 disabled:bg-surface-2 disabled:text-text-muted" value={t('goal.completed')} disabled />
             </label>
           </>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -964,7 +967,7 @@ function GoalDetailModal({
             <div className="flex items-center gap-3 max-w-sm">
               <ProgressBar value={goal.progress} color={progressColor(goal.progress)} className="flex-1" />
               <span className="text-primary tabular-nums">{(goal.progress * 100).toFixed(2)}%</span>
-              <HelpCircle size={15} className="text-primary" />
+              <InfoTooltip text={t('goal.overallProgressHelp')} />
             </div>
             <div className="text-xs text-text-muted mt-4">
               {goal.dueAt && <span>{t('goal.deadline')}: {dayjs(goal.dueAt).format('M月D日 HH:mm')}</span>}
@@ -1033,6 +1036,17 @@ function TabButton({ active, label, onClick }: { active: boolean; label: string;
     <button className={`py-3 text-sm font-medium border-b-2 ${active ? 'text-primary border-primary' : 'text-text-muted border-transparent'}`} onClick={onClick}>
       {label}
     </button>
+  );
+}
+
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="relative inline-flex group">
+      <HelpCircle size={15} className="text-text-muted group-hover:text-primary" />
+      <span className="absolute left-1/2 top-6 z-30 hidden w-72 -translate-x-1/2 rounded bg-text px-3 py-2 text-xs leading-5 text-surface shadow-lg group-hover:block whitespace-normal">
+        {text}
+      </span>
+    </span>
   );
 }
 
@@ -1110,7 +1124,7 @@ function KeyResultsPanel({
       <Textarea className="mt-4 min-h-[150px]" value={progressComment} onChange={(event) => onCommentChange(event.target.value)} placeholder={t('goal.commentPlaceholder')} />
       <div className="mt-4 flex items-center gap-3">
         <Button onClick={onUpdate}>{t('goal.updateKR')}</Button>
-        <HelpCircle size={16} className="text-text-muted" />
+        <InfoTooltip text={t('goal.updateProgressHelp')} />
       </div>
       <div className="sr-only">{goal.id}</div>
     </>

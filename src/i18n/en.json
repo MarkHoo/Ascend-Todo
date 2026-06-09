@@ -215,7 +215,10 @@
     "healthRisk": "At risk",
     "healthBehind": "Out of control",
     "deadline": "Deadline",
-    "updatedTime": "Updated time"
+    "updatedTime": "Updated time",
+    "krTypeHelp": "Progress: set start and target progress, and update progress in real time. Not completed / Completed: evaluate the key result only by completed or not completed.",
+    "overallProgressHelp": "Calculated from key result progress and weight.",
+    "updateProgressHelp": "Update progress applies key result or goal changes together. Editing a key result alone will not take effect."
   },
   "calendar": {
     "title": "Calendar",
