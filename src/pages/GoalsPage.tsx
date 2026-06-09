@@ -148,7 +148,7 @@ export function GoalsPage() {
   const [taskLinkOpen, setTaskLinkOpen] = useState(false);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [taskSearch, setTaskSearch] = useState('');
-  const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     open: boolean;
     title?: string;
@@ -436,8 +436,8 @@ export function GoalsPage() {
     if (!task.krId) return;
     setDeleteConfirm({
       open: true,
-      title: t('goal.unlinkTask'),
-      message: t('goal.unlinkTaskConfirm'),
+      title: t('goal.confirmUnlink'),
+      message: t('goal.unlinkTaskConfirmWithName', { title: task.title }),
       onConfirm: async () => {
         await unlinkTaskFromKR(task.krId!, task.id);
         await refreshDetail();
@@ -450,15 +450,17 @@ export function GoalsPage() {
     const tasks = await tasksApi.listAll();
     setAllTasks(tasks);
     setTaskSearch('');
-    setSelectedTaskId('');
+    setSelectedTaskIds([]);
     setTaskLinkOpen(true);
   };
 
   const confirmTaskLink = async () => {
-    if (!selectedTaskId || detailKRs.length === 0) return;
-    await linkTaskToKR(detailKRs[0].id, selectedTaskId);
+    if (selectedTaskIds.length === 0 || detailKRs.length === 0) return;
+    for (const taskId of selectedTaskIds) {
+      await linkTaskToKR(detailKRs[0].id, taskId);
+    }
     setTaskLinkOpen(false);
-    setSelectedTaskId('');
+    setSelectedTaskIds([]);
     await refreshDetail();
   };
 
@@ -562,10 +564,10 @@ export function GoalsPage() {
         tasks={allTasks}
         linkedTaskIds={new Set(detailGoal?.linkedTasks.map((task) => task.id) || [])}
         search={taskSearch}
-        selectedTaskId={selectedTaskId}
+        selectedTaskIds={selectedTaskIds}
         canConfirm={detailKRs.length > 0}
         onSearchChange={setTaskSearch}
-        onSelect={setSelectedTaskId}
+        onToggle={(id) => setSelectedTaskIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id])}
         onClose={() => setTaskLinkOpen(false)}
         onConfirm={confirmTaskLink}
       />
@@ -586,6 +588,8 @@ export function GoalsPage() {
         message={deleteConfirm.message}
         onClose={() => setDeleteConfirm((state) => ({ ...state, open: false }))}
         onConfirm={deleteConfirm.onConfirm}
+        confirmLabel={deleteConfirm.title === t('goal.confirmUnlink') ? t('common.confirm') : undefined}
+        confirmVariant={deleteConfirm.title === t('goal.confirmUnlink') ? 'primary' : undefined}
       />
 
       <GoalFormModal
@@ -997,10 +1001,12 @@ function GoalDetailModal({
             <RelatedTasksPanel tasks={goal.linkedTasks} onUnlink={onUnlinkTask} onLink={onLinkTask} />
           )}
 
-          <div className="flex items-center gap-5 text-xs text-text-muted mt-5 pt-3">
-            <span>{t('board.createdAt')} {dayjs(goal.createdAt).format('YYYY年M月D日 HH:mm')}</span>
-            <span>{t('goal.updatedTime')} {dayjs(goal.updatedAt).format('YYYY年M月D日 HH:mm')}</span>
-          </div>
+          {tab === 'krs' && (
+            <div className="flex items-center gap-5 text-xs text-text-muted mt-5 pt-3">
+              <span>{t('board.createdAt')} {dayjs(goal.createdAt).format('YYYY年M月D日 HH:mm')}</span>
+              <span>{t('goal.updatedTime')} {dayjs(goal.updatedAt).format('YYYY年M月D日 HH:mm')}</span>
+            </div>
+          )}
         </div>
 
         <aside className="p-5 bg-surface-2/30 overflow-y-auto">
@@ -1162,31 +1168,46 @@ function RelatedTasksPanel({ tasks, onUnlink, onLink }: { tasks: LinkedTask[]; o
 }
 
 function TaskLinkModal({
-  open, tasks, linkedTaskIds, search, selectedTaskId, canConfirm,
-  onSearchChange, onSelect, onClose, onConfirm,
+  open, tasks, linkedTaskIds, search, selectedTaskIds, canConfirm,
+  onSearchChange, onToggle, onClose, onConfirm,
 }: {
   open: boolean;
   tasks: Task[];
   linkedTaskIds: Set<string>;
   search: string;
-  selectedTaskId: string;
+  selectedTaskIds: string[];
   canConfirm: boolean;
   onSearchChange: (value: string) => void;
-  onSelect: (id: string) => void;
+  onToggle: (id: string) => void;
   onClose: () => void;
   onConfirm: () => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const [sort, setSort] = useState<{ field: 'status' | 'priority' | 'dueAt'; direction: SortDirection }>({ field: 'dueAt', direction: 'asc' });
+  const priorityRank = (priority?: Task['priority']) => {
+    const ranks: Record<string, number> = { highest: 5, higher: 4, normal: 3, lower: 2, lowest: 1 };
+    return priority ? (ranks[priority] || 0) : 0;
+  };
+  const setTaskSort = (field: 'status' | 'priority' | 'dueAt') => {
+    setSort((state) => state.field === field
+      ? { field, direction: state.direction === 'asc' ? 'desc' : 'asc' }
+      : { field, direction: 'asc' });
+  };
   const filteredTasks = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    return tasks.filter((task) => {
+    const base = tasks.filter((task) => {
       if (linkedTaskIds.has(task.id)) return false;
       if (!keyword) return true;
       return task.title.toLowerCase().includes(keyword);
     });
-  }, [linkedTaskIds, search, tasks]);
-
-  const selectedTask = filteredTasks.find((task) => task.id === selectedTaskId);
+    return base.sort((a, b) => {
+      let comparison = 0;
+      if (sort.field === 'status') comparison = taskStatusLabel(a, t).localeCompare(taskStatusLabel(b, t), 'zh-CN');
+      if (sort.field === 'priority') comparison = priorityRank(a.priority) - priorityRank(b.priority);
+      if (sort.field === 'dueAt') comparison = dayjs(a.dueAt || '9999-12-31').valueOf() - dayjs(b.dueAt || '9999-12-31').valueOf();
+      return sort.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [linkedTaskIds, search, sort.direction, sort.field, tasks, t]);
 
   return (
     <Modal
@@ -1197,26 +1218,29 @@ function TaskLinkModal({
       footer={(
         <div className="w-full flex items-center justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button onClick={onConfirm} disabled={!selectedTask || !canConfirm}>{t('common.confirm')}</Button>
+          <Button onClick={onConfirm} disabled={selectedTaskIds.length === 0 || !canConfirm}>{t('common.confirm')}</Button>
         </div>
       )}
     >
       <div className="space-y-4">
-        <div className="flex items-center gap-5 border-b border-border pb-4">
-          <div className="relative flex-1">
+        <div className="flex items-center justify-between gap-5 border-b border-border pb-4">
+          <div className="relative w-[420px] max-w-full">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
             <input
               className="input w-full pl-10 h-11"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && filteredTasks[0]) onSelect(filteredTasks[0].id);
+                if (event.key === 'Enter' && filteredTasks[0]) onToggle(filteredTasks[0].id);
               }}
               placeholder={t('goal.searchTaskPlaceholder')}
               autoFocus
             />
           </div>
-          <div className="text-sm text-text-muted min-w-24">{t('goal.totalTasks', { count: filteredTasks.length })}</div>
+          <div className="flex items-center gap-4 text-sm text-text-muted">
+            <span>{t('goal.totalTasks', { count: filteredTasks.length })}</span>
+            <span>{t('goal.selectedTasks', { count: selectedTaskIds.length })}</span>
+          </div>
         </div>
 
         {!canConfirm && (
@@ -1225,13 +1249,17 @@ function TaskLinkModal({
           </div>
         )}
 
-        <div className="max-h-[520px] overflow-y-auto border border-border">
-          <div className="grid grid-cols-[44px_minmax(0,1fr)_150px_150px_150px] text-sm font-medium text-text-muted border-b border-border bg-surface-2/40 sticky top-0">
+        <div className="max-h-[520px] overflow-y-auto border border-border relative">
+          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-30" style={{ left: 44 }} />
+          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-30" style={{ right: 450 }} />
+          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-30" style={{ right: 300 }} />
+          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-30" style={{ right: 150 }} />
+          <div className="grid grid-cols-[44px_minmax(0,1fr)_150px_150px_150px] text-sm font-medium text-text-muted border-b border-border bg-surface-2/40 sticky top-0 z-20">
             <div className="px-3 py-3"></div>
             <div className="px-4 py-3">{t('goal.taskTitle')}</div>
-            <div className="px-4 py-3 border-l border-border">{t('goal.status')}</div>
-            <div className="px-4 py-3 border-l border-border">{t('board.currentPriority')}</div>
-            <div className="px-4 py-3 border-l border-border">{t('board.dueDate')}</div>
+            <button className="px-4 py-3 text-left hover:text-primary" onClick={() => setTaskSort('status')}>{t('goal.status')} {sort.field === 'status' ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</button>
+            <button className="px-4 py-3 text-left hover:text-primary" onClick={() => setTaskSort('priority')}>{t('board.currentPriority')} {sort.field === 'priority' ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</button>
+            <button className="px-4 py-3 text-left hover:text-primary" onClick={() => setTaskSort('dueAt')}>{t('goal.deadline')} {sort.field === 'dueAt' ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</button>
           </div>
           {filteredTasks.length === 0 ? (
             <div className="py-12 text-center text-sm text-text-muted">{t('common.empty')}</div>
@@ -1239,22 +1267,22 @@ function TaskLinkModal({
             filteredTasks.map((task) => (
               <button
                 key={task.id}
-                className={`w-full grid grid-cols-[44px_minmax(0,1fr)_150px_150px_150px] items-center min-h-14 text-left border-b border-border last:border-b-0 hover:bg-surface-2/50 ${selectedTaskId === task.id ? 'bg-primary/5' : ''}`}
-                onClick={() => onSelect(task.id)}
+                className={`w-full grid grid-cols-[44px_minmax(0,1fr)_150px_150px_150px] items-center min-h-14 text-left border-b border-border last:border-b-0 hover:bg-surface-2/50 ${selectedTaskIds.includes(task.id) ? 'bg-primary/5' : ''}`}
+                onClick={() => onToggle(task.id)}
               >
                 <div className="px-3">
-                  <span className={`block w-4 h-4 rounded border ${selectedTaskId === task.id ? 'bg-primary border-primary' : 'border-border'}`}>
-                    {selectedTaskId === task.id && <Check size={14} className="text-white" />}
+                  <span className={`block w-4 h-4 rounded border ${selectedTaskIds.includes(task.id) ? 'bg-primary border-primary' : 'border-border'}`}>
+                    {selectedTaskIds.includes(task.id) && <Check size={14} className="text-white" />}
                   </span>
                 </div>
                 <div className="px-4 font-medium truncate">{task.title}</div>
-                <div className="px-4 border-l border-border">
+                <div className="px-4">
                   <span className={`text-xs px-3 py-1 rounded-full ${taskStatusClass(task)}`}>
                     {taskStatusLabel(task, t)}
                   </span>
                 </div>
-                <div className="px-4 border-l border-border text-sm">{task.priority ? t(`board.priority${task.priority.charAt(0).toUpperCase()}${task.priority.slice(1)}`) : t('board.priorityNone')}</div>
-                <div className="px-4 border-l border-border text-sm">{task.dueAt ? dayjs(task.dueAt).format('YYYY-MM-DD') : ''}</div>
+                <div className="px-4 text-sm">{task.priority ? t(`board.priority${task.priority.charAt(0).toUpperCase()}${task.priority.slice(1)}`) : t('board.priorityNone')}</div>
+                <div className="px-4 text-sm">{task.dueAt ? dayjs(task.dueAt).format('YYYY-MM-DD') : ''}</div>
               </button>
             ))
           )}

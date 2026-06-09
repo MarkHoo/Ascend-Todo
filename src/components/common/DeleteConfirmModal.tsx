@@ -9,9 +9,11 @@ interface Props {
   onConfirm: () => void;
   title?: string;
   message?: string;
+  confirmLabel?: string;
+  confirmVariant?: 'primary' | 'danger';
 }
 
-export function DeleteConfirmModal({ open, onClose, onConfirm, title, message }: Props) {
+export function DeleteConfirmModal({ open, onClose, onConfirm, title, message, confirmLabel, confirmVariant = 'danger' }: Props) {
   const { t } = useTranslation();
   return (
     <Modal open={open} onClose={onClose} size="sm" title={title || t('common.confirm')}>
@@ -27,13 +29,13 @@ export function DeleteConfirmModal({ open, onClose, onConfirm, title, message }:
             {t('common.cancel')}
           </Button>
           <Button
-            variant="danger"
+            variant={confirmVariant}
             onClick={() => {
               onConfirm();
               onClose();
             }}
           >
-            {t('common.delete')}
+            {confirmLabel || t('common.delete')}
           </Button>
         </div>
       </div>
