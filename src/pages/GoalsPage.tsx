@@ -157,7 +157,7 @@ export function GoalsPage() {
   const [selectedDeletedIds, setSelectedDeletedIds] = useState<string[]>([]);
   const [goalSearch, setGoalSearch] = useState('');
   const [statusFilterOpen, setStatusFilterOpen] = useState(false);
-  const [goalStatuses, setGoalStatuses] = useState<GoalListStatus[]>(['active', 'completed']);
+  const [goalStatuses, setGoalStatuses] = useState<GoalListStatus[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -205,8 +205,11 @@ export function GoalsPage() {
     const pickVisible = (items: GoalWithDetails[]): GoalWithDetails[] => items.flatMap((goal) => {
       if (goal.status === 'draft') return [];
       const subGoals = pickVisible(goal.subGoals);
-      const statusMatches = goalStatuses.includes(goal.status as GoalListStatus);
-      const searchMatches = !query || goal.title.toLocaleLowerCase().includes(query);
+      const statusMatches = goalStatuses.length === 0
+        || goalStatuses.includes(goal.status as GoalListStatus);
+      const searchMatches = !query
+        || goal.title.toLocaleLowerCase().includes(query)
+        || goal.keyResults.some((kr) => kr.title.toLocaleLowerCase().includes(query));
       if ((statusMatches && searchMatches) || subGoals.length > 0) {
         return [{ ...goal, subGoals }];
       }
@@ -635,7 +638,7 @@ export function GoalsPage() {
                         : [...statuses, status]
                     ))}
                   />
-                  {status === 'active' ? t('goal.active') : t('goal.completed')}
+                  {status === 'active' ? t('goal.active') : t('goal.completedFilter')}
                 </label>
               ))}
             </div>
