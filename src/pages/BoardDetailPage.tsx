@@ -10,10 +10,13 @@ import { marked, type Tokens } from 'marked';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
 import {
-  DndContext, closestCorners, DragEndEvent, DragOverlay, DragStartEvent,
+  DndContext, closestCorners, DragCancelEvent, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent,
   PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  SortableContext, arrayMove, defaultAnimateLayoutChanges, horizontalListSortingStrategy,
+  useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useBoardStore } from '@/store/useBoardStore';
 import { Button } from '@/components/common/Button';
@@ -49,6 +52,9 @@ const TOOL_ICON_SIZE = 15;
 
 type TaskStackEntry = { task: TaskWithSubtasks; depth: number; hideSubtaskTab?: boolean };
 type SubtaskSort = 'custom' | 'title' | 'status' | 'priority' | 'createdAt' | 'startAt' | 'dueAt' | 'updatedAt';
+
+const animateSortableLayout = (args: Parameters<typeof defaultAnimateLayoutChanges>[0]) =>
+  defaultAnimateLayoutChanges({ ...args, wasDragging: true });
 
 function scrollMarkdownCaretIntoView(textarea: HTMLTextAreaElement, position: number) {
   const style = window.getComputedStyle(textarea);
@@ -240,6 +246,9 @@ export function BoardDetailPage() {
   const [boardEditDesc, setBoardEditDesc] = useState('');
   const [boardEditColor, setBoardEditColor] = useState<string | null>('#6366f1');
   const [taskStack, setTaskStack] = useState<TaskStackEntry[]>([]);
+  const [displayLists, setDisplayLists] = useState<ListWithTasks[]>([]);
+  const displayListsRef = useRef(displayLists);
+  displayListsRef.current = displayLists;
   const taskStackRef = useRef(taskStack);
   taskStackRef.current = taskStack;
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; onConfirm: () => void; message?: string }>({
@@ -254,7 +263,10 @@ export function BoardDetailPage() {
     setBoardEditDesc(currentBoard.board.description || '');
     setBoardEditColor(currentBoard.board.color || '#6366f1');
   }, [currentBoard?.board, boardEditOpen]);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  useEffect(() => {
+    if (!activeId && currentBoard?.lists) setDisplayLists(currentBoard.lists);
+  }, [currentBoard?.lists]);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // ALL hooks must be BEFORE any early returns (Rules of Hooks)
   const refreshAllModals = useCallback(async () => {
@@ -320,34 +332,104 @@ export function BoardDetailPage() {
     setActiveId(String(e.active.id));
     setActiveType((e.active.data.current?.type as 'list' | 'task') || 'task');
   };
+
+  const moveTaskInLayout = (
+    source: ListWithTasks[],
+    taskId: string,
+    targetListId: string,
+    targetIndex: number,
+  ) => {
+    const sourceListIndex = source.findIndex((list) => list.tasks.some((task) => task.id === taskId));
+    const targetListIndex = source.findIndex((list) => list.list.id === targetListId);
+    if (sourceListIndex < 0 || targetListIndex < 0) return source;
+    const sourceTaskIndex = source[sourceListIndex].tasks.findIndex((task) => task.id === taskId);
+    if (sourceListIndex === targetListIndex && sourceTaskIndex === targetIndex) return source;
+
+    const next = source.map((list) => ({ ...list, tasks: [...list.tasks] }));
+    const [movedTask] = next[sourceListIndex].tasks.splice(sourceTaskIndex, 1);
+    if (!movedTask) return source;
+    next[targetListIndex].tasks.splice(
+      Math.max(0, Math.min(targetIndex, next[targetListIndex].tasks.length)),
+      0,
+      { ...movedTask, listId: targetListId },
+    );
+    return next;
+  };
+
+  const onDragOver = (e: DragOverEvent) => {
+    if (!e.over) return;
+    if (e.active.data.current?.type === 'list') {
+      const overData = e.over.data.current as { type?: 'list' | 'task'; listId?: string } | undefined;
+      const targetListId = overData?.type === 'task'
+        ? overData.listId
+        : overData?.type === 'list'
+          ? String(e.over.id)
+          : undefined;
+      if (!targetListId) return;
+      setDisplayLists((current) => {
+        const oldIndex = current.findIndex((list) => list.list.id === e.active.id);
+        const newIndex = current.findIndex((list) => list.list.id === targetListId);
+        return oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex
+          ? arrayMove(current, oldIndex, newIndex)
+          : current;
+      });
+      return;
+    }
+    if (e.active.data.current?.type !== 'task') return;
+    const overData = e.over.data.current as { type?: 'list' | 'task'; listId?: string; index?: number } | undefined;
+    const targetListId = overData?.type === 'task'
+      ? overData.listId
+      : overData?.type === 'list'
+        ? String(e.over.id)
+        : undefined;
+    if (!targetListId) return;
+    const overRect = e.over.rect;
+    setDisplayLists((current) => {
+      const targetList = current.find((list) => list.list.id === targetListId);
+      if (!targetList) return current;
+      const isBelowTarget = overData?.type === 'task'
+        && e.active.rect.current.translated
+        && e.active.rect.current.translated.top > overRect.top + overRect.height / 2;
+      const targetIndex = overData?.type === 'task'
+        ? (overData.index ?? targetList.tasks.length) + (isBelowTarget ? 1 : 0)
+        : targetList.tasks.length;
+      return moveTaskInLayout(current, String(e.active.id), targetListId, targetIndex);
+    });
+  };
+
   const onDragEnd = async (e: DragEndEvent) => {
-    setActiveId(null); setActiveType(null);
     const { active, over } = e;
-    if (!over || active.id === over.id) return;
     const aType = active.data.current?.type as 'list' | 'task';
+    setActiveId(null);
+    setActiveType(null);
+    if (!over) {
+      setDisplayLists(currentBoard.lists);
+      return;
+    }
     if (aType === 'list') {
-      const oldIndex = lists.findIndex((l) => l.list.id === active.id);
-      const newIndex = lists.findIndex((l) => l.list.id === over.id);
-      if (oldIndex < 0 || newIndex < 0) return;
-      const newOrder = [...lists];
-      const [moved] = newOrder.splice(oldIndex, 1);
-      newOrder.splice(newIndex, 0, moved);
-      await reorderLists(board.id, newOrder.map((x) => x.list.id));
+      const current = displayListsRef.current;
+      await reorderLists(board.id, current.map((list) => list.list.id));
     } else {
-      const oData = over.data.current as { listId: string; index: number } | undefined;
-      let targetListId = oData?.listId;
-      let targetIndex = oData?.index;
-      if (!targetListId) {
-        targetListId = String(over.id);
-        const lst = lists.find((l) => l.list.id === targetListId);
-        targetIndex = lst ? lst.tasks.length : 0;
+      const current = displayListsRef.current;
+      const targetList = current.find((list) => list.tasks.some((task) => task.id === active.id));
+      if (!targetList) {
+        setDisplayLists(currentBoard.lists);
+        return;
       }
-      await moveTask(String(active.id), targetListId, targetIndex ?? 0);
+      const targetIndex = targetList.tasks.findIndex((task) => task.id === active.id);
+      await moveTask(String(active.id), targetList.list.id, targetIndex);
     }
   };
 
-  const activeList = activeType === 'list' ? lists.find((l) => l.list.id === activeId) : null;
-  const activeTask = activeType === 'task' ? lists.flatMap((l) => l.tasks).find((t) => t.id === activeId) : null;
+  const onDragCancel = (_event: DragCancelEvent) => {
+    setActiveId(null);
+    setActiveType(null);
+    setDisplayLists(currentBoard.lists);
+  };
+
+  const renderedLists = displayLists.length > 0 ? displayLists : lists;
+  const activeList = activeType === 'list' ? renderedLists.find((l) => l.list.id === activeId) : null;
+  const activeTask = activeType === 'task' ? renderedLists.flatMap((l) => l.tasks).find((t) => t.id === activeId) : null;
 
   return (
     <div className="h-full flex flex-col">
@@ -367,10 +449,17 @@ export function BoardDetailPage() {
       </div>
 
       <div className="flex-1 overflow-x-auto p-4">
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-          <SortableContext items={lists.map((l) => l.list.id)} strategy={verticalListSortingStrategy}>
-            <div className="flex gap-3 items-start">
-              {lists.map((l, idx) => (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragEnd={onDragEnd}
+          onDragCancel={onDragCancel}
+        >
+          <SortableContext items={renderedLists.map((l) => l.list.id)} strategy={horizontalListSortingStrategy}>
+            <div className="flex gap-4 items-start">
+              {renderedLists.map((l, idx) => (
                 <SortableListColumn
                   key={l.list.id} list={l} index={idx}
                   editingListId={editingListId} editListName={editListName} setEditListName={setEditListName}
@@ -404,12 +493,12 @@ export function BoardDetailPage() {
               </div>
             </div>
           </SortableContext>
-          <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 1, 0.22, 1)' }}>
-            {activeList && <div className="card p-3 w-72 shadow-2xl" style={{ transform: 'rotate(3deg) scale(1.02)', opacity: 0.85 }}>
+          <DragOverlay dropAnimation={{ duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }}>
+            {activeList && <div className="card p-3 w-72 shadow-2xl border-primary/40" style={{ transform: 'scale(1.015)', opacity: 0.96 }}>
               <div className="font-semibold">{activeList.list.name}</div>
               <div className="text-xs text-text-muted">{activeList.tasks.length} tasks</div>
             </div>}
-            {activeTask && <div className="card p-3 w-72 shadow-2xl" style={{ transform: 'rotate(2deg) scale(1.02)', opacity: 0.85 }}>
+            {activeTask && <div className="card p-3 w-72 shadow-2xl border-primary/40" style={{ transform: 'scale(1.025)', opacity: 0.98 }}>
               <TaskCardContent task={activeTask} />
             </div>}
           </DragOverlay>
@@ -1243,19 +1332,22 @@ function SortableListColumn({ list, index, editingListId, editListName, setEditL
 }) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: list.list.id, data: { type: 'list', index },
+    id: list.list.id,
+    data: { type: 'list', index },
+    animateLayoutChanges: animateSortableLayout,
   });
   const [newTask, setNewTask] = useState('');
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition: transition || 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1), opacity 200ms ease',
-    opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 50 : 'auto' as const,
+    transform: CSS.Translate.toString(transform),
+    transition: transition || 'transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease',
+    opacity: isDragging ? 0.2 : 1,
+    zIndex: isDragging ? 50 : 'auto' as const,
   };
 
   return (
     <div ref={setNodeRef} style={style} className="w-72 shrink-0">
-      <div className="card p-3 flex flex-col gap-2 max-h-[calc(100vh-180px)]">
-        <div className="flex items-center gap-2" {...attributes} {...listeners}>
+      <div className={`card p-3 flex flex-col gap-2 max-h-[calc(100vh-180px)] transition-[border-color,box-shadow] duration-200 ${isDragging ? 'border-primary/50 shadow-inner' : ''}`}>
+        <div className="flex items-center gap-2">
           {editingListId === list.list.id ? (
             <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
               <input className="input py-0.5 px-1 text-sm flex-1" value={editListName}
@@ -1267,7 +1359,15 @@ function SortableListColumn({ list, index, editingListId, editListName, setEditL
             </div>
           ) : (
             <>
-              <h3 className="font-semibold text-sm flex-1 truncate cursor-grab"
+              <button
+                className="p-0.5 -ml-1 text-text-muted hover:text-primary cursor-grab active:cursor-grabbing touch-none"
+                title={t('board.dragToSort')}
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical size={15} />
+              </button>
+              <h3 className="font-semibold text-sm flex-1 truncate"
                 onDoubleClick={(e) => { e.stopPropagation(); onStartRenameList(list.list.id, list.list.name); }}
                 title={t('board.renameList')}>{list.list.name}</h3>
               <span className="text-xs text-text-muted">{list.tasks.length}</span>
@@ -1306,17 +1406,20 @@ function SortableTaskCard({ task, index, isSelected, onToggle, onDelete, onView,
 }) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id, data: { type: 'task', listId: task.listId, index },
+    id: task.id,
+    data: { type: 'task', listId: task.listId, index },
+    animateLayoutChanges: animateSortableLayout,
   });
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition: transition || 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1), opacity 200ms ease',
-    opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 50 : 'auto' as const,
+    transform: CSS.Translate.toString(transform),
+    transition: transition || 'transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease',
+    opacity: isDragging ? 0.18 : 1,
+    zIndex: isDragging ? 50 : 'auto' as const,
   };
 
   return (
     <div ref={setNodeRef} style={style}
-      className={`rounded-lg p-2.5 border group cursor-pointer transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
+      className={`rounded-lg p-2.5 border group cursor-grab active:cursor-grabbing touch-none transition-[border-color,background-color,box-shadow] duration-200 ${isDragging ? 'border-primary/50 bg-primary/5 shadow-inner' : isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30 hover:shadow-sm'}`}
       {...attributes} {...listeners} onClick={() => { onView(); onEdit(); }}>
       <div className="flex items-start gap-2">
         <button onPointerDown={(e) => e.stopPropagation()}
