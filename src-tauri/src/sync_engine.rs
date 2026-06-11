@@ -90,7 +90,7 @@ pub fn build_snapshot(c: &Connection) -> AppResult<Snapshot> {
             "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                     progress_mode, progress_value, progress_total,
                     category, start_date, weight, status, review_score, review_note, period
-             FROM goals",
+             FROM goals WHERE deleted_at IS NULL",
         )?;
         for r in stmt.query_map([], |r| {
             Ok(Goal {

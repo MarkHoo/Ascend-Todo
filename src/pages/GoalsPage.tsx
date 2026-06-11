@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Activity, CalendarDays, Check, ChevronDown, ChevronRight, Circle, ClipboardList,
-  Edit3, FileText, HelpCircle, Link2, Link2Off, MoreHorizontal, Plus, Save, Search, Target, Trash2, X,
+  Edit3, FileText, Filter, HelpCircle, Link2, Link2Off, MoreHorizontal, Plus, Save, Search, Target, Trash2, X,
 } from 'lucide-react';
 import { goalsApi, keyResultsApi, tasksApi } from '@/api';
 import { useGoalStore } from '@/store/useGoalStore';
@@ -21,6 +21,7 @@ type GoalStatus = 'draft' | 'active';
 type KRType = 'metric' | 'boolean';
 type DetailTab = 'krs' | 'tasks';
 type KRHealth = 'normal' | 'risk' | 'behind';
+type GoalListStatus = 'active' | 'completed';
 
 interface DraftKR {
   id?: string;
@@ -150,6 +151,13 @@ export function GoalsPage() {
   const [draftKRs, setDraftKRs] = useState<DraftKR[]>([blankKR()]);
   const [formOriginalKRIds, setFormOriginalKRIds] = useState<string[]>([]);
   const [draftBoxOpen, setDraftBoxOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [deletedGoals, setDeletedGoals] = useState<GoalWithDetails[]>([]);
+  const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
+  const [selectedDeletedIds, setSelectedDeletedIds] = useState<string[]>([]);
+  const [goalSearch, setGoalSearch] = useState('');
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
+  const [goalStatuses, setGoalStatuses] = useState<GoalListStatus[]>(['active', 'completed']);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -192,13 +200,26 @@ export function GoalsPage() {
   }, [goals]);
 
   const visibleGoals = useMemo(() => {
-    const pickVisible = (items: GoalWithDetails[]): GoalWithDetails[] => items
-      .filter((goal) => goal.status !== 'draft')
-      .map((goal) => ({ ...goal, subGoals: pickVisible(goal.subGoals) }));
+    const query = goalSearch.trim().toLocaleLowerCase();
+    const pickVisible = (items: GoalWithDetails[]): GoalWithDetails[] => items.flatMap((goal) => {
+      if (goal.status === 'draft') return [];
+      const subGoals = pickVisible(goal.subGoals);
+      const statusMatches = goalStatuses.includes(goal.status as GoalListStatus);
+      const searchMatches = !query || goal.title.toLocaleLowerCase().includes(query);
+      if ((statusMatches && searchMatches) || subGoals.length > 0) {
+        return [{ ...goal, subGoals }];
+      }
+      return [];
+    });
     return pickVisible(goals);
-  }, [goals]);
+  }, [goalSearch, goalStatuses, goals]);
 
-  const draftGoals = useMemo(() => allGoals.filter((goal) => goal.status === 'draft'), [allGoals]);
+  const draftGoals = useMemo(
+    () => allGoals
+      .filter((goal) => goal.status === 'draft')
+      .map((goal) => ({ ...goal, subGoals: [] })),
+    [allGoals],
+  );
 
   const sortedGoals = useMemo(() => {
     return [...visibleGoals].sort((a, b) => {
@@ -208,6 +229,13 @@ export function GoalsPage() {
       return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [visibleGoals, sortDirection, sortField]);
+  const visibleGoalCount = useMemo(() => {
+    const count = (items: GoalWithDetails[]): number => items.reduce(
+      (total, goal) => total + 1 + count(goal.subGoals),
+      0,
+    );
+    return count(sortedGoals);
+  }, [sortedGoals]);
 
   const displayKRs = normalizeKRs(draftKRs);
   const totalWeight = displayKRs.reduce((sum, kr) => sum + kr.weight, 0);
@@ -243,6 +271,30 @@ export function GoalsPage() {
   const openCreate = () => {
     resetGoalForm();
     setCreateOpen(true);
+  };
+
+  const openTrash = async () => {
+    setSelectedDeletedIds([]);
+    setDeletedGoals(await goalsApi.listDeleted());
+    setTrashOpen(true);
+  };
+
+  const softDeleteGoals = async (ids: string[]) => {
+    await Promise.all(ids.map((id) => goalsApi.delete(id)));
+    setSelectedDraftIds([]);
+    await fetchGoals();
+  };
+
+  const permanentlyDeleteSelected = async () => {
+    await goalsApi.permanentlyDelete(selectedDeletedIds);
+    setSelectedDeletedIds([]);
+    setDeletedGoals(await goalsApi.listDeleted());
+  };
+
+  const emptyTrash = async () => {
+    await goalsApi.emptyTrash();
+    setSelectedDeletedIds([]);
+    setDeletedGoals([]);
   };
 
   const openEdit = () => {
@@ -509,7 +561,14 @@ export function GoalsPage() {
           {t('goal.title')}
         </h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setDraftBoxOpen(true)}>
+          <Button variant="outline" onClick={openTrash}>
+            <Trash2 size={16} />
+            {t('goal.trash')}
+          </Button>
+          <Button variant="outline" onClick={() => {
+            setSelectedDraftIds([]);
+            setDraftBoxOpen(true);
+          }}>
             <FileText size={16} />
             {t('goal.draftBox')}
             {draftGoals.length > 0 && <span className="ml-1 text-xs text-text-muted">({draftGoals.length})</span>}
@@ -519,6 +578,46 @@ export function GoalsPage() {
             {t('goal.addGoal')}
           </Button>
         </div>
+      </div>
+
+      <div className="mb-4 flex items-center gap-3">
+        <div className="relative w-full max-w-md">
+          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <input
+            className="input w-full pl-9"
+            value={goalSearch}
+            onChange={(event) => setGoalSearch(event.target.value)}
+            placeholder={t('goal.searchPlaceholder')}
+          />
+        </div>
+        <div className="relative">
+          <Button variant="outline" onClick={() => setStatusFilterOpen((open) => !open)}>
+            <Filter size={16} />
+            {t('goal.statusFilter')}
+            <ChevronDown size={15} />
+          </Button>
+          {statusFilterOpen && (
+            <div className="absolute left-0 top-full z-30 mt-2 w-40 border border-border bg-surface py-1 shadow-lg">
+              {(['active', 'completed'] as GoalListStatus[]).map((status) => (
+                <label key={status} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-surface-2">
+                  <input
+                    type="checkbox"
+                    checked={goalStatuses.includes(status)}
+                    onChange={() => setGoalStatuses((statuses) => (
+                      statuses.includes(status)
+                        ? statuses.filter((item) => item !== status)
+                        : [...statuses, status]
+                    ))}
+                  />
+                  {status === 'active' ? t('goal.active') : t('goal.completed')}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <span className="ml-auto whitespace-nowrap text-sm text-text-muted">
+          {t('goal.goalCount', { count: visibleGoalCount })}
+        </span>
       </div>
 
       <div className="overflow-x-auto bg-surface">
@@ -554,8 +653,39 @@ export function GoalsPage() {
       <DraftBoxModal
         open={draftBoxOpen}
         drafts={draftGoals}
+        selectedIds={selectedDraftIds}
         onClose={() => setDraftBoxOpen(false)}
         onOpenDraft={openDraft}
+        onSelectionChange={setSelectedDraftIds}
+        onDelete={() => setDeleteConfirm({
+          open: true,
+          title: t('goal.deleteDrafts'),
+          message: t('goal.deleteDraftsConfirm', { count: selectedDraftIds.length }),
+          confirmLabel: t('common.delete'),
+          onConfirm: () => softDeleteGoals(selectedDraftIds),
+        })}
+      />
+
+      <TrashModal
+        open={trashOpen}
+        goals={deletedGoals}
+        selectedIds={selectedDeletedIds}
+        onClose={() => setTrashOpen(false)}
+        onSelectionChange={setSelectedDeletedIds}
+        onDelete={() => setDeleteConfirm({
+          open: true,
+          title: t('goal.permanentDelete'),
+          message: t('goal.permanentDeleteConfirm', { count: selectedDeletedIds.length }),
+          confirmLabel: t('goal.permanentDelete'),
+          onConfirm: permanentlyDeleteSelected,
+        })}
+        onEmpty={() => setDeleteConfirm({
+          open: true,
+          title: t('goal.emptyTrash'),
+          message: t('goal.emptyTrashConfirm'),
+          confirmLabel: t('goal.emptyTrash'),
+          onConfirm: emptyTrash,
+        })}
       />
 
       <GoalDetailModal
@@ -789,35 +919,160 @@ function ProgressCell({ progress, color }: { progress: number; color: string }) 
 }
 
 function DraftBoxModal({
-  open, drafts, onClose, onOpenDraft,
+  open, drafts, selectedIds, onClose, onOpenDraft, onSelectionChange, onDelete,
 }: {
   open: boolean;
   drafts: GoalWithDetails[];
+  selectedIds: string[];
   onClose: () => void;
   onOpenDraft: (goal: GoalWithDetails) => void;
+  onSelectionChange: (ids: string[]) => void;
+  onDelete: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <Modal open={open} onClose={onClose} title={t('goal.draftBox')} size="md">
-      <div className="space-y-2 max-h-[420px] overflow-y-auto">
-        {drafts.length === 0 ? (
-          <div className="py-12 text-center text-sm text-text-muted">{t('goal.noDrafts')}</div>
-        ) : (
-          drafts.map((goal) => (
-            <button
-              key={goal.id}
-              className="w-full grid grid-cols-[minmax(0,1fr)_118px_54px_76px] items-center gap-3 px-3 py-2.5 border border-border hover:border-primary/40 hover:bg-surface-2/40 text-left transition-colors"
-              onClick={() => onOpenDraft(goal)}
-            >
-              <div className="min-w-0 font-semibold truncate text-sm">{goal.title}</div>
-              <span className="text-xs text-text-muted tabular-nums">{dayjs(goal.updatedAt).format('MM-DD HH:mm')}</span>
-              <span className="justify-self-start text-xs px-2 py-0.5 border border-warning/40 text-warning">{t('goal.draft')}</span>
-              <span className="justify-self-end text-sm text-primary">{t('goal.continueDraft')}</span>
-            </button>
-          ))
-        )}
-      </div>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t('goal.draftBox')}
+      size="xl"
+      footer={(
+        <div className="flex w-full items-center justify-between">
+          <span className="text-sm text-text-muted">{t('goal.selectedCount', { count: selectedIds.length })}</span>
+          <Button variant="danger" disabled={selectedIds.length === 0} onClick={onDelete}>
+            <Trash2 size={15} /> {t('common.delete')}
+          </Button>
+        </div>
+      )}
+    >
+      <GoalSelectionTable
+        goals={drafts}
+        selectedIds={selectedIds}
+        emptyText={t('goal.noDrafts')}
+        onSelectionChange={onSelectionChange}
+        onOpen={onOpenDraft}
+      />
     </Modal>
+  );
+}
+
+function TrashModal({
+  open, goals, selectedIds, onClose, onSelectionChange, onDelete, onEmpty,
+}: {
+  open: boolean;
+  goals: GoalWithDetails[];
+  selectedIds: string[];
+  onClose: () => void;
+  onSelectionChange: (ids: string[]) => void;
+  onDelete: () => void;
+  onEmpty: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t('goal.trash')}
+      size="xl"
+      footer={(
+        <div className="flex w-full items-center justify-between">
+          <span className="text-sm text-text-muted">{t('goal.trashRetention')}</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" disabled={goals.length === 0} onClick={onEmpty}>
+              <Trash2 size={15} /> {t('goal.emptyTrash')}
+            </Button>
+            <Button variant="danger" disabled={selectedIds.length === 0} onClick={onDelete}>
+              <X size={15} /> {t('goal.permanentDelete')}
+            </Button>
+          </div>
+        </div>
+      )}
+    >
+      <GoalSelectionTable
+        goals={goals}
+        selectedIds={selectedIds}
+        emptyText={t('goal.trashEmpty')}
+        onSelectionChange={onSelectionChange}
+      />
+    </Modal>
+  );
+}
+
+function GoalSelectionTable({
+  goals, selectedIds, emptyText, onSelectionChange, onOpen,
+}: {
+  goals: GoalWithDetails[];
+  selectedIds: string[];
+  emptyText: string;
+  onSelectionChange: (ids: string[]) => void;
+  onOpen?: (goal: GoalWithDetails) => void;
+}) {
+  const { t } = useTranslation();
+  const rows = useMemo(() => {
+    const result: Array<{ goal: GoalWithDetails; level: number }> = [];
+    const visit = (items: GoalWithDetails[], level: number) => {
+      items.forEach((goal) => {
+        result.push({ goal, level });
+        visit(goal.subGoals, level + 1);
+      });
+    };
+    visit(goals, 0);
+    return result;
+  }, [goals]);
+  const allSelected = rows.length > 0 && rows.every(({ goal }) => selectedIds.includes(goal.id));
+
+  const toggle = (id: string) => {
+    onSelectionChange(
+      selectedIds.includes(id)
+        ? selectedIds.filter((item) => item !== id)
+        : [...selectedIds, id],
+    );
+  };
+
+  return (
+    <div className="max-h-[58vh] overflow-auto border border-border">
+      <div className="min-w-[820px]">
+        <div className="grid grid-cols-[44px_minmax(0,1fr)_320px_140px] border-b border-border text-[15px] font-semibold">
+          <label className="flex items-center justify-center border-r border-border">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() => onSelectionChange(allSelected ? [] : rows.map(({ goal }) => goal.id))}
+              aria-label={t('common.selectAll')}
+            />
+          </label>
+          <div className="px-6 py-3.5">{t('goal.title')}</div>
+          <div className="border-l border-border px-6 py-3.5">{t('goal.progress')}</div>
+          <div className="border-l border-border px-4 py-3.5 text-center">{t('goal.weight')}</div>
+        </div>
+        {rows.length === 0 ? (
+          <div className="py-16 text-center text-sm text-text-muted">{emptyText}</div>
+        ) : rows.map(({ goal, level }) => (
+          <div
+            key={goal.id}
+            className="grid min-h-[58px] grid-cols-[44px_minmax(0,1fr)_320px_140px] items-center transition-colors hover:bg-surface-2/40"
+            style={{ boxShadow: 'inset 0 -1px 0 var(--border)' }}
+          >
+            <label className="flex h-full items-center justify-center border-r border-border">
+              <input type="checkbox" checked={selectedIds.includes(goal.id)} onChange={() => toggle(goal.id)} />
+            </label>
+            <div className="min-w-0 px-6" style={{ paddingLeft: 24 + level * 24 }}>
+              {onOpen ? (
+                <button className="max-w-full truncate text-left font-semibold hover:text-primary" onClick={() => onOpen(goal)}>
+                  {goal.title}
+                </button>
+              ) : (
+                <span className="block truncate font-semibold">{goal.title}</span>
+              )}
+            </div>
+            <div className="flex h-full items-center border-l border-border">
+              <ProgressCell progress={goal.progress} color={KR_HEALTH_COLORS[worstGoalHealth(goal)]} />
+            </div>
+            <div className="flex h-full items-center justify-center border-l border-border text-sm text-text-muted">-</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

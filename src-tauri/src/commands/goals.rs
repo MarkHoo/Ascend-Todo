@@ -11,6 +11,16 @@ fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
     state.conn.lock().expect("db lock")
 }
 
+fn purge_expired_deleted_goals(c: &Connection) -> AppResult<()> {
+    c.execute(
+        "DELETE FROM goals
+         WHERE deleted_at IS NOT NULL
+           AND julianday(deleted_at) <= julianday('now', '-30 days')",
+        [],
+    )?;
+    Ok(())
+}
+
 fn validate_parent_goal(c: &Connection, goal_id: Option<&str>, parent_goal_id: Option<&str>) -> AppResult<()> {
     let Some(parent_id) = parent_goal_id else {
         return Ok(());
@@ -22,7 +32,7 @@ fn validate_parent_goal(c: &Connection, goal_id: Option<&str>, parent_goal_id: O
 
     let parent_status = c
         .query_row(
-            "SELECT status FROM goals WHERE id = ?",
+            "SELECT status FROM goals WHERE id = ? AND deleted_at IS NULL",
             params![parent_id],
             |row| row.get::<_, String>(0),
         )
@@ -61,7 +71,7 @@ fn load_goal(c: &Connection, id: &str) -> AppResult<Goal> {
         "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                 progress_mode, progress_value, progress_total,
                 category, start_date, weight, status, review_score, review_note, period
-         FROM goals WHERE id = ?",
+         FROM goals WHERE id = ? AND deleted_at IS NULL",
         params![id],
         |r| {
             Ok(Goal {
@@ -118,7 +128,7 @@ fn load_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<GoalWithDeta
         "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                 progress_mode, progress_value, progress_total,
                 category, start_date, weight, status, review_score, review_note, period
-         FROM goals WHERE parent_goal_id = ? ORDER BY position ASC, created_at ASC",
+         FROM goals WHERE parent_goal_id = ? AND deleted_at IS NULL ORDER BY position ASC, created_at ASC",
     )?;
     let rows = stmt.query_map(params![parent_id], |r| {
         Ok(Goal {
@@ -267,11 +277,12 @@ fn load_linked_tasks(c: &Connection, goal_id: &str) -> AppResult<Vec<crate::mode
 #[tauri::command]
 pub fn list_goals(state: State<DbState>) -> AppResult<Vec<GoalWithDetails>> {
     let c = conn(&state);
+    purge_expired_deleted_goals(&c)?;
     let mut stmt = c.prepare(
         "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                 progress_mode, progress_value, progress_total,
                 category, start_date, weight, status, review_score, review_note, period
-         FROM goals WHERE parent_goal_id IS NULL ORDER BY position ASC, created_at ASC",
+         FROM goals WHERE parent_goal_id IS NULL AND deleted_at IS NULL ORDER BY position ASC, created_at ASC",
     )?;
     let rows = stmt.query_map([], |r| {
         Ok(Goal {
@@ -487,20 +498,165 @@ pub fn update_goal(
 #[tauri::command]
 pub fn delete_goal(state: State<DbState>, id: String) -> AppResult<()> {
     let c = conn(&state);
-    // Recursive delete (sub_goals cascade by parent_goal_id)
-    let mut to_delete = vec![id];
-    let mut i = 0;
-    while i < to_delete.len() {
-        let mut stmt = c.prepare("SELECT id FROM goals WHERE parent_goal_id = ?")?;
-        let rows = stmt.query_map(params![&to_delete[i]], |r| r.get::<_, String>(0))?;
-        for row in rows {
-            to_delete.push(row?);
-        }
-        i += 1;
+    c.execute(
+        "WITH RECURSIVE descendants(id) AS (
+            SELECT id FROM goals WHERE id = ?1 AND deleted_at IS NULL
+            UNION ALL
+            SELECT goals.id
+            FROM goals
+            JOIN descendants ON goals.parent_goal_id = descendants.id
+            WHERE goals.deleted_at IS NULL
+         )
+         UPDATE goals SET deleted_at = ?2, updated_at = ?2
+         WHERE id IN (SELECT id FROM descendants)",
+        params![id, now()],
+    )?;
+    Ok(())
+}
+
+fn load_deleted_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<GoalWithDetails>> {
+    let mut stmt = c.prepare(
+        "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
+                progress_mode, progress_value, progress_total,
+                category, start_date, weight, status, review_score, review_note, period
+         FROM goals
+         WHERE parent_goal_id = ? AND deleted_at IS NOT NULL
+         ORDER BY position ASC, created_at ASC",
+    )?;
+    let rows = stmt.query_map(params![parent_id], |r| {
+        Ok(Goal {
+            id: r.get(0)?,
+            title: r.get(1)?,
+            description: r.get(2)?,
+            color: r.get(3)?,
+            icon: r.get(4)?,
+            due_at: r.get(5)?,
+            parent_goal_id: r.get(6)?,
+            position: r.get(7)?,
+            created_at: r.get(8)?,
+            updated_at: r.get(9)?,
+            progress_mode: r.get(10)?,
+            progress_value: r.get(11)?,
+            progress_total: r.get(12)?,
+            category: r.get(13)?,
+            start_date: r.get(14)?,
+            weight: r.get(15)?,
+            status: r.get(16)?,
+            review_score: r.get(17)?,
+            review_note: r.get(18)?,
+            period: r.get(19)?,
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(build_deleted_goal_with(c, row?)?);
     }
-    for gid in &to_delete {
-        c.execute("DELETE FROM goals WHERE id = ?", params![gid])?;
+    Ok(out)
+}
+
+fn build_deleted_goal_with(c: &Connection, goal: Goal) -> AppResult<GoalWithDetails> {
+    let milestones = load_milestones(c, &goal.id)?;
+    let sub_goals = load_deleted_sub_goals(c, &goal.id)?;
+    let key_results = load_key_results_for_goal(c, &goal.id).unwrap_or_default();
+    let linked_tasks = load_linked_tasks(c, &goal.id).unwrap_or_default();
+    let progress = if key_results.is_empty() {
+        0.0
+    } else {
+        weighted_goal_progress(&key_results)
+    };
+    Ok(GoalWithDetails {
+        goal,
+        milestones,
+        key_results,
+        linked_tasks,
+        sub_goals,
+        progress,
+    })
+}
+
+fn weighted_goal_progress(key_results: &[crate::models::KeyResult]) -> f64 {
+    let total_weight: i32 = key_results.iter().map(|kr| kr.weight).sum();
+    if total_weight <= 0 {
+        return 0.0;
     }
+    key_results
+        .iter()
+        .map(|kr| calc_kr_progress(kr) * kr.weight as f64)
+        .sum::<f64>()
+        / (total_weight as f64 * 100.0)
+}
+
+#[tauri::command]
+pub fn list_deleted_goals(state: State<DbState>) -> AppResult<Vec<GoalWithDetails>> {
+    let c = conn(&state);
+    purge_expired_deleted_goals(&c)?;
+    let mut stmt = c.prepare(
+        "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
+                progress_mode, progress_value, progress_total,
+                category, start_date, weight, status, review_score, review_note, period
+         FROM goals g
+         WHERE g.deleted_at IS NOT NULL
+           AND (g.parent_goal_id IS NULL OR NOT EXISTS (
+                SELECT 1 FROM goals parent
+                WHERE parent.id = g.parent_goal_id AND parent.deleted_at IS NOT NULL
+           ))
+         ORDER BY g.deleted_at DESC",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok(Goal {
+            id: r.get(0)?,
+            title: r.get(1)?,
+            description: r.get(2)?,
+            color: r.get(3)?,
+            icon: r.get(4)?,
+            due_at: r.get(5)?,
+            parent_goal_id: r.get(6)?,
+            position: r.get(7)?,
+            created_at: r.get(8)?,
+            updated_at: r.get(9)?,
+            progress_mode: r.get(10)?,
+            progress_value: r.get(11)?,
+            progress_total: r.get(12)?,
+            category: r.get(13)?,
+            start_date: r.get(14)?,
+            weight: r.get(15)?,
+            status: r.get(16)?,
+            review_score: r.get(17)?,
+            review_note: r.get(18)?,
+            period: r.get(19)?,
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(build_deleted_goal_with(&c, row?)?);
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn permanently_delete_goals(state: State<DbState>, ids: Vec<String>) -> AppResult<()> {
+    let c = conn(&state);
+    for id in ids {
+        c.execute(
+            "WITH RECURSIVE descendants(id) AS (
+                SELECT id FROM goals WHERE id = ?1 AND deleted_at IS NOT NULL
+                UNION ALL
+                SELECT goals.id
+                FROM goals
+                JOIN descendants ON goals.parent_goal_id = descendants.id
+                WHERE goals.deleted_at IS NOT NULL
+             )
+             DELETE FROM goals WHERE id IN (SELECT id FROM descendants)",
+            params![id],
+        )?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn empty_goal_trash(state: State<DbState>) -> AppResult<()> {
+    let c = conn(&state);
+    c.execute("DELETE FROM goals WHERE deleted_at IS NOT NULL", [])?;
     Ok(())
 }
 

@@ -31,6 +31,9 @@ export const goalsApi = {
     status?: 'draft' | 'active' | 'completed' | 'abandoned' | 'archived';
   }) => invoke<void>('update_goal', params),
   delete: (id: string) => invoke<void>('delete_goal', { id }),
+  listDeleted: () => invoke<GoalWithDetails[]>('list_deleted_goals'),
+  permanentlyDelete: (ids: string[]) => invoke<void>('permanently_delete_goals', { ids }),
+  emptyTrash: () => invoke<void>('empty_goal_trash'),
   archive: (id: string) => invoke<void>('archive_goal', { id }),
   saveReview: (params: { id: string; score?: number | null; note?: string | null }) =>
     invoke<void>('save_review', params),

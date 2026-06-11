@@ -275,6 +275,23 @@ pub fn migrate(conn: &Connection) -> AppResult<()> {
         tx.execute("PRAGMA user_version = 8;", params![])?;
         tx.commit()?;
     }
+    if user_version < 9 {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(
+            r#"
+            ALTER TABLE goals ADD COLUMN deleted_at TEXT;
+            CREATE INDEX IF NOT EXISTS idx_goals_deleted_at ON goals(deleted_at);
+            "#,
+        )?;
+        tx.execute("PRAGMA user_version = 9;", params![])?;
+        tx.commit()?;
+    }
+    conn.execute(
+        "DELETE FROM goals
+         WHERE deleted_at IS NOT NULL
+           AND julianday(deleted_at) <= julianday('now', '-30 days')",
+        [],
+    )?;
     Ok(())
 }
 
