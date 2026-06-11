@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft, Plus, Pin, PinOff, Trash2, Calendar as CalIcon, Bell, Check, X,
-  ChevronRight, Bold, Italic, Edit3, EyeOff, ListTree, ArrowDownAZ,
+  ChevronRight, Bold, Italic, Edit3, Eye, EyeOff, ListTree, ArrowDownAZ, GripVertical,
   List as ListIcon, ListOrdered, Link as LinkIcon, Code, Quote, Minus,
 } from 'lucide-react';
 import { marked, type Tokens } from 'marked';
@@ -13,7 +13,7 @@ import {
   DndContext, closestCorners, DragEndEvent, DragOverlay, DragStartEvent,
   PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useBoardStore } from '@/store/useBoardStore';
 import { Button } from '@/components/common/Button';
@@ -48,6 +48,7 @@ const MAX_NESTING = 5;
 const TOOL_ICON_SIZE = 15;
 
 type TaskStackEntry = { task: TaskWithSubtasks; depth: number; hideSubtaskTab?: boolean };
+type SubtaskSort = 'custom' | 'title' | 'status' | 'priority' | 'createdAt' | 'startAt' | 'dueAt' | 'updatedAt';
 
 function scrollMarkdownCaretIntoView(textarea: HTMLTextAreaElement, position: number) {
   const style = window.getComputedStyle(textarea);
@@ -495,7 +496,7 @@ function TaskDetailModal({
   onRefresh: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { updateTask, createTask, toggleTask } = useBoardStore();
+  const { updateTask, createTask, toggleTask, reorderTasks } = useBoardStore();
   const lang = i18n.language;
 
   const [draft, setDraft] = useState({
@@ -511,6 +512,8 @@ function TaskDetailModal({
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [fullSubtaskOpen, setFullSubtaskOpen] = useState(false);
   const [hideCompletedSubtasks, setHideCompletedSubtasks] = useState(false);
+  const [subtaskSort, setSubtaskSort] = useState<SubtaskSort>('custom');
+  const [subtaskSortOpen, setSubtaskSortOpen] = useState(false);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
   const quickSubtaskRef = useRef<HTMLInputElement>(null);
@@ -653,9 +656,51 @@ function TaskDetailModal({
   };
 
   const descHtml = task.description || '';
-  const visibleSubtasks = hideCompletedSubtasks ? task.subtasks.filter((s) => !s.isCompleted) : task.subtasks;
+  const sortedSubtasks = useMemo(() => {
+    const items = [...task.subtasks];
+    if (subtaskSort === 'custom') return items;
+    const statusRank: Record<TaskStatus, number> = { not_started: 0, in_progress: 1, long_term: 2, completed: 3, closed: 4 };
+    const priorityRank: Record<string, number> = { highest: 5, higher: 4, normal: 3, lower: 2, lowest: 1 };
+    const timestamp = (value?: string | null) => value ? dayjs(value).valueOf() : Number.MAX_SAFE_INTEGER;
+    return items.sort((a, b) => {
+      if (subtaskSort === 'title') return a.title.localeCompare(b.title, i18n.language);
+      if (subtaskSort === 'status') return statusRank[a.status] - statusRank[b.status];
+      if (subtaskSort === 'priority') return (priorityRank[b.priority || ''] || 0) - (priorityRank[a.priority || ''] || 0);
+      if (subtaskSort === 'createdAt') return timestamp(a.createdAt) - timestamp(b.createdAt);
+      if (subtaskSort === 'startAt') return timestamp(a.startAt) - timestamp(b.startAt);
+      if (subtaskSort === 'dueAt') return timestamp(a.dueAt) - timestamp(b.dueAt);
+      return timestamp(a.updatedAt) - timestamp(b.updatedAt);
+    });
+  }, [i18n.language, subtaskSort, task.subtasks]);
+  const visibleSubtasks = hideCompletedSubtasks ? sortedSubtasks.filter((s) => !s.isCompleted) : sortedSubtasks;
   const completedSubtasks = task.subtasks.filter((s) => s.isCompleted).length;
   const subtaskProgress = task.subtasks.length > 0 ? completedSubtasks / task.subtasks.length : 0;
+  const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const subtaskSortOptions: { value: SubtaskSort; label: string }[] = [
+    { value: 'custom', label: t('board.sortCustom') },
+    { value: 'title', label: t('board.taskTitle') },
+    { value: 'status', label: t('board.currentStatus') },
+    { value: 'priority', label: t('board.currentPriority') },
+    { value: 'createdAt', label: t('board.sortCreatedAt') },
+    { value: 'startAt', label: t('board.startAt') },
+    { value: 'dueAt', label: t('board.dueDate') },
+    { value: 'updatedAt', label: t('board.sortUpdatedAt') },
+  ];
+
+  const handleSubtaskDragEnd = async (event: DragEndEvent) => {
+    if (subtaskSort !== 'custom' || !event.over || event.active.id === event.over.id) return;
+    const oldIndex = visibleSubtasks.findIndex((subtask) => subtask.id === event.active.id);
+    const newIndex = visibleSubtasks.findIndex((subtask) => subtask.id === event.over?.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const reorderedVisible = arrayMove(visibleSubtasks, oldIndex, newIndex);
+    const visibleIds = new Set(reorderedVisible.map((subtask) => subtask.id));
+    const reorderedIterator = reorderedVisible[Symbol.iterator]();
+    const allIds = task.subtasks.map((subtask) => (
+      visibleIds.has(subtask.id) ? reorderedIterator.next().value!.id : subtask.id
+    ));
+    await reorderTasks(task.listId, allIds);
+    await onRefresh();
+  };
 
   const createSubtask = async (openFull = false, keepAdding = false) => {
     const title = newSubtask.trim();
@@ -822,11 +867,34 @@ function TaskDetailModal({
                 <span>{t('board.totalSubtasks', { count: task.subtasks.length })}</span>
                 <button className={`inline-flex items-center gap-1 hover:text-primary ${hideCompletedSubtasks ? 'text-primary' : ''}`}
                   onClick={() => setHideCompletedSubtasks((v) => !v)}>
-                  <EyeOff size={15} /> {t('board.hideCompleted')}
+                  {hideCompletedSubtasks ? <Eye size={15} /> : <EyeOff size={15} />}
+                  {hideCompletedSubtasks ? t('board.showCompleted') : t('board.hideCompleted')}
                 </button>
-                <button className="inline-flex items-center gap-1 hover:text-primary">
-                  <ArrowDownAZ size={15} />
-                </button>
+                <div className="relative">
+                  <button
+                    className={`inline-flex items-center gap-1 hover:text-primary ${subtaskSortOpen || subtaskSort !== 'custom' ? 'text-primary' : ''}`}
+                    onClick={() => setSubtaskSortOpen((open) => !open)}
+                    title={t('board.sortBy')}
+                  >
+                    <ArrowDownAZ size={15} />
+                  </button>
+                  {subtaskSortOpen && (
+                    <div className="absolute left-0 top-7 z-40 w-40 border border-border bg-surface shadow-lg py-1">
+                      {subtaskSortOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-2 ${subtaskSort === option.value ? 'text-primary bg-primary/5' : 'text-text'}`}
+                          onClick={() => {
+                            setSubtaskSort(option.value);
+                            setSubtaskSortOpen(false);
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 {task.subtasks.length > 0 && (
@@ -834,7 +902,7 @@ function TaskDetailModal({
                     <div className="w-48 h-2 rounded-full bg-surface-2 overflow-hidden">
                       <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${subtaskProgress * 100}%` }} />
                     </div>
-                    <span className="text-sm text-text-muted tabular-nums">{Math.round(subtaskProgress * 100)}%</span>
+                    <span className="text-sm text-text-muted tabular-nums">{(subtaskProgress * 100).toFixed(2)}%</span>
                   </div>
                 )}
                 <button className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary"
@@ -852,20 +920,28 @@ function TaskDetailModal({
                 <div className="text-sm">{task.subtasks.length === 0 ? t('board.noLinkedSubtasks') : t('board.noVisibleSubtasks')}</div>
               </div>
             ) : (
-              <div className="divide-y divide-border">
-                {visibleSubtasks.map((s) => (
-                  <SubtaskRow key={s.id} subtask={s}
-                    isEditing={editingSubtaskId === s.id}
-                    editingTitle={editingSubtaskTitle}
-                    onEditingTitleChange={setEditingSubtaskTitle}
-                    onStartEdit={() => { setEditingSubtaskId(s.id); setEditingSubtaskTitle(s.title); }}
-                    onCancelEdit={() => { setEditingSubtaskId(null); setEditingSubtaskTitle(''); }}
-                    onSaveEdit={() => saveSubtaskTitle(s)}
-                    onToggle={async () => { await toggleTask(s.id); onRefresh(); }}
-                    onDelete={() => onDelete(s.id)}
-                    onClick={() => onOpenChild(s, depth + 1)} />
-                ))}
-              </div>
+              <DndContext sensors={subtaskSensors} collisionDetection={closestCorners} onDragEnd={handleSubtaskDragEnd}>
+                <SortableContext items={visibleSubtasks.map((subtask) => subtask.id)} strategy={verticalListSortingStrategy}>
+                  <div className="divide-y divide-border">
+                    {visibleSubtasks.map((s) => (
+                      <SortableSubtaskRow
+                        key={s.id}
+                        subtask={s}
+                        draggable={subtaskSort === 'custom'}
+                        isEditing={editingSubtaskId === s.id}
+                        editingTitle={editingSubtaskTitle}
+                        onEditingTitleChange={setEditingSubtaskTitle}
+                        onStartEdit={() => { setEditingSubtaskId(s.id); setEditingSubtaskTitle(s.title); }}
+                        onCancelEdit={() => { setEditingSubtaskId(null); setEditingSubtaskTitle(''); }}
+                        onSaveEdit={() => saveSubtaskTitle(s)}
+                        onToggle={async () => { await toggleTask(s.id); onRefresh(); }}
+                        onDelete={() => onDelete(s.id)}
+                        onClick={() => onOpenChild(s, depth + 1)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
 
             {isAddingSubtask && (
@@ -1261,9 +1337,47 @@ function SortableTaskCard({ task, index, isSelected, onToggle, onDelete, onView,
 
 // ============ Subtask Card ============
 
+function SortableSubtaskRow({
+  subtask, draggable, ...props
+}: Omit<React.ComponentProps<typeof SubtaskRow>, 'dragHandle'> & { draggable: boolean }) {
+  const { t } = useTranslation();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: subtask.id,
+    disabled: !draggable,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.55 : 1,
+        position: 'relative',
+        zIndex: isDragging ? 20 : undefined,
+      }}
+    >
+      <SubtaskRow
+        subtask={subtask}
+        {...props}
+        dragHandle={draggable ? (
+          <button
+            className="cursor-grab active:cursor-grabbing p-1 text-text-muted hover:text-primary"
+            onClick={(event) => event.stopPropagation()}
+            title={t('board.dragToSort')}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical size={15} />
+          </button>
+        ) : undefined}
+      />
+    </div>
+  );
+}
+
 function SubtaskRow({
   subtask, isEditing, editingTitle, onEditingTitleChange, onStartEdit, onCancelEdit, onSaveEdit,
-  onToggle, onDelete, onClick,
+  onToggle, onDelete, onClick, dragHandle,
 }: {
   subtask: TaskWithSubtasks;
   isEditing: boolean;
@@ -1275,6 +1389,7 @@ function SubtaskRow({
   onToggle: () => void;
   onDelete: () => void;
   onClick: () => void;
+  dragHandle?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const status = (subtask.status || 'not_started') as TaskStatus;
@@ -1310,6 +1425,7 @@ function SubtaskRow({
           style={{ background: STATUS_COLORS[status] || 'var(--text-muted)' }}>{statusLabel(status, t)}</span>
       </div>
       <div className="flex items-center justify-end gap-1 pr-2">
+        {dragHandle}
         {!isEditing && (
           <>
             <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
