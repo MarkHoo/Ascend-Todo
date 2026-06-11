@@ -537,12 +537,11 @@ export function GoalsPage() {
               {t('goal.noGoals')}
             </div>
           ) : (
-            sortedGoals.map((goal, index) => (
+            sortedGoals.map((goal) => (
               <GoalTreeRows
                 key={goal.id}
                 goal={goal}
                 level={0}
-                indexPath={[index + 1]}
                 expanded={expanded}
                 setExpanded={setExpanded}
                 onOpen={openDetail}
@@ -672,11 +671,12 @@ function SortHeader({ label, active, direction, onClick }: {
 }
 
 function GoalTreeRows({
-  goal, level, indexPath, expanded, setExpanded, onOpen,
+  goal, level, isLast = false, ancestorContinuations = [], expanded, setExpanded, onOpen,
 }: {
   goal: GoalWithDetails;
   level: number;
-  indexPath: number[];
+  isLast?: boolean;
+  ancestorContinuations?: boolean[];
   expanded: Record<string, boolean>;
   setExpanded: (expanded: Record<string, boolean>) => void;
   onOpen: (goal: GoalWithDetails) => void;
@@ -685,20 +685,39 @@ function GoalTreeRows({
   const isOpen = expanded[goal.id] ?? true;
   const hasChildren = goal.keyResults.length > 0 || goal.subGoals.length > 0;
   const isChildGoal = level > 0;
+  const branchLeft = 34 + (level - 1) * 30;
+  const childLineLeft = 34 + level * 30;
+  const childCount = goal.keyResults.length + goal.subGoals.length;
 
   return (
     <>
       <div className={`grid grid-cols-[minmax(0,1fr)_320px_140px] min-h-[58px] items-center border-b border-border hover:bg-surface-2/30 ${isChildGoal ? 'bg-surface-2/10' : ''}`}>
-        <div className="px-6 flex items-center gap-2 min-w-0 relative" style={{ paddingLeft: 24 + level * 30 }}>
+        <div className="h-full px-6 flex items-center gap-2 min-w-0 relative" style={{ paddingLeft: 24 + level * 30 }}>
+          {ancestorContinuations.map((continues, ancestorLevel) => continues && (
+            <span
+              key={ancestorLevel}
+              className="absolute top-0 bottom-0 border-l border-dashed border-border"
+              style={{ left: 34 + ancestorLevel * 30 }}
+            />
+          ))}
           {isChildGoal && (
             <>
-              <span className="absolute top-0 bottom-0 border-l border-dashed border-border" style={{ left: 34 + (level - 1) * 30 }} />
-              <span className="absolute w-5 border-t border-dashed border-border" style={{ left: 34 + (level - 1) * 30, top: '50%' }} />
+              <span
+                className="absolute top-0 border-l border-dashed border-border"
+                style={{ left: branchLeft, height: isLast ? '50%' : '100%' }}
+              />
+              <span className="absolute w-5 border-t border-dashed border-border" style={{ left: branchLeft, top: '50%' }} />
             </>
           )}
           <button className="btn-ghost p-0.5 text-text-muted shrink-0" onClick={() => setExpanded({ ...expanded, [goal.id]: !isOpen })} disabled={!hasChildren}>
             {hasChildren ? (isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : <span className="inline-block w-4" />}
           </button>
+          {isOpen && childCount > 0 && (
+            <span
+              className="absolute border-l border-dashed border-border"
+              style={{ left: childLineLeft, top: '50%', bottom: 0 }}
+            />
+          )}
           <button className="truncate font-semibold text-left hover:text-primary text-[15px]" onClick={() => onOpen(goal)}>{goal.title}</button>
         </div>
         <ProgressCell progress={goal.progress} color={KR_HEALTH_COLORS[worstGoalHealth(goal)]} />
@@ -707,11 +726,25 @@ function GoalTreeRows({
 
       {isOpen && goal.keyResults.map((kr, index) => {
         const progress = krProgress(kr);
+        const isLastChild = goal.subGoals.length === 0 && index === goal.keyResults.length - 1;
         return (
           <div key={kr.id} className="grid grid-cols-[minmax(0,1fr)_320px_140px] min-h-[58px] items-center border-b border-border bg-surface-2/10">
-            <div className="px-6 flex items-center gap-3 min-w-0 text-sm relative" style={{ paddingLeft: 56 + level * 30 }}>
-              <span className="absolute top-0 bottom-0 border-l border-dashed border-border" style={{ left: 34 + level * 30 }} />
-              <span className="absolute w-5 border-t border-dashed border-border" style={{ left: 34 + level * 30, top: '50%' }} />
+            <div className="h-full px-6 flex items-center gap-3 min-w-0 text-sm relative" style={{ paddingLeft: 56 + level * 30 }}>
+              {ancestorContinuations.map((continues, ancestorLevel) => continues && (
+                <span
+                  key={ancestorLevel}
+                  className="absolute top-0 bottom-0 border-l border-dashed border-border"
+                  style={{ left: 34 + ancestorLevel * 30 }}
+                />
+              ))}
+              {isChildGoal && !isLast && (
+                <span className="absolute top-0 bottom-0 border-l border-dashed border-border" style={{ left: branchLeft }} />
+              )}
+              <span
+                className="absolute top-0 border-l border-dashed border-border"
+                style={{ left: childLineLeft, height: isLastChild ? '50%' : '100%' }}
+              />
+              <span className="absolute w-5 border-t border-dashed border-border" style={{ left: childLineLeft, top: '50%' }} />
               <span className="w-2 h-2 rounded-full border border-border bg-surface shrink-0" />
               <span className="truncate">{kr.title}</span>
             </div>
@@ -726,7 +759,8 @@ function GoalTreeRows({
           key={subGoal.id}
           goal={subGoal}
           level={level + 1}
-          indexPath={[...indexPath, index + 1]}
+          isLast={index === goal.subGoals.length - 1}
+          ancestorContinuations={level === 0 ? [] : [...ancestorContinuations, !isLast]}
           expanded={expanded}
           setExpanded={setExpanded}
           onOpen={onOpen}
