@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use tauri::State;
 use chrono::Datelike;
 
@@ -9,6 +9,51 @@ use crate::commands::key_results::recalc_goal_progress;
 
 fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
     state.conn.lock().expect("db lock")
+}
+
+fn validate_parent_goal(c: &Connection, goal_id: Option<&str>, parent_goal_id: Option<&str>) -> AppResult<()> {
+    let Some(parent_id) = parent_goal_id else {
+        return Ok(());
+    };
+
+    if goal_id == Some(parent_id) {
+        return Err(AppError::Invalid("目标不能关联自身为父目标".to_string()));
+    }
+
+    let parent_status = c
+        .query_row(
+            "SELECT status FROM goals WHERE id = ?",
+            params![parent_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+
+    match parent_status.as_deref() {
+        None => return Err(AppError::Invalid("所选父目标不存在或已被删除".to_string())),
+        Some("active") => {}
+        Some(_) => return Err(AppError::Invalid("只能关联进行中的目标为父目标".to_string())),
+    }
+
+    if let Some(current_id) = goal_id {
+        let creates_cycle: bool = c.query_row(
+            "WITH RECURSIVE descendants(id) AS (
+                SELECT id FROM goals WHERE parent_goal_id = ?1
+                UNION
+                SELECT goals.id
+                FROM goals
+                JOIN descendants ON goals.parent_goal_id = descendants.id
+             )
+             SELECT EXISTS(SELECT 1 FROM descendants WHERE id = ?2)",
+            params![current_id, parent_id],
+            |row| row.get(0),
+        )?;
+
+        if creates_cycle {
+            return Err(AppError::Invalid("不能将子目标或孙级目标设置为父目标".to_string()));
+        }
+    }
+
+    Ok(())
 }
 
 fn load_goal(c: &Connection, id: &str) -> AppResult<Goal> {
@@ -296,6 +341,7 @@ pub fn create_goal(
     status: Option<String>,
 ) -> AppResult<Goal> {
     let c = conn(&state);
+    validate_parent_goal(&c, None, parent_goal_id.as_deref())?;
     let id = new_id();
     let now = now();
     let max_pos: i32 = c
@@ -401,6 +447,9 @@ pub fn update_goal(
     } else {
         final_due = due_v;
         final_start = start_v;
+    }
+    if let Some(parent) = parent_v.as_ref() {
+        validate_parent_goal(&c, Some(&id), parent.as_deref())?;
     }
     c.execute(
         "UPDATE goals SET

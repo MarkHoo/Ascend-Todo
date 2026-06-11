@@ -846,7 +846,24 @@ function GoalFormModal({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
-  const parentOptions = goals.filter((goal) => goal.id !== currentGoalId && goal.status !== 'draft');
+  const unavailableParentIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!currentGoalId) return ids;
+
+    ids.add(currentGoalId);
+    const currentGoal = goals.find((goal) => goal.id === currentGoalId);
+    const collectDescendants = (goal: GoalWithDetails) => {
+      goal.subGoals.forEach((subGoal) => {
+        ids.add(subGoal.id);
+        collectDescendants(subGoal);
+      });
+    };
+    if (currentGoal) collectDescendants(currentGoal);
+    return ids;
+  }, [currentGoalId, goals]);
+  const parentOptions = goals.filter(
+    (goal) => goal.status === 'active' && !unavailableParentIds.has(goal.id),
+  );
   const parentDisabled = parentOptions.length === 0;
 
   return (
