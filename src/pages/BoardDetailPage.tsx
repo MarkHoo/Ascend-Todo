@@ -496,7 +496,7 @@ function TaskDetailModal({
   onRefresh: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { updateTask, createTask, toggleTask, reorderTasks } = useBoardStore();
+  const { updateTask, createTask, reorderTasks } = useBoardStore();
   const lang = i18n.language;
 
   const [draft, setDraft] = useState({
@@ -673,7 +673,7 @@ function TaskDetailModal({
     });
   }, [i18n.language, subtaskSort, task.subtasks]);
   const visibleSubtasks = hideCompletedSubtasks ? sortedSubtasks.filter((s) => s.status !== 'completed') : sortedSubtasks;
-  const completedSubtasks = task.subtasks.filter((s) => s.status === 'completed').length;
+  const completedSubtasks = task.subtasks.filter((s) => s.status === 'completed' || s.status === 'closed').length;
   const subtaskProgress = task.subtasks.length > 0 ? completedSubtasks / task.subtasks.length : 0;
   const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const subtaskSortOptions: { value: SubtaskSort; label: string }[] = [
@@ -934,7 +934,6 @@ function TaskDetailModal({
                         onStartEdit={() => { setEditingSubtaskId(s.id); setEditingSubtaskTitle(s.title); }}
                         onCancelEdit={() => { setEditingSubtaskId(null); setEditingSubtaskTitle(''); }}
                         onSaveEdit={() => saveSubtaskTitle(s)}
-                        onToggle={async () => { await toggleTask(s.id); onRefresh(); }}
                         onDelete={() => onDelete(s.id)}
                         onClick={() => onOpenChild(s, depth + 1)}
                       />
@@ -1377,7 +1376,7 @@ function SortableSubtaskRow({
 
 function SubtaskRow({
   subtask, isEditing, editingTitle, onEditingTitleChange, onStartEdit, onCancelEdit, onSaveEdit,
-  onToggle, onDelete, onClick, dragHandle,
+  onDelete, onClick, dragHandle,
 }: {
   subtask: TaskWithSubtasks;
   isEditing: boolean;
@@ -1386,25 +1385,27 @@ function SubtaskRow({
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
-  onToggle: () => void;
   onDelete: () => void;
   onClick: () => void;
   dragHandle?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const status = (subtask.status || 'not_started') as TaskStatus;
-  const isCompleted = status === 'completed';
+  const isCompleted = status === 'completed' || status === 'closed';
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_76px_120px_120px] items-center gap-3 min-h-14 text-sm group hover:bg-surface-2/30 cursor-pointer transition-colors"
+    <div
+      className="relative grid grid-cols-[minmax(200px,1fr)_72px_104px_116px_112px] items-center gap-4 min-h-14 pl-2 text-sm group hover:bg-surface-2/30 cursor-pointer transition-colors"
       onClick={onClick}>
-      <div className="flex items-center gap-3 min-w-0 px-2">
+      {subtask.color && (
+        <span
+          className="absolute left-0 top-2 bottom-2 w-1 rounded-r"
+          style={{ background: subtask.color }}
+          title={t('board.labelColor')}
+        />
+      )}
+      <div className="flex items-center gap-2 min-w-0 pl-2">
         {dragHandle}
-        <button onClick={(e) => { e.stopPropagation(); onToggle(); }}
-          className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0"
-          style={{ borderColor: isCompleted ? 'var(--primary)' : 'var(--border)', background: isCompleted ? 'var(--primary)' : 'transparent' }}>
-          {isCompleted && <Check size={11} className="text-white" />}
-        </button>
         {isEditing ? (
           <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
             <input className="input h-9 flex-1 min-w-0" value={editingTitle}
@@ -1421,7 +1422,7 @@ function SubtaskRow({
           <span className={`truncate font-medium ${isCompleted ? 'line-through text-text-muted' : ''}`}>{subtask.title}</span>
         )}
       </div>
-      <div className="flex items-center justify-center gap-1">
+      <div className="flex items-center justify-center gap-2 pr-3 border-r border-border/70">
         {!isEditing && (
           <>
             <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
@@ -1434,6 +1435,19 @@ function SubtaskRow({
             </button>
           </>
         )}
+      </div>
+      <div className="min-w-0 pl-1">
+        {subtask.priority ? (
+          <span
+            className="inline-flex max-w-full truncate rounded px-2 py-1 text-xs font-medium"
+            style={{
+              background: PRIORITY_COLORS[subtask.priority] ? `${PRIORITY_COLORS[subtask.priority]}18` : 'var(--surface-2)',
+              color: PRIORITY_COLORS[subtask.priority] || 'var(--text-muted)',
+            }}
+          >
+            {priorityLabel(subtask.priority, t)}
+          </span>
+        ) : <span className="text-xs text-text-muted">-</span>}
       </div>
       <div className="text-sm text-text-muted">{subtask.dueAt ? fmtTaskDueDate(subtask.dueAt) : ''}</div>
       <div>
