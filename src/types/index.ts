@@ -161,6 +161,7 @@ export interface GoalWithDetails {
   reviewScore?: number | null;
   reviewNote?: string | null;
   period: GoalPeriod;
+  deletedAt?: string | null;
   milestones: Milestone[];
   keyResults: KeyResult[];
   subGoals: GoalWithDetails[];

@@ -63,6 +63,40 @@ fn validate_parent_goal(c: &Connection, goal_id: Option<&str>, parent_goal_id: O
         }
     }
 
+    let parent_depth: i32 = c.query_row(
+        "WITH RECURSIVE ancestors(id, parent_goal_id, depth) AS (
+            SELECT id, parent_goal_id, 1 FROM goals WHERE id = ?1
+            UNION
+            SELECT goals.id, goals.parent_goal_id, ancestors.depth + 1
+            FROM goals
+            JOIN ancestors ON goals.id = ancestors.parent_goal_id
+            WHERE goals.deleted_at IS NULL
+         )
+         SELECT COALESCE(MAX(depth), 0) FROM ancestors",
+        params![parent_id],
+        |row| row.get(0),
+    )?;
+    let subtree_height: i32 = if let Some(current_id) = goal_id {
+        c.query_row(
+            "WITH RECURSIVE descendants(id, depth) AS (
+                SELECT id, 1 FROM goals WHERE id = ?1
+                UNION
+                SELECT goals.id, descendants.depth + 1
+                FROM goals
+                JOIN descendants ON goals.parent_goal_id = descendants.id
+                WHERE goals.deleted_at IS NULL
+             )
+             SELECT COALESCE(MAX(depth), 1) FROM descendants",
+            params![current_id],
+            |row| row.get(0),
+        )?
+    } else {
+        1
+    };
+    if parent_depth + subtree_height > 5 {
+        return Err(AppError::Invalid("子目标最多支持5层".to_string()));
+    }
+
     Ok(())
 }
 
@@ -70,7 +104,7 @@ fn load_goal(c: &Connection, id: &str) -> AppResult<Goal> {
     Ok(c.query_row(
         "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                 progress_mode, progress_value, progress_total,
-                category, start_date, weight, status, review_score, review_note, period
+                category, start_date, weight, status, review_score, review_note, period, deleted_at
          FROM goals WHERE id = ? AND deleted_at IS NULL",
         params![id],
         |r| {
@@ -95,6 +129,7 @@ fn load_goal(c: &Connection, id: &str) -> AppResult<Goal> {
                 review_score: r.get(17)?,
                 review_note: r.get(18)?,
                 period: r.get(19)?,
+                deleted_at: r.get(20)?,
             })
         },
     )?)
@@ -127,7 +162,7 @@ fn load_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<GoalWithDeta
     let mut stmt = c.prepare(
         "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                 progress_mode, progress_value, progress_total,
-                category, start_date, weight, status, review_score, review_note, period
+                category, start_date, weight, status, review_score, review_note, period, deleted_at
          FROM goals WHERE parent_goal_id = ? AND deleted_at IS NULL ORDER BY position ASC, created_at ASC",
     )?;
     let rows = stmt.query_map(params![parent_id], |r| {
@@ -152,6 +187,7 @@ fn load_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<GoalWithDeta
             review_score: r.get(17)?,
             review_note: r.get(18)?,
             period: r.get(19)?,
+            deleted_at: r.get(20)?,
         })
     })?;
     let mut out = Vec::new();
@@ -281,7 +317,7 @@ pub fn list_goals(state: State<DbState>) -> AppResult<Vec<GoalWithDetails>> {
     let mut stmt = c.prepare(
         "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                 progress_mode, progress_value, progress_total,
-                category, start_date, weight, status, review_score, review_note, period
+                category, start_date, weight, status, review_score, review_note, period, deleted_at
          FROM goals WHERE parent_goal_id IS NULL AND deleted_at IS NULL ORDER BY position ASC, created_at ASC",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -306,6 +342,7 @@ pub fn list_goals(state: State<DbState>) -> AppResult<Vec<GoalWithDetails>> {
             review_score: r.get(17)?,
             review_note: r.get(18)?,
             period: r.get(19)?,
+            deleted_at: r.get(20)?,
         })
     })?;
     let mut out = Vec::new();
@@ -398,6 +435,7 @@ pub fn create_goal(
         review_score: None,
         review_note: None,
         period: p,
+        deleted_at: None,
     })
 }
 
@@ -411,6 +449,7 @@ pub fn update_goal(
     icon: Option<Option<String>>,
     due_at: Option<Option<String>>,
     parent_goal_id: Option<Option<String>>,
+    clear_parent_goal: Option<bool>,
     progress_mode: Option<String>,
     progress_value: Option<f64>,
     progress_total: Option<f64>,
@@ -437,7 +476,9 @@ pub fn update_goal(
     if let Some(d) = due_at {
         due_v = Some(d);
     }
-    if let Some(d) = parent_goal_id {
+    if clear_parent_goal.unwrap_or(false) {
+        parent_v = Some(None);
+    } else if let Some(d) = parent_goal_id {
         parent_v = Some(d);
     }
     if let Some(d) = start_date {
@@ -518,7 +559,7 @@ fn load_deleted_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<Goal
     let mut stmt = c.prepare(
         "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                 progress_mode, progress_value, progress_total,
-                category, start_date, weight, status, review_score, review_note, period
+                category, start_date, weight, status, review_score, review_note, period, deleted_at
          FROM goals
          WHERE parent_goal_id = ? AND deleted_at IS NOT NULL
          ORDER BY position ASC, created_at ASC",
@@ -544,7 +585,8 @@ fn load_deleted_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<Goal
             status: r.get(16)?,
             review_score: r.get(17)?,
             review_note: r.get(18)?,
-            period: r.get(19)?,
+                period: r.get(19)?,
+                deleted_at: r.get(20)?,
         })
     })?;
     let mut out = Vec::new();
@@ -593,7 +635,7 @@ pub fn list_deleted_goals(state: State<DbState>) -> AppResult<Vec<GoalWithDetail
     let mut stmt = c.prepare(
         "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                 progress_mode, progress_value, progress_total,
-                category, start_date, weight, status, review_score, review_note, period
+                category, start_date, weight, status, review_score, review_note, period, deleted_at
          FROM goals g
          WHERE g.deleted_at IS NOT NULL
            AND (g.parent_goal_id IS NULL OR NOT EXISTS (
@@ -624,6 +666,7 @@ pub fn list_deleted_goals(state: State<DbState>) -> AppResult<Vec<GoalWithDetail
             review_score: r.get(17)?,
             review_note: r.get(18)?,
             period: r.get(19)?,
+            deleted_at: r.get(20)?,
         })
     })?;
     let mut out = Vec::new();
@@ -657,6 +700,44 @@ pub fn permanently_delete_goals(state: State<DbState>, ids: Vec<String>) -> AppR
 pub fn empty_goal_trash(state: State<DbState>) -> AppResult<()> {
     let c = conn(&state);
     c.execute("DELETE FROM goals WHERE deleted_at IS NOT NULL", [])?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn restore_deleted_goals(state: State<DbState>, ids: Vec<String>) -> AppResult<()> {
+    let c = conn(&state);
+    let restored_at = now();
+    for id in ids {
+        c.execute(
+            "UPDATE goals
+             SET parent_goal_id = CASE
+                    WHEN parent_goal_id IS NOT NULL
+                     AND EXISTS (
+                        SELECT 1 FROM goals parent
+                        WHERE parent.id = goals.parent_goal_id
+                          AND parent.deleted_at IS NOT NULL
+                     )
+                    THEN NULL
+                    ELSE parent_goal_id
+                 END
+             WHERE id = ?1 AND deleted_at IS NOT NULL",
+            params![id],
+        )?;
+        c.execute(
+            "WITH RECURSIVE descendants(id) AS (
+                SELECT id FROM goals WHERE id = ?1 AND deleted_at IS NOT NULL
+                UNION ALL
+                SELECT goals.id
+                FROM goals
+                JOIN descendants ON goals.parent_goal_id = descendants.id
+                WHERE goals.deleted_at IS NOT NULL
+             )
+             UPDATE goals
+             SET deleted_at = NULL, updated_at = ?2
+             WHERE id IN (SELECT id FROM descendants)",
+            params![id, restored_at],
+        )?;
+    }
     Ok(())
 }
 

@@ -179,6 +179,7 @@ pub fn run() {
             commands::goals::list_deleted_goals,
             commands::goals::permanently_delete_goals,
             commands::goals::empty_goal_trash,
+            commands::goals::restore_deleted_goals,
             commands::goals::archive_goal,
             commands::goals::save_review,
             commands::goals::list_milestones,

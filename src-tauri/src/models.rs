@@ -100,6 +100,8 @@ pub struct Goal {
     pub review_score: Option<i32>,
     pub review_note: Option<String>,
     pub period: String,
+    #[serde(default)]
+    pub deleted_at: Option<String>,
 }}
 
 camel! {

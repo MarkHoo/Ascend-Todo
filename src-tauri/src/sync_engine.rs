@@ -89,7 +89,7 @@ pub fn build_snapshot(c: &Connection) -> AppResult<Snapshot> {
         let mut stmt = c.prepare(
             "SELECT id, title, description, color, icon, due_at, parent_goal_id, position, created_at, updated_at,
                     progress_mode, progress_value, progress_total,
-                    category, start_date, weight, status, review_score, review_note, period
+                    category, start_date, weight, status, review_score, review_note, period, deleted_at
              FROM goals WHERE deleted_at IS NULL",
         )?;
         for r in stmt.query_map([], |r| {
@@ -114,6 +114,7 @@ pub fn build_snapshot(c: &Connection) -> AppResult<Snapshot> {
                 review_score: r.get(17)?,
                 review_note: r.get(18)?,
                 period: r.get(19)?,
+                deleted_at: r.get(20)?,
             })
         })? {
             goals.push(r?);

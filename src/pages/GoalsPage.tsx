@@ -162,6 +162,7 @@ export function GoalsPage() {
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [detailGoal, setDetailGoal] = useState<GoalWithDetails | null>(null);
+  const [detailReadOnly, setDetailReadOnly] = useState(false);
   const [detailKRs, setDetailKRs] = useState<KeyResultWithLogs[]>([]);
   const [detailTab, setDetailTab] = useState<DetailTab>('krs');
   const [workingValues, setWorkingValues] = useState<Record<string, number>>({});
@@ -242,7 +243,13 @@ export function GoalsPage() {
 
   const pathForGoal = (goal: GoalWithDetails | null) => {
     if (!goal) return [];
-    const byId = new Map(allGoals.map((item) => [item.id, item]));
+    const deletedItems: GoalWithDetails[] = [];
+    const collectDeleted = (items: GoalWithDetails[]) => items.forEach((item) => {
+      deletedItems.push(item);
+      collectDeleted(item.subGoals);
+    });
+    collectDeleted(deletedGoals);
+    const byId = new Map([...allGoals, ...deletedItems].map((item) => [item.id, item]));
     const path: GoalWithDetails[] = [];
     let current: GoalWithDetails | undefined = goal;
     while (current) {
@@ -295,6 +302,13 @@ export function GoalsPage() {
     await goalsApi.emptyTrash();
     setSelectedDeletedIds([]);
     setDeletedGoals([]);
+  };
+
+  const restoreSelectedGoals = async () => {
+    await goalsApi.restoreDeleted(selectedDeletedIds);
+    setSelectedDeletedIds([]);
+    setDeletedGoals(await goalsApi.listDeleted());
+    await fetchGoals();
   };
 
   const openEdit = () => {
@@ -372,7 +386,8 @@ export function GoalsPage() {
     if (editingGoal) {
       await updateGoal(editingGoal.id, {
         title: formTitle.trim(),
-        parentGoalId: formParentId || null,
+        parentGoalId: formParentId || undefined,
+        clearParentGoal: !formParentId,
         dueAt: dateTimeInputToIso(formDueAt) || null,
         status,
       });
@@ -443,6 +458,7 @@ export function GoalsPage() {
   };
 
   const openDetail = async (goal: GoalWithDetails) => {
+    setDetailReadOnly(Boolean(goal.deletedAt));
     setDetailGoal(goal);
     setDetailTab('krs');
     setMoreOpen(false);
@@ -451,6 +467,11 @@ export function GoalsPage() {
     setWorkingValues(Object.fromEntries(krs.map((kr) => [kr.id, kr.currentValue])));
     setWorkingDone(Object.fromEntries(krs.map((kr) => [kr.id, kr.isCompleted])));
     setProgressComment('');
+  };
+
+  const openDeletedDetail = async (goal: GoalWithDetails) => {
+    setTrashOpen(false);
+    await openDetail(goal);
   };
 
   const refreshDetail = async () => {
@@ -466,6 +487,11 @@ export function GoalsPage() {
   };
 
   const requestCloseDetail = () => {
+    if (detailReadOnly) {
+      setDetailGoal(null);
+      setTrashOpen(true);
+      return;
+    }
     if (hasUnsavedDetail()) {
       setPendingClose(true);
       return;
@@ -672,6 +698,15 @@ export function GoalsPage() {
         selectedIds={selectedDeletedIds}
         onClose={() => setTrashOpen(false)}
         onSelectionChange={setSelectedDeletedIds}
+        onOpen={openDeletedDetail}
+        onRestore={() => setDeleteConfirm({
+          open: true,
+          title: t('goal.restoreGoals'),
+          message: t('goal.restoreGoalsConfirm', { count: selectedDeletedIds.length }),
+          confirmLabel: t('goal.restoreSelected'),
+          confirmVariant: 'primary',
+          onConfirm: restoreSelectedGoals,
+        })}
         onDelete={() => setDeleteConfirm({
           open: true,
           title: t('goal.permanentDelete'),
@@ -691,6 +726,7 @@ export function GoalsPage() {
       <GoalDetailModal
         goal={detailGoal}
         path={pathForGoal(detailGoal)}
+        readOnly={detailReadOnly}
         keyResults={detailKRs}
         tab={detailTab}
         workingValues={workingValues}
@@ -701,6 +737,7 @@ export function GoalsPage() {
         onClose={requestCloseDetail}
         onEdit={openEdit}
         onMoreToggle={() => setMoreOpen((value) => !value)}
+        onNavigateGoal={openDetail}
         onTabChange={setDetailTab}
         onValueChange={(id, value) => setWorkingValues((state) => ({ ...state, [id]: value }))}
         onDoneChange={(id, value) => setWorkingDone((state) => ({ ...state, [id]: value }))}
@@ -949,6 +986,8 @@ function DraftBoxModal({
         goals={drafts}
         selectedIds={selectedIds}
         emptyText={t('goal.noDrafts')}
+        timeLabel={t('goal.createdTime')}
+        timeValue={(goal) => goal.createdAt}
         onSelectionChange={onSelectionChange}
         onOpen={onOpenDraft}
       />
@@ -957,13 +996,15 @@ function DraftBoxModal({
 }
 
 function TrashModal({
-  open, goals, selectedIds, onClose, onSelectionChange, onDelete, onEmpty,
+  open, goals, selectedIds, onClose, onSelectionChange, onOpen, onRestore, onDelete, onEmpty,
 }: {
   open: boolean;
   goals: GoalWithDetails[];
   selectedIds: string[];
   onClose: () => void;
   onSelectionChange: (ids: string[]) => void;
+  onOpen: (goal: GoalWithDetails) => void;
+  onRestore: () => void;
   onDelete: () => void;
   onEmpty: () => void;
 }) {
@@ -978,6 +1019,9 @@ function TrashModal({
         <div className="flex w-full items-center justify-between">
           <span className="text-sm text-text-muted">{t('goal.trashRetention')}</span>
           <div className="flex items-center gap-2">
+            <Button variant="outline" disabled={selectedIds.length === 0} onClick={onRestore}>
+              {t('goal.restoreSelected')}
+            </Button>
             <Button variant="outline" disabled={goals.length === 0} onClick={onEmpty}>
               <Trash2 size={15} /> {t('goal.emptyTrash')}
             </Button>
@@ -992,18 +1036,23 @@ function TrashModal({
         goals={goals}
         selectedIds={selectedIds}
         emptyText={t('goal.trashEmpty')}
+        timeLabel={t('goal.deletedTime')}
+        timeValue={(goal) => goal.deletedAt}
         onSelectionChange={onSelectionChange}
+        onOpen={onOpen}
       />
     </Modal>
   );
 }
 
 function GoalSelectionTable({
-  goals, selectedIds, emptyText, onSelectionChange, onOpen,
+  goals, selectedIds, emptyText, timeLabel, timeValue, onSelectionChange, onOpen,
 }: {
   goals: GoalWithDetails[];
   selectedIds: string[];
   emptyText: string;
+  timeLabel: string;
+  timeValue: (goal: GoalWithDetails) => string | null | undefined;
   onSelectionChange: (ids: string[]) => void;
   onOpen?: (goal: GoalWithDetails) => void;
 }) {
@@ -1031,8 +1080,8 @@ function GoalSelectionTable({
 
   return (
     <div className="max-h-[58vh] overflow-auto border border-border">
-      <div className="min-w-[820px]">
-        <div className="grid grid-cols-[44px_minmax(0,1fr)_320px_140px] border-b border-border text-[15px] font-semibold">
+      <div className="min-w-[760px]">
+        <div className="grid grid-cols-[44px_minmax(0,1fr)_300px] border-b border-border text-[15px] font-semibold">
           <label className="flex items-center justify-center border-r border-border">
             <input
               type="checkbox"
@@ -1042,15 +1091,14 @@ function GoalSelectionTable({
             />
           </label>
           <div className="px-6 py-3.5">{t('goal.title')}</div>
-          <div className="border-l border-border px-6 py-3.5">{t('goal.progress')}</div>
-          <div className="border-l border-border px-4 py-3.5 text-center">{t('goal.weight')}</div>
+          <div className="border-l border-border px-6 py-3.5">{timeLabel}</div>
         </div>
         {rows.length === 0 ? (
           <div className="py-16 text-center text-sm text-text-muted">{emptyText}</div>
         ) : rows.map(({ goal, level }) => (
           <div
             key={goal.id}
-            className="grid min-h-[58px] grid-cols-[44px_minmax(0,1fr)_320px_140px] items-center transition-colors hover:bg-surface-2/40"
+            className="grid min-h-[58px] grid-cols-[44px_minmax(0,1fr)_300px] items-center transition-colors hover:bg-surface-2/40"
             style={{ boxShadow: 'inset 0 -1px 0 var(--border)' }}
           >
             <label className="flex h-full items-center justify-center border-r border-border">
@@ -1065,10 +1113,9 @@ function GoalSelectionTable({
                 <span className="block truncate font-semibold">{goal.title}</span>
               )}
             </div>
-            <div className="flex h-full items-center border-l border-border">
-              <ProgressCell progress={goal.progress} color={KR_HEALTH_COLORS[worstGoalHealth(goal)]} />
+            <div className="flex h-full items-center border-l border-border px-6 text-sm tabular-nums text-text-muted">
+              {timeValue(goal) ? dayjs(timeValue(goal)).format('YYYY-MM-DD HH:mm') : '-'}
             </div>
-            <div className="flex h-full items-center justify-center border-l border-border text-sm text-text-muted">-</div>
           </div>
         ))}
       </div>
@@ -1116,10 +1163,21 @@ function GoalFormModal({
     if (currentGoal) collectDescendants(currentGoal);
     return ids;
   }, [currentGoalId, goals]);
+  const goalDepth = (goal: GoalWithDetails) => {
+    const byId = new Map(goals.map((item) => [item.id, item]));
+    let depth = 1;
+    let parentId = goal.parentGoalId;
+    while (parentId) {
+      depth += 1;
+      parentId = byId.get(parentId)?.parentGoalId;
+    }
+    return depth;
+  };
   const parentOptions = goals.filter(
-    (goal) => goal.status === 'active' && !unavailableParentIds.has(goal.id),
+    (goal) => goal.status === 'active'
+      && goalDepth(goal) < 5
+      && !unavailableParentIds.has(goal.id),
   );
-  const parentDisabled = parentOptions.length === 0;
 
   return (
     <Modal
@@ -1147,7 +1205,7 @@ function GoalFormModal({
         <div className="grid grid-cols-2 gap-6">
           <div>
             <label className="label">{t('goal.parentGoal')}</label>
-            <select className="input w-full disabled:bg-surface-2 disabled:text-text-muted" value={parentId} onChange={(event) => onParentChange(event.target.value)} disabled={parentDisabled}>
+            <select className="input w-full" value={parentId} onChange={(event) => onParentChange(event.target.value)}>
               <option value="">{t('goal.parentGoalPlaceholder')}</option>
               {parentOptions.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
             </select>
@@ -1258,12 +1316,13 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
 }
 
 function GoalDetailModal({
-  goal, path, keyResults, tab, workingValues, workingDone, progressComment,
+  goal, path, readOnly, keyResults, tab, workingValues, workingDone, progressComment,
   showHistory: _showHistory, moreOpen, onClose, onEdit, onMoreToggle, onTabChange, onValueChange,
-  onDoneChange, onCommentChange, onUpdate, onHealthChange, onToggleHistory: _onToggleHistory, onFinish, onDelete, onUnlinkTask, onLinkTask,
+  onDoneChange, onCommentChange, onUpdate, onHealthChange, onToggleHistory: _onToggleHistory, onFinish, onDelete, onUnlinkTask, onLinkTask, onNavigateGoal,
 }: {
   goal: GoalWithDetails | null;
   path: GoalWithDetails[];
+  readOnly: boolean;
   keyResults: KeyResultWithLogs[];
   tab: DetailTab;
   workingValues: Record<string, number>;
@@ -1285,10 +1344,11 @@ function GoalDetailModal({
   onDelete: () => void;
   onUnlinkTask: (task: LinkedTask) => void;
   onLinkTask: () => void;
+  onNavigateGoal: (goal: GoalWithDetails) => void;
 }) {
   const { t } = useTranslation();
   if (!goal) return null;
-  const isFinished = goal.status === 'completed';
+  const isFinished = goal.status === 'completed' || readOnly;
 
   const history = keyResults
     .flatMap((kr) => kr.logs.map((log) => ({ ...log, krTitle: kr.title })))
@@ -1313,9 +1373,9 @@ function GoalDetailModal({
           <h3 className="text-base font-semibold">{t('goal.goalDetail')}</h3>
           <div className="flex items-center gap-1 relative">
             {!isFinished && <button className="btn-ghost p-2" onClick={onEdit} title={t('goal.editGoal')}><Edit3 size={18} /></button>}
-            <button className="btn-ghost p-2 bg-primary/10" onClick={onMoreToggle}><MoreHorizontal size={18} /></button>
+            {!readOnly && <button className="btn-ghost p-2 bg-primary/10" onClick={onMoreToggle}><MoreHorizontal size={18} /></button>}
             <button className="btn-ghost p-2" onClick={onClose}><X size={18} /></button>
-            {moreOpen && (
+            {!readOnly && moreOpen && (
               <div className="absolute right-8 top-10 w-44 bg-surface border border-border shadow-lg z-20">
                 {!isFinished && <button className="w-full text-left px-4 py-3 hover:bg-surface-2" onClick={onFinish}>{t('goal.finishGoal')}</button>}
                 <button className="w-full text-left px-4 py-3 hover:bg-surface-2 text-red-500" onClick={onDelete}>{t('common.delete')}</button>
@@ -1326,9 +1386,23 @@ function GoalDetailModal({
         <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-0 min-h-0 flex-1">
           <div className="p-5 border-r border-border min-w-0 overflow-y-auto">
             <div className="mb-5">
-              <div className="text-sm text-text-muted mb-5 flex items-center gap-2">
-                <span>{t('goal.parentGoal')}:</span>
-                {path.length > 1 ? path.slice(0, -1).map((item) => <span key={item.id} className="text-primary">{item.title}</span>) : <span>{t('goal.none')}</span>}
+              <div className="mb-5 flex flex-wrap items-center gap-1 rounded-lg bg-surface-2/30 px-3 py-2 text-xs text-text-muted">
+                <span className="font-medium">{t('goal.parentGoal')}:</span>
+                {path.length > 1 ? path.map((item, index) => (
+                  <span key={item.id} className="flex items-center gap-1">
+                    {index > 0 && <ChevronRight size={10} className="text-text-muted/50" />}
+                    {index < path.length - 1 ? (
+                      <button
+                        className="max-w-[150px] truncate text-primary hover:underline"
+                        onClick={() => onNavigateGoal(item)}
+                      >
+                        {item.title}
+                      </button>
+                    ) : (
+                      <span className="max-w-[150px] truncate font-medium text-text">{item.title}</span>
+                    )}
+                  </span>
+                )) : <span>{t('goal.none')}</span>}
               </div>
               <h2 className="text-2xl font-semibold truncate">{goal.title}</h2>
             </div>
@@ -1354,6 +1428,7 @@ function GoalDetailModal({
           {tab === 'krs' ? (
             <KeyResultsPanel
               goal={goal}
+              readOnly={readOnly}
               keyResults={keyResults}
               workingValues={workingValues}
               workingDone={workingDone}
@@ -1365,7 +1440,7 @@ function GoalDetailModal({
               onHealthChange={onHealthChange}
             />
           ) : (
-            <RelatedTasksPanel tasks={goal.linkedTasks} onUnlink={onUnlinkTask} onLink={onLinkTask} />
+            <RelatedTasksPanel tasks={goal.linkedTasks} readOnly={readOnly} onUnlink={onUnlinkTask} onLink={onLinkTask} />
           )}
 
           {tab === 'krs' && (
@@ -1425,10 +1500,11 @@ function InfoTooltip({ text, align = 'center' }: { text: string; align?: 'center
 }
 
 function KeyResultsPanel({
-  goal, keyResults, workingValues, workingDone, progressComment,
+  goal, readOnly, keyResults, workingValues, workingDone, progressComment,
   onValueChange, onDoneChange, onCommentChange, onUpdate, onHealthChange,
 }: {
   goal: GoalWithDetails;
+  readOnly: boolean;
   keyResults: KeyResultWithLogs[];
   workingValues: Record<string, number>;
   workingDone: Record<string, boolean>;
@@ -1441,7 +1517,7 @@ function KeyResultsPanel({
 }) {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const isFinished = goal.status === 'completed';
+  const isFinished = goal.status === 'completed' || readOnly;
   const gridClass = isFinished
     ? 'grid grid-cols-[minmax(0,1fr)_210px_70px] items-center gap-3'
     : 'grid grid-cols-[minmax(0,1fr)_210px_70px_104px] items-center gap-3';
@@ -1528,15 +1604,15 @@ function KeyResultsPanel({
   );
 }
 
-function RelatedTasksPanel({ tasks, onUnlink, onLink }: { tasks: LinkedTask[]; onUnlink: (task: LinkedTask) => void; onLink: () => void }) {
+function RelatedTasksPanel({ tasks, readOnly, onUnlink, onLink }: { tasks: LinkedTask[]; readOnly: boolean; onUnlink: (task: LinkedTask) => void; onLink: () => void }) {
   const { t } = useTranslation();
   return (
     <div>
       <div className="flex items-center justify-between text-sm text-text-muted mb-3">
         <span>{t('goal.totalRelatedTasks', { count: tasks.length })}</span>
-        <button className="inline-flex items-center gap-2 hover:text-primary transition-colors" onClick={onLink}>
+        {!readOnly && <button className="inline-flex items-center gap-2 hover:text-primary transition-colors" onClick={onLink}>
           <Link2 size={15} />{t('goal.linkTask')}
-        </button>
+        </button>}
       </div>
       <div className="border-t border-border">
         {tasks.length === 0 && <div className="py-10 text-center text-text-muted">{t('common.empty')}</div>}
@@ -1548,9 +1624,9 @@ function RelatedTasksPanel({ tasks, onUnlink, onLink }: { tasks: LinkedTask[]; o
             <span className={`justify-self-start text-xs px-3 py-1 rounded-full ${taskStatusClass(task)}`}>
               {taskStatusLabel(task, t)}
             </span>
-            <button className="opacity-0 group-hover:opacity-100 btn-ghost p-1 text-primary" onClick={() => onUnlink(task)} title={t('goal.unlinkTask')}>
+            {!readOnly && <button className="opacity-0 group-hover:opacity-100 btn-ghost p-1 text-primary" onClick={() => onUnlink(task)} title={t('goal.unlinkTask')}>
               <Link2Off size={16} />
-            </button>
+            </button>}
           </div>
         ))}
       </div>
