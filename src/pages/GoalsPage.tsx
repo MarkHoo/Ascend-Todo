@@ -691,7 +691,10 @@ function GoalTreeRows({
 
   return (
     <>
-      <div className={`grid grid-cols-[minmax(0,1fr)_320px_140px] min-h-[58px] items-center border-b border-border hover:bg-surface-2/30 ${isChildGoal ? 'bg-surface-2/10' : ''}`}>
+      <div
+        className={`grid grid-cols-[minmax(0,1fr)_320px_140px] min-h-[58px] items-center transition-colors duration-150 hover:bg-surface-2/40 ${isChildGoal ? 'bg-surface-2/10' : ''}`}
+        style={{ boxShadow: 'inset 0 -1px 0 var(--border)' }}
+      >
         <div className="h-full px-6 flex items-center gap-2 min-w-0 relative" style={{ paddingLeft: 24 + level * 30 }}>
           {ancestorContinuations.map((continues, ancestorLevel) => continues && (
             <span
@@ -728,7 +731,13 @@ function GoalTreeRows({
         const progress = krProgress(kr);
         const isLastChild = goal.subGoals.length === 0 && index === goal.keyResults.length - 1;
         return (
-          <div key={kr.id} className="grid grid-cols-[minmax(0,1fr)_320px_140px] min-h-[58px] items-center border-b border-border bg-surface-2/10">
+          <button
+            key={kr.id}
+            type="button"
+            className="grid w-full grid-cols-[minmax(0,1fr)_320px_140px] min-h-[58px] items-center bg-surface-2/10 text-left transition-colors duration-150 hover:bg-surface-2/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50"
+            style={{ boxShadow: 'inset 0 -1px 0 var(--border)' }}
+            onClick={() => onOpen(goal)}
+          >
             <div className="h-full px-6 flex items-center gap-3 min-w-0 text-sm relative" style={{ paddingLeft: 56 + level * 30 }}>
               {ancestorContinuations.map((continues, ancestorLevel) => continues && (
                 <span
@@ -750,7 +759,7 @@ function GoalTreeRows({
             </div>
             <ProgressCell progress={progress} color={KR_HEALTH_COLORS[(kr.healthStatus || 'normal') as KRHealth]} />
             <div className="px-4 text-center text-sm tabular-nums">{kr.weight}%</div>
-          </div>
+          </button>
         );
       })}
 
