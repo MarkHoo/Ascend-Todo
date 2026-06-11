@@ -672,8 +672,8 @@ function TaskDetailModal({
       return timestamp(a.updatedAt) - timestamp(b.updatedAt);
     });
   }, [i18n.language, subtaskSort, task.subtasks]);
-  const visibleSubtasks = hideCompletedSubtasks ? sortedSubtasks.filter((s) => !s.isCompleted) : sortedSubtasks;
-  const completedSubtasks = task.subtasks.filter((s) => s.isCompleted).length;
+  const visibleSubtasks = hideCompletedSubtasks ? sortedSubtasks.filter((s) => s.status !== 'completed') : sortedSubtasks;
+  const completedSubtasks = task.subtasks.filter((s) => s.status === 'completed').length;
   const subtaskProgress = task.subtasks.length > 0 ? completedSubtasks / task.subtasks.length : 0;
   const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const subtaskSortOptions: { value: SubtaskSort; label: string }[] = [
@@ -1393,15 +1393,17 @@ function SubtaskRow({
 }) {
   const { t } = useTranslation();
   const status = (subtask.status || 'not_started') as TaskStatus;
+  const isCompleted = status === 'completed';
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_120px_120px_80px] items-center gap-3 min-h-14 text-sm group hover:bg-surface-2/30 cursor-pointer transition-colors"
+    <div className="grid grid-cols-[minmax(0,1fr)_76px_120px_120px] items-center gap-3 min-h-14 text-sm group hover:bg-surface-2/30 cursor-pointer transition-colors"
       onClick={onClick}>
       <div className="flex items-center gap-3 min-w-0 px-2">
+        {dragHandle}
         <button onClick={(e) => { e.stopPropagation(); onToggle(); }}
           className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0"
-          style={{ borderColor: subtask.isCompleted ? 'var(--primary)' : 'var(--border)', background: subtask.isCompleted ? 'var(--primary)' : 'transparent' }}>
-          {subtask.isCompleted && <span className="text-white text-[10px]">✓</span>}
+          style={{ borderColor: isCompleted ? 'var(--primary)' : 'var(--border)', background: isCompleted ? 'var(--primary)' : 'transparent' }}>
+          {isCompleted && <Check size={11} className="text-white" />}
         </button>
         {isEditing ? (
           <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
@@ -1416,16 +1418,10 @@ function SubtaskRow({
             <button className="btn-ghost p-1" onClick={onCancelEdit}><X size={14} /></button>
           </div>
         ) : (
-          <span className={`truncate font-medium ${subtask.isCompleted ? 'line-through text-text-muted' : ''}`}>{subtask.title}</span>
+          <span className={`truncate font-medium ${isCompleted ? 'line-through text-text-muted' : ''}`}>{subtask.title}</span>
         )}
       </div>
-      <div className="text-sm text-text-muted">{subtask.dueAt ? fmtTaskDueDate(subtask.dueAt) : ''}</div>
-      <div>
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white"
-          style={{ background: STATUS_COLORS[status] || 'var(--text-muted)' }}>{statusLabel(status, t)}</span>
-      </div>
-      <div className="flex items-center justify-end gap-1 pr-2">
-        {dragHandle}
+      <div className="flex items-center justify-center gap-1">
         {!isEditing && (
           <>
             <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
@@ -1438,6 +1434,11 @@ function SubtaskRow({
             </button>
           </>
         )}
+      </div>
+      <div className="text-sm text-text-muted">{subtask.dueAt ? fmtTaskDueDate(subtask.dueAt) : ''}</div>
+      <div>
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white"
+          style={{ background: STATUS_COLORS[status] || 'var(--text-muted)' }}>{statusLabel(status, t)}</span>
       </div>
     </div>
   );

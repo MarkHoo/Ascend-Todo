@@ -370,6 +370,7 @@ pub fn update_task(
     if status.is_some() { status_v = status; }
     if let Some(d) = priority { priority_v = Some(d); }
     if let Some(d) = start_at { start_at_v = Some(d); }
+    let completion_status = status_v.clone();
     c.execute(
         "UPDATE tasks SET
             title = COALESCE(?, title),
@@ -379,6 +380,16 @@ pub fn update_task(
             reminder_time = CASE WHEN ? THEN ? ELSE reminder_time END,
             color = CASE WHEN ? THEN ? ELSE color END,
             status = COALESCE(?, status),
+            is_completed = CASE
+                WHEN ? IS NULL THEN is_completed
+                WHEN ? = 'completed' THEN 1
+                ELSE 0
+            END,
+            completed_at = CASE
+                WHEN ? IS NULL THEN completed_at
+                WHEN ? = 'completed' THEN COALESCE(completed_at, ?)
+                ELSE NULL
+            END,
             priority = CASE WHEN ? THEN ? ELSE priority END,
             start_at = CASE WHEN ? THEN ? ELSE start_at END,
             updated_at = ?
@@ -391,6 +402,8 @@ pub fn update_task(
             rt_v.is_some() as i64, rt_v.unwrap_or(None),
             color_v.is_some() as i64, color_v.unwrap_or(None),
             status_v,
+            completion_status.clone(), completion_status.clone(),
+            completion_status.clone(), completion_status, now.clone(),
             priority_v.is_some() as i64, priority_v.unwrap_or(None),
             start_at_v.is_some() as i64, start_at_v.unwrap_or(None),
             now, id,
