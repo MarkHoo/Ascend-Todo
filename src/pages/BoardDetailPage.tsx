@@ -659,12 +659,12 @@ function TaskDetailModal({
 
   const createSubtask = async (openFull = false, keepAdding = false) => {
     const title = newSubtask.trim();
-    if (!title) return;
     if (openFull) {
       setIsAddingSubtask(false);
       setFullSubtaskOpen(true);
       return;
     }
+    if (!title) return;
     await createTask(task.listId, title, task.id);
     setNewSubtask('');
     if (openFull || !keepAdding) {
