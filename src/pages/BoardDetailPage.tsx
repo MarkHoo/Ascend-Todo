@@ -49,6 +49,43 @@ const TOOL_ICON_SIZE = 15;
 
 type TaskStackEntry = { task: TaskWithSubtasks; depth: number; hideSubtaskTab?: boolean };
 
+function scrollMarkdownCaretIntoView(textarea: HTMLTextAreaElement, position: number) {
+  const style = window.getComputedStyle(textarea);
+  const mirror = document.createElement('div');
+  const marker = document.createElement('span');
+  const properties = [
+    'boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+    'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight',
+    'textTransform', 'textIndent', 'wordSpacing', 'tabSize',
+  ] as const;
+
+  mirror.style.position = 'fixed';
+  mirror.style.left = '-10000px';
+  mirror.style.top = '0';
+  mirror.style.visibility = 'hidden';
+  mirror.style.whiteSpace = 'pre-wrap';
+  mirror.style.overflowWrap = 'break-word';
+  properties.forEach((property) => {
+    mirror.style[property] = style[property];
+  });
+  mirror.textContent = textarea.value.slice(0, position);
+  marker.textContent = textarea.value.slice(position, position + 1) || '\u200b';
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+
+  const caretTop = marker.offsetTop;
+  const lineHeight = Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.5;
+  const visibleTop = textarea.scrollTop;
+  const visibleBottom = visibleTop + textarea.clientHeight;
+  if (caretTop < visibleTop + lineHeight) {
+    textarea.scrollTop = Math.max(0, caretTop - lineHeight);
+  } else if (caretTop + lineHeight > visibleBottom) {
+    textarea.scrollTop = caretTop + lineHeight - textarea.clientHeight;
+  }
+  mirror.remove();
+}
+
 function fmtTaskDueDate(iso: string | undefined): string {
   if (!iso) return '';
   const d = dayjs(iso);
@@ -472,6 +509,7 @@ function TaskDetailModal({
   const mdTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newSubtask, setNewSubtask] = useState('');
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [fullSubtaskOpen, setFullSubtaskOpen] = useState(false);
   const [hideCompletedSubtasks, setHideCompletedSubtasks] = useState(false);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
@@ -545,14 +583,13 @@ function TaskDetailModal({
     text: string,
     cursorOffset = text.length,
   ) => {
-    const scrollTop = ta.scrollTop;
     const newText = descDraft.substring(0, start) + text + descDraft.substring(end);
     setDescDraft(newText);
     requestAnimationFrame(() => {
       ta.focus();
-      ta.scrollTop = scrollTop;
       const next = start + cursorOffset;
       ta.setSelectionRange(next, next);
+      scrollMarkdownCaretIntoView(ta, next);
     });
   };
 
@@ -623,7 +660,12 @@ function TaskDetailModal({
   const createSubtask = async (openFull = false, keepAdding = false) => {
     const title = newSubtask.trim();
     if (!title) return;
-    const created = await createTask(task.listId, title, task.id);
+    if (openFull) {
+      setIsAddingSubtask(false);
+      setFullSubtaskOpen(true);
+      return;
+    }
+    await createTask(task.listId, title, task.id);
     setNewSubtask('');
     if (openFull || !keepAdding) {
       setIsAddingSubtask(false);
@@ -631,14 +673,6 @@ function TaskDetailModal({
       requestAnimationFrame(() => quickSubtaskRef.current?.focus());
     }
     await onRefresh();
-    if (openFull) {
-      try {
-        const fresh = await useBoardStore.getState().getTask(created.id);
-        onOpenChild(fresh, depth + 1, true);
-      } catch {
-        onOpenChild({ ...created, subtasks: [] } as TaskWithSubtasks, depth + 1, true);
-      }
-    }
   };
 
   const saveSubtaskTitle = async (subtask: TaskWithSubtasks) => {
@@ -652,6 +686,7 @@ function TaskDetailModal({
   };
 
   return (
+    <>
     <Modal open={true} onClose={onClose} title={t('board.taskDetail')} size="xl">
       <div className="space-y-3">
         {/* Parent task path breadcrumb */}
@@ -868,6 +903,228 @@ function TaskDetailModal({
           <span>|</span>
           <span>{t('board.updatedAt')} {fmtDateTime(task.updatedAt, lang)}</span>
           {task.completedAt && <><span>|</span><span>{t('board.completed')} {fmtDateTime(task.completedAt, lang)}</span></>}
+        </div>
+      </div>
+    </Modal>
+    <NewSubtaskModal
+      open={fullSubtaskOpen}
+      initialTitle={newSubtask}
+      parentTask={task}
+      depth={depth + 1}
+      onClose={() => {
+        setFullSubtaskOpen(false);
+        setNewSubtask('');
+      }}
+      onCreated={async () => {
+        setFullSubtaskOpen(false);
+        setNewSubtask('');
+        await onRefresh();
+      }}
+    />
+    </>
+  );
+}
+
+function NewSubtaskModal({
+  open, initialTitle, parentTask, depth, onClose, onCreated,
+}: {
+  open: boolean;
+  initialTitle: string;
+  parentTask: TaskWithSubtasks;
+  depth: number;
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const { createTask, updateTask } = useBoardStore();
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    title: initialTitle,
+    description: '',
+    dueAt: null as string | null,
+    reminderTime: null as string | null,
+    color: null as string | null,
+    status: 'not_started' as TaskStatus,
+    priority: null as TaskPriority | null,
+    startAt: null as string | null,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setDraft({
+      title: initialTitle,
+      description: '',
+      dueAt: null,
+      reminderTime: null,
+      color: null,
+      status: 'not_started',
+      priority: null,
+      startAt: null,
+    });
+  }, [initialTitle, open]);
+
+  const replaceDescriptionRange = (before: string, after = '') => {
+    const textarea = descriptionRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = draft.description.slice(start, end);
+    const inserted = `${before}${selected}${after}`;
+    const nextPosition = start + (before === '```\n' ? before.length : before.length + selected.length);
+    setDraft((state) => ({
+      ...state,
+      description: state.description.slice(0, start) + inserted + state.description.slice(end),
+    }));
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextPosition, nextPosition);
+      scrollMarkdownCaretIntoView(textarea, nextPosition);
+    });
+  };
+
+  const handleDescriptionEnter = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const textarea = event.currentTarget;
+    const start = textarea.selectionStart;
+    const lineStart = draft.description.lastIndexOf('\n', start - 1) + 1;
+    const currentLine = draft.description.slice(lineStart, start);
+    const ordered = currentLine.match(/^(\s*)(\d+)\.\s(.*)$/);
+    const unordered = currentLine.match(/^(\s*)([-*+])\s(.*)$/);
+    const quote = currentLine.match(/^(\s*)>\s?(.*)$/);
+    let text = '\n';
+    if (ordered) text = ordered[3].trim() ? `\n${ordered[1]}${Number(ordered[2]) + 1}. ` : '';
+    if (unordered) text = unordered[3].trim() ? `\n${unordered[1]}${unordered[2]} ` : '';
+    if (quote) text = quote[2].trim() ? `\n${quote[1]}> ` : '\n';
+    const replaceStart = text === '' ? lineStart : start;
+    setDraft((state) => ({
+      ...state,
+      description: state.description.slice(0, replaceStart) + text + state.description.slice(textarea.selectionEnd),
+    }));
+    requestAnimationFrame(() => {
+      const next = replaceStart + text.length;
+      textarea.focus();
+      textarea.setSelectionRange(next, next);
+      scrollMarkdownCaretIntoView(textarea, next);
+    });
+  };
+
+  const createFullSubtask = async () => {
+    const title = draft.title.trim();
+    if (!title || saving) return;
+    setSaving(true);
+    try {
+      const created = await createTask(parentTask.listId, title, parentTask.id);
+      await updateTask(created.id, {
+        description: draft.description,
+        dueAt: draft.dueAt,
+        reminderTime: draft.reminderTime,
+        color: draft.color,
+        status: draft.status,
+        priority: draft.priority,
+        startAt: draft.startAt,
+      });
+      await onCreated();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t('board.newSubtaskTitle')}
+      size="xl"
+      footer={(
+        <div className="w-full flex items-center justify-end gap-3">
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button onClick={createFullSubtask} disabled={!draft.title.trim() || saving}>{t('common.create')}</Button>
+        </div>
+      )}
+    >
+      <div className="space-y-3">
+        <div className="flex items-center gap-1 text-xs text-text-muted flex-wrap bg-surface-2/30 rounded-lg px-3 py-2">
+          <span className="font-medium">{t('board.parentTaskLabel')}:</span>
+          <span className="text-primary font-medium truncate max-w-[360px]">{parentTask.title}</span>
+        </div>
+
+        <Input
+          label={t('board.taskTitle')}
+          value={draft.title}
+          onChange={(event) => setDraft({ ...draft, title: event.target.value })}
+          autoFocus
+        />
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div>
+            <label className="label">{t('board.currentStatus')}</label>
+            <select className="input w-full" value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as TaskStatus })}>
+              {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{statusLabel(status, t)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">{t('board.currentPriority')}</label>
+            <select
+              className="input w-full"
+              value={draft.priority || 'none'}
+              onChange={(event) => setDraft({ ...draft, priority: event.target.value === 'none' ? null : event.target.value as TaskPriority })}
+            >
+              {PRIORITY_OPTIONS.map((priority) => <option key={priority} value={priority}>{priority === 'none' ? t('board.priorityNone') : priorityLabel(priority, t)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">{t('board.startAt')}</label>
+            <DateTimePicker value={draft.startAt} onChange={(value) => setDraft({ ...draft, startAt: value })} withTime placeholder={t('board.startAt')} pickerId={`new-subtask-start-${parentTask.id}-${depth}`} />
+          </div>
+          <div>
+            <label className="label">{t('board.dueDate')}</label>
+            <DateTimePicker value={draft.dueAt} onChange={(value) => setDraft({ ...draft, dueAt: value })} withTime placeholder={t('board.dueDate')} pickerId={`new-subtask-due-${parentTask.id}-${depth}`} />
+          </div>
+        </div>
+
+        <div className="flex items-end gap-4 flex-wrap">
+          <div>
+            <label className="label">{t('board.labelColor')}</label>
+            <ColorPicker value={draft.color} onChange={(value) => setDraft({ ...draft, color: value })} />
+          </div>
+          <div>
+            <label className="label">{t('board.taskReminder')}</label>
+            <TimePicker value={draft.reminderTime} onChange={(value) => setDraft({ ...draft, reminderTime: value })} />
+          </div>
+          {draft.reminderTime && <span className="flex items-center gap-1 text-xs text-text-muted pb-0.5"><Bell size={12} />{draft.reminderTime}</span>}
+        </div>
+
+        <div className="flex items-center gap-1 border-b border-border pb-1">
+          <span className="px-3 py-1.5 text-sm font-medium rounded-t bg-primary/10 text-primary border-b-2 border-primary">{t('board.taskInfo')}</span>
+        </div>
+
+        <div>
+          <label className="label">{t('board.taskDescription')}</label>
+          <div className="border border-border rounded overflow-hidden">
+            <div className="h-10 px-2 flex items-center gap-1 border-b border-border bg-surface-2/40">
+              <ToolbarBtn onClick={() => replaceDescriptionRange('**', '**')} title="Bold"><Bold size={TOOL_ICON_SIZE} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => replaceDescriptionRange('*', '*')} title="Italic"><Italic size={TOOL_ICON_SIZE} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => replaceDescriptionRange('~~', '~~')} title="Strikethrough"><Minus size={TOOL_ICON_SIZE} /></ToolbarBtn>
+              <span className="w-px h-5 bg-border mx-1" />
+              <ToolbarBtn onClick={() => replaceDescriptionRange('# ')} title="H1"><span className="text-xs font-bold">H1</span></ToolbarBtn>
+              <ToolbarBtn onClick={() => replaceDescriptionRange('- ')} title="Bullet List"><ListIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => replaceDescriptionRange('1. ')} title="Ordered List"><ListOrdered size={TOOL_ICON_SIZE} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => replaceDescriptionRange('[', '](url)')} title="Link"><LinkIcon size={TOOL_ICON_SIZE} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => replaceDescriptionRange('> ')} title="Quote"><Quote size={TOOL_ICON_SIZE} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => replaceDescriptionRange('`', '`')} title="Inline Code"><Code size={TOOL_ICON_SIZE} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => replaceDescriptionRange('```\n', '\n```')} title="Code Block"><span className="text-[10px] font-mono">```</span></ToolbarBtn>
+            </div>
+            <textarea
+              ref={descriptionRef}
+              className="w-full min-h-[220px] resize-y bg-surface p-4 font-mono text-sm leading-6 outline-none"
+              value={draft.description}
+              onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+              onKeyDown={handleDescriptionEnter}
+              placeholder="## Markdown supported..."
+            />
+          </div>
         </div>
       </div>
     </Modal>

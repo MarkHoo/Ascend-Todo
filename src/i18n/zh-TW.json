@@ -112,6 +112,7 @@
     "totalSubtasks": "共 {{count}} 個任務",
     "hideCompleted": "隱藏已完成",
     "newSubtask": "新建",
+    "newSubtaskTitle": "新建子任務",
     "noLinkedSubtasks": "暫無關聯任務",
     "noVisibleSubtasks": "暫無可見子任務",
     "quickSubtaskPlaceholder": "添加子任務（按 Enter 快速新建，Shift+Enter 完整新建）",
