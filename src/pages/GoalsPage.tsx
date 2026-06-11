@@ -53,16 +53,33 @@ const krProgress = (kr: KeyResult) => {
   return clampProgress((kr.currentValue - kr.startValue) / range);
 };
 
-const progressColor = (progress: number) => {
-  if (progress <= 0) return '#cbd5e1';
-  if (progress < 0.5) return '#f6c453';
-  return '#68d391';
-};
-
 const KR_HEALTH_COLORS: Record<KRHealth, string> = {
   normal: '#2dd4bf',
   risk: '#f59e0b',
   behind: '#fb7185',
+};
+
+const weightedKRProgress = (
+  keyResults: KeyResult[],
+  valueFor: (kr: KeyResult) => number = krProgress,
+) => {
+  if (keyResults.length === 0) return 0;
+  const totalWeight = keyResults.reduce((sum, kr) => sum + kr.weight, 0);
+  if (totalWeight <= 0) return 0;
+  return clampProgress(keyResults.reduce((sum, kr) => sum + valueFor(kr) * kr.weight, 0) / totalWeight);
+};
+
+const healthRank: Record<KRHealth, number> = { normal: 0, risk: 1, behind: 2 };
+
+const worstGoalHealth = (goal: GoalWithDetails): KRHealth => {
+  const healthStates = [
+    ...goal.keyResults.map((kr) => (kr.healthStatus || 'normal') as KRHealth),
+    ...goal.subGoals.map(worstGoalHealth),
+  ];
+  return healthStates.reduce<KRHealth>(
+    (worst, health) => (healthRank[health] > healthRank[worst] ? health : worst),
+    'normal',
+  );
 };
 
 const formatForDateTimeInput = (value?: string | null) => {
@@ -114,7 +131,7 @@ const krToDraft = (kr: KeyResult): DraftKR => ({
   startValue: kr.type === 'boolean' ? 0 : kr.startValue,
   targetValue: kr.type === 'boolean' ? 1 : kr.targetValue,
   currentValue: kr.currentValue,
-  unit: kr.type === 'boolean' ? '' : (kr.unit || '%'),
+  unit: kr.type === 'boolean' ? '' : (kr.unit ?? '%'),
   weight: kr.weight,
 });
 
@@ -153,6 +170,8 @@ export function GoalsPage() {
     open: boolean;
     title?: string;
     message?: string;
+    confirmLabel?: string;
+    confirmVariant?: 'primary' | 'danger';
     onConfirm: () => Promise<void>;
   }>({ open: false, onConfirm: async () => {} });
 
@@ -415,7 +434,7 @@ export function GoalsPage() {
       }
     }
     setProgressComment('');
-    await refreshDetail();
+    await Promise.all([refreshDetail(), fetchGoals()]);
     toast.success(t('goal.progressUpdated'));
   };
 
@@ -427,9 +446,19 @@ export function GoalsPage() {
 
   const finishGoal = async () => {
     if (!detailGoal) return;
-    await updateGoal(detailGoal.id, { status: 'completed' });
-    await refreshDetail();
-    toast.success(t('goal.goalCompleted'));
+    setMoreOpen(false);
+    setDeleteConfirm({
+      open: true,
+      title: t('goal.finishGoal'),
+      message: t('goal.finishGoalConfirm'),
+      confirmLabel: t('common.confirm'),
+      confirmVariant: 'primary',
+      onConfirm: async () => {
+        await updateGoal(detailGoal.id, { status: 'completed' });
+        await refreshDetail();
+        toast.success(t('goal.goalCompleted'));
+      },
+    });
   };
 
   const unlinkTask = async (task: LinkedTask) => {
@@ -438,6 +467,8 @@ export function GoalsPage() {
       open: true,
       title: t('goal.confirmUnlink'),
       message: t('goal.unlinkTaskConfirmWithName', { title: task.title }),
+      confirmLabel: t('common.confirm'),
+      confirmVariant: 'primary',
       onConfirm: async () => {
         await unlinkTaskFromKR(task.krId!, task.id);
         await refreshDetail();
@@ -467,6 +498,7 @@ export function GoalsPage() {
   const updateKRHealth = async (id: string, health: KRHealth) => {
     await keyResultsApi.update({ id, healthStatus: health });
     setDetailKRs((items) => items.map((kr) => (kr.id === id ? { ...kr, healthStatus: health } : kr)));
+    await fetchGoals();
   };
 
   return (
@@ -568,6 +600,13 @@ export function GoalsPage() {
         canConfirm={detailKRs.length > 0}
         onSearchChange={setTaskSearch}
         onToggle={(id) => setSelectedTaskIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id])}
+        onToggleAll={(ids) => setSelectedTaskIds((selected) => {
+          const visibleIds = new Set(ids);
+          const allVisibleSelected = ids.length > 0 && ids.every((id) => selected.includes(id));
+          return allVisibleSelected
+            ? selected.filter((id) => !visibleIds.has(id))
+            : Array.from(new Set([...selected, ...ids]));
+        })}
         onClose={() => setTaskLinkOpen(false)}
         onConfirm={confirmTaskLink}
       />
@@ -588,8 +627,8 @@ export function GoalsPage() {
         message={deleteConfirm.message}
         onClose={() => setDeleteConfirm((state) => ({ ...state, open: false }))}
         onConfirm={deleteConfirm.onConfirm}
-        confirmLabel={deleteConfirm.title === t('goal.confirmUnlink') ? t('common.confirm') : undefined}
-        confirmVariant={deleteConfirm.title === t('goal.confirmUnlink') ? 'primary' : undefined}
+        confirmLabel={deleteConfirm.confirmLabel}
+        confirmVariant={deleteConfirm.confirmVariant}
       />
 
       <GoalFormModal
@@ -662,7 +701,7 @@ function GoalTreeRows({
           </button>
           <button className="truncate font-semibold text-left hover:text-primary text-[15px]" onClick={() => onOpen(goal)}>{goal.title}</button>
         </div>
-        <ProgressCell progress={goal.progress} />
+        <ProgressCell progress={goal.progress} color={KR_HEALTH_COLORS[worstGoalHealth(goal)]} />
         <div className="px-4 text-center text-sm text-text-muted">-</div>
       </div>
 
@@ -676,7 +715,7 @@ function GoalTreeRows({
               <span className="w-2 h-2 rounded-full border border-border bg-surface shrink-0" />
               <span className="truncate">{kr.title}</span>
             </div>
-            <ProgressCell progress={progress} />
+            <ProgressCell progress={progress} color={KR_HEALTH_COLORS[(kr.healthStatus || 'normal') as KRHealth]} />
             <div className="px-4 text-center text-sm tabular-nums">{kr.weight}%</div>
           </div>
         );
@@ -697,11 +736,11 @@ function GoalTreeRows({
   );
 }
 
-function ProgressCell({ progress }: { progress: number }) {
+function ProgressCell({ progress, color }: { progress: number; color: string }) {
   return (
     <div className="px-6 flex items-center gap-4">
-      <ProgressBar value={progress} color={progressColor(progress)} className="w-32" />
-      <span className="w-16 text-sm tabular-nums">{(progress * 100).toFixed(progress * 100 % 1 === 0 ? 0 : 2)}%</span>
+      <ProgressBar value={progress} color={color} className="w-32" />
+      <span className="w-16 text-sm tabular-nums">{(progress * 100).toFixed(2)}%</span>
     </div>
   );
 }
@@ -869,7 +908,7 @@ function DraftKRRow({ kr, isLast, onChange, onDelete }: {
           <>
             <label className="flex items-center gap-2 text-sm shrink-0">
               <span className="text-text-muted">{t('goal.unit')}:</span>
-              <input className="input h-10 w-28" value={unit} onChange={(event) => onChange({ unit: event.target.value })} placeholder="%" />
+              <input className="input h-10 w-28" value={unit} onChange={(event) => onChange({ unit: event.target.value })} />
             </label>
             <label className="flex items-center gap-2 text-sm shrink-0">
               <span className="text-text-muted">{t('goal.startValue')}:</span>
@@ -934,10 +973,23 @@ function GoalDetailModal({
 }) {
   const { t } = useTranslation();
   if (!goal) return null;
+  const isFinished = goal.status === 'completed';
 
   const history = keyResults
     .flatMap((kr) => kr.logs.map((log) => ({ ...log, krTitle: kr.title })))
     .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf());
+  const liveOverallProgress = weightedKRProgress(keyResults, (kr) => (
+    kr.type === 'boolean'
+      ? ((workingDone[kr.id] ?? kr.isCompleted) ? 1 : 0)
+      : krProgress({ ...kr, currentValue: workingValues[kr.id] ?? kr.currentValue })
+  ));
+  const overallHealth = keyResults.reduce<KRHealth>(
+    (worst, kr) => {
+      const health = (kr.healthStatus || 'normal') as KRHealth;
+      return healthRank[health] > healthRank[worst] ? health : worst;
+    },
+    'normal',
+  );
 
   return (
     <Modal open={true} onClose={onClose} size="xl">
@@ -945,12 +997,12 @@ function GoalDetailModal({
         <div className="h-[52px] px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
           <h3 className="text-base font-semibold">{t('goal.goalDetail')}</h3>
           <div className="flex items-center gap-1 relative">
-            <button className="btn-ghost p-2" onClick={onEdit} title={t('goal.editGoal')}><Edit3 size={18} /></button>
+            {!isFinished && <button className="btn-ghost p-2" onClick={onEdit} title={t('goal.editGoal')}><Edit3 size={18} /></button>}
             <button className="btn-ghost p-2 bg-primary/10" onClick={onMoreToggle}><MoreHorizontal size={18} /></button>
             <button className="btn-ghost p-2" onClick={onClose}><X size={18} /></button>
             {moreOpen && (
               <div className="absolute right-8 top-10 w-44 bg-surface border border-border shadow-lg z-20">
-                <button className="w-full text-left px-4 py-3 hover:bg-surface-2" onClick={onFinish}>{t('goal.finishGoal')}</button>
+                {!isFinished && <button className="w-full text-left px-4 py-3 hover:bg-surface-2" onClick={onFinish}>{t('goal.finishGoal')}</button>}
                 <button className="w-full text-left px-4 py-3 hover:bg-surface-2 text-red-500" onClick={onDelete}>{t('common.delete')}</button>
               </div>
             )}
@@ -969,8 +1021,8 @@ function GoalDetailModal({
           <section className="mb-5">
             <div className="text-sm text-text-muted mb-2">{t('goal.overallProgress')}</div>
             <div className="flex items-center gap-3 max-w-sm">
-              <ProgressBar value={goal.progress} color={progressColor(goal.progress)} className="flex-1" />
-              <span className="text-primary tabular-nums">{(goal.progress * 100).toFixed(2)}%</span>
+              <ProgressBar value={liveOverallProgress} color={KR_HEALTH_COLORS[overallHealth]} className="flex-1" />
+              <span className="text-primary tabular-nums">{(liveOverallProgress * 100).toFixed(2)}%</span>
               <InfoTooltip text={t('goal.overallProgressHelp')} />
             </div>
             <div className="text-xs text-text-muted mt-4">
@@ -1045,11 +1097,12 @@ function TabButton({ active, label, onClick }: { active: boolean; label: string;
   );
 }
 
-function InfoTooltip({ text }: { text: string }) {
+function InfoTooltip({ text, align = 'center' }: { text: string; align?: 'center' | 'start' }) {
+  const alignClass = align === 'start' ? 'left-0' : 'left-1/2 -translate-x-1/2';
   return (
     <span className="relative inline-flex group">
       <HelpCircle size={15} className="text-text-muted group-hover:text-primary" />
-      <span className="absolute left-1/2 top-6 z-30 hidden w-72 -translate-x-1/2 rounded bg-text px-3 py-2 text-xs leading-5 text-surface shadow-lg group-hover:block whitespace-normal">
+      <span className={`absolute top-6 z-30 hidden w-72 rounded bg-text px-3 py-2 text-xs leading-5 text-surface shadow-lg group-hover:block whitespace-normal ${alignClass}`}>
         {text}
       </span>
     </span>
@@ -1073,14 +1126,18 @@ function KeyResultsPanel({
 }) {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const isFinished = goal.status === 'completed';
+  const gridClass = isFinished
+    ? 'grid grid-cols-[minmax(0,1fr)_210px_70px] items-center gap-3'
+    : 'grid grid-cols-[minmax(0,1fr)_210px_70px_104px] items-center gap-3';
   return (
     <>
       <div className="text-sm text-text-muted mb-3">{t('goal.totalKR', { count: keyResults.length })}</div>
-      <div className="grid grid-cols-[minmax(0,1fr)_210px_70px_104px] text-sm text-text-muted border-b border-border pb-2">
+      <div className={`${gridClass} text-sm text-text-muted border-b border-border pb-2`}>
         <span>{t('goal.keyResult')}</span>
         <span>{t('goal.progress')}</span>
         <span>{t('goal.weight')}</span>
-        <span>{t('goal.status')}</span>
+        {!isFinished && <span>{t('goal.status')}</span>}
       </div>
       <div>
         {keyResults.map((kr) => {
@@ -1090,21 +1147,36 @@ function KeyResultsPanel({
           const isCollapsed = collapsed[kr.id] === true;
           return (
             <div key={kr.id} className="border-b border-border py-3">
-              <div className="grid grid-cols-[minmax(0,1fr)_210px_70px_104px] items-center gap-3">
+              <div className={gridClass}>
                 <button className="font-medium truncate flex items-center gap-2 text-left hover:text-primary" onClick={() => setCollapsed((state) => ({ ...state, [kr.id]: !isCollapsed }))}>
                   {isCollapsed ? <ChevronRight size={15} className="text-text-muted" /> : <ChevronDown size={15} className="text-text-muted" />}
                   <span className="truncate">{kr.title}</span>
                 </button>
                 <div className="flex items-center gap-3">
                   <ProgressBar value={progress} color={color} className="flex-1" />
-                  <span className="w-12 text-sm tabular-nums">{(progress * 100).toFixed(0)}%</span>
+                  <span className="w-16 text-sm tabular-nums">{(progress * 100).toFixed(2)}%</span>
                 </div>
                 <span>{kr.weight}%</span>
-                <HealthLights active={health} onChange={(next) => onHealthChange(kr.id, next)} />
+                {!isFinished && <HealthLights active={health} onChange={(next) => onHealthChange(kr.id, next)} />}
               </div>
               {!isCollapsed && (
-                <div className="mt-3 ml-6 rounded border border-border bg-surface-2/30 px-4 py-3">
-                  {kr.type === 'boolean' ? (
+                <div className="mt-3 ml-6 py-2">
+                  {isFinished ? (
+                    <div className="flex items-center gap-4 whitespace-nowrap">
+                      <span className="text-sm text-text-muted shrink-0">{t('goal.currentProgress')}</span>
+                      <span className="text-sm font-medium">
+                        {kr.type === 'boolean'
+                          ? (kr.isCompleted ? t('goal.completed') : t('goal.notCompleted'))
+                          : `${kr.currentValue}${kr.unit || ''}`}
+                      </span>
+                      {kr.type !== 'boolean' && (
+                        <>
+                          <span className="text-sm text-text-muted">{t('goal.startValue')} {kr.startValue}{kr.unit || ''}</span>
+                          <span className="text-sm text-text-muted">{t('goal.targetValue')} {kr.targetValue}{kr.unit || ''}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : kr.type === 'boolean' ? (
                     <div className="flex items-center gap-4">
                       <span className="text-sm text-text-muted shrink-0">{t('goal.currentProgress')}</span>
                       <div className="inline-flex rounded border border-border overflow-hidden">
@@ -1127,11 +1199,15 @@ function KeyResultsPanel({
           );
         })}
       </div>
-      <Textarea className="mt-4 min-h-[150px]" value={progressComment} onChange={(event) => onCommentChange(event.target.value)} placeholder={t('goal.commentPlaceholder')} />
-      <div className="mt-4 flex items-center gap-3">
-        <Button onClick={onUpdate}>{t('goal.updateKR')}</Button>
-        <InfoTooltip text={t('goal.updateProgressHelp')} />
-      </div>
+      {!isFinished && (
+        <>
+          <Textarea className="mt-4 min-h-[150px]" value={progressComment} onChange={(event) => onCommentChange(event.target.value)} placeholder={t('goal.commentPlaceholder')} />
+          <div className="mt-4 flex items-center gap-3">
+            <Button onClick={onUpdate}>{t('goal.updateKR')}</Button>
+            <InfoTooltip text={t('goal.updateProgressHelp')} align="start" />
+          </div>
+        </>
+      )}
       <div className="sr-only">{goal.id}</div>
     </>
   );
@@ -1169,7 +1245,7 @@ function RelatedTasksPanel({ tasks, onUnlink, onLink }: { tasks: LinkedTask[]; o
 
 function TaskLinkModal({
   open, tasks, linkedTaskIds, search, selectedTaskIds, canConfirm,
-  onSearchChange, onToggle, onClose, onConfirm,
+  onSearchChange, onToggle, onToggleAll, onClose, onConfirm,
 }: {
   open: boolean;
   tasks: Task[];
@@ -1179,6 +1255,7 @@ function TaskLinkModal({
   canConfirm: boolean;
   onSearchChange: (value: string) => void;
   onToggle: (id: string) => void;
+  onToggleAll: (ids: string[]) => void;
   onClose: () => void;
   onConfirm: () => Promise<void>;
 }) {
@@ -1208,6 +1285,8 @@ function TaskLinkModal({
       return sort.direction === 'asc' ? comparison : -comparison;
     });
   }, [linkedTaskIds, search, sort.direction, sort.field, tasks, t]);
+  const visibleTaskIds = filteredTasks.map((task) => task.id);
+  const allVisibleSelected = visibleTaskIds.length > 0 && visibleTaskIds.every((id) => selectedTaskIds.includes(id));
 
   return (
     <Modal
@@ -1223,8 +1302,8 @@ function TaskLinkModal({
       )}
     >
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-5 border-b border-border pb-4">
-          <div className="relative w-[420px] max-w-full">
+        <div className="flex items-center gap-7 border-b border-border pb-4">
+          <div className="relative w-96 max-w-full">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
             <input
               className="input w-full pl-10 h-11"
@@ -1237,7 +1316,7 @@ function TaskLinkModal({
               autoFocus
             />
           </div>
-          <div className="flex items-center gap-4 text-sm text-text-muted">
+          <div className="flex items-center gap-6 text-sm text-text-muted whitespace-nowrap pr-1">
             <span>{t('goal.totalTasks', { count: filteredTasks.length })}</span>
             <span>{t('goal.selectedTasks', { count: selectedTaskIds.length })}</span>
           </div>
@@ -1250,13 +1329,21 @@ function TaskLinkModal({
         )}
 
         <div className="max-h-[520px] overflow-y-auto border border-border relative">
-          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-30" style={{ left: 44 }} />
           <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-30" style={{ right: 450 }} />
           <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-30" style={{ right: 300 }} />
           <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-30" style={{ right: 150 }} />
-          <div className="grid grid-cols-[44px_minmax(0,1fr)_150px_150px_150px] text-sm font-medium text-text-muted border-b border-border bg-surface-2/40 sticky top-0 z-20">
-            <div className="px-3 py-3"></div>
-            <div className="px-4 py-3">{t('goal.taskTitle')}</div>
+          <div className="grid grid-cols-[34px_minmax(0,1fr)_150px_150px_150px] text-sm font-medium text-text-muted border-b border-border bg-surface-2/40 sticky top-0 z-20">
+            <button
+              className="pl-3 pr-1 py-3 flex items-center"
+              onClick={() => onToggleAll(visibleTaskIds)}
+              disabled={visibleTaskIds.length === 0}
+              title={t('common.selectAll')}
+            >
+              <span className={`block w-4 h-4 rounded border ${allVisibleSelected ? 'bg-primary border-primary' : 'border-border bg-surface'}`}>
+                {allVisibleSelected && <Check size={14} className="text-white" />}
+              </span>
+            </button>
+            <div className="pl-2 pr-4 py-3">{t('goal.taskTitle')}</div>
             <button className="px-4 py-3 text-left hover:text-primary" onClick={() => setTaskSort('status')}>{t('goal.status')} {sort.field === 'status' ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</button>
             <button className="px-4 py-3 text-left hover:text-primary" onClick={() => setTaskSort('priority')}>{t('board.currentPriority')} {sort.field === 'priority' ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</button>
             <button className="px-4 py-3 text-left hover:text-primary" onClick={() => setTaskSort('dueAt')}>{t('goal.deadline')} {sort.field === 'dueAt' ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</button>
@@ -1267,15 +1354,15 @@ function TaskLinkModal({
             filteredTasks.map((task) => (
               <button
                 key={task.id}
-                className={`w-full grid grid-cols-[44px_minmax(0,1fr)_150px_150px_150px] items-center min-h-14 text-left border-b border-border last:border-b-0 hover:bg-surface-2/50 ${selectedTaskIds.includes(task.id) ? 'bg-primary/5' : ''}`}
+                className={`w-full grid grid-cols-[34px_minmax(0,1fr)_150px_150px_150px] items-center min-h-14 text-left border-b border-border last:border-b-0 hover:bg-surface-2/50 ${selectedTaskIds.includes(task.id) ? 'bg-primary/5' : ''}`}
                 onClick={() => onToggle(task.id)}
               >
-                <div className="px-3">
+                <div className="pl-3 pr-1">
                   <span className={`block w-4 h-4 rounded border ${selectedTaskIds.includes(task.id) ? 'bg-primary border-primary' : 'border-border'}`}>
                     {selectedTaskIds.includes(task.id) && <Check size={14} className="text-white" />}
                   </span>
                 </div>
-                <div className="px-4 font-medium truncate">{task.title}</div>
+                <div className="pl-2 pr-4 font-medium truncate">{task.title}</div>
                 <div className="px-4">
                   <span className={`text-xs px-3 py-1 rounded-full ${taskStatusClass(task)}`}>
                     {taskStatusLabel(task, t)}

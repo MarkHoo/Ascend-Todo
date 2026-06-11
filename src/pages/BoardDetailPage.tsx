@@ -692,11 +692,11 @@ function TaskDetailModal({
           </div>
           <div>
             <label className="label">{t('board.startAt')}</label>
-            <DateTimePicker value={draft.startAt} onChange={(v) => setDraft({ ...draft, startAt: v })} placeholder={t('board.startAt')} pickerId={`start-${task.id}-${depth}`} />
+            <DateTimePicker value={draft.startAt} onChange={(v) => setDraft({ ...draft, startAt: v })} withTime placeholder={t('board.startAt')} pickerId={`start-${task.id}-${depth}`} />
           </div>
           <div>
             <label className="label">{t('board.dueDate')}</label>
-            <DateTimePicker value={draft.dueAt} onChange={(v) => setDraft({ ...draft, dueAt: v })} placeholder={t('board.dueDate')} pickerId={`due-${task.id}-${depth}`} />
+            <DateTimePicker value={draft.dueAt} onChange={(v) => setDraft({ ...draft, dueAt: v })} withTime placeholder={t('board.dueDate')} pickerId={`due-${task.id}-${depth}`} />
           </div>
         </div>
 
