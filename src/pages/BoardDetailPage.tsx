@@ -23,6 +23,7 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { DeleteConfirmModal } from '@/components/common/DeleteConfirmModal';
 import { Input } from '@/components/common/Input';
+import { NativeDateTimeInput } from '@/components/common/NativeDateTimeInput';
 import { DateTimePicker } from '@/components/common/DateTimePicker';
 import { TimePicker } from '@/components/common/DateTimePicker';
 import { ColorPicker } from '@/components/common/ColorPicker';
@@ -49,6 +50,16 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const MAX_NESTING = 5;
+
+const formatForDateTimeInput = (value?: string | null) => {
+  if (!value) return '';
+  return dayjs(value).format('YYYY-MM-DDTHH:mm');
+};
+
+const dateTimeInputToIso = (value: string) => {
+  if (!value) return null;
+  return dayjs(value).format('YYYY-MM-DDTHH:mm:ss');
+};
 const TOOL_ICON_SIZE = 15;
 
 type TaskStackEntry = { task: TaskWithSubtasks; depth: number; hideSubtaskTab?: boolean };
@@ -914,12 +925,24 @@ function TaskDetailModal({
             </select>
           </div>
           <div>
-            <label className="label">{t('board.startAt')}</label>
-            <DateTimePicker value={draft.startAt} onChange={(v) => setDraft({ ...draft, startAt: v })} withTime placeholder={t('board.startAt')} pickerId={`start-${task.id}-${depth}`} />
+            <NativeDateTimeInput
+              label={t('board.startAt')}
+              value={formatForDateTimeInput(draft.startAt)}
+              onChange={(value) => setDraft({
+                ...draft,
+                startAt: dateTimeInputToIso(value),
+              })}
+            />
           </div>
           <div>
-            <label className="label">{t('board.dueDate')}</label>
-            <DateTimePicker value={draft.dueAt} onChange={(v) => setDraft({ ...draft, dueAt: v })} withTime placeholder={t('board.dueDate')} pickerId={`due-${task.id}-${depth}`} />
+            <NativeDateTimeInput
+              label={t('board.dueDate')}
+              value={formatForDateTimeInput(draft.dueAt)}
+              onChange={(value) => setDraft({
+                ...draft,
+                dueAt: dateTimeInputToIso(value),
+              })}
+            />
           </div>
         </div>
 

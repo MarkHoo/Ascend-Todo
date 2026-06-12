@@ -9,6 +9,7 @@ import { useGoalStore } from '@/store/useGoalStore';
 import { Button } from '@/components/common/Button';
 import { DeleteConfirmModal } from '@/components/common/DeleteConfirmModal';
 import { Input, Textarea } from '@/components/common/Input';
+import { NativeDateTimeInput } from '@/components/common/NativeDateTimeInput';
 import { Modal } from '@/components/common/Modal';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { toast } from '@/components/common/Toast';
@@ -1213,7 +1214,11 @@ function GoalFormModal({
               {parentOptions.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
             </select>
           </div>
-          <Input label={`${t('goal.deadline')} *`} type="datetime-local" value={dueAt} onChange={(event) => onDueAtChange(event.target.value)} />
+          <NativeDateTimeInput
+            label={`${t('goal.deadline')} *`}
+            value={dueAt}
+            onChange={onDueAtChange}
+          />
         </div>
 
         <section className="border-t border-border pt-4">
