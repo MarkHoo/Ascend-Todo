@@ -55,10 +55,14 @@ export function useEChart(
   }, [initChart]);
 
   useEffect(() => {
-    if (!chartRef.current || !option) return;
+    if (!option) return;
+    if (!chartRef.current) {
+      initChart();
+    }
+    if (!chartRef.current) return;
     chartRef.current.setOption(option, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [option, ...deps]);
+  }, [option, initChart, ...deps]);
 
   return containerRef;
 }

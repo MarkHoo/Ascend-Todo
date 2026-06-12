@@ -240,6 +240,23 @@ pub struct CheckInSummary {
     pub by_day: Vec<CheckIn>,
 }}
 
+// ============ Period reviews ============
+
+camel! {
+pub struct ReviewReport {
+    pub id: String,
+    pub period_type: String,
+    pub period_start: String,
+    pub period_end: String,
+    pub highlights: String,
+    pub blockers: String,
+    pub lessons: String,
+    pub next_actions: String,
+    pub score: Option<i32>,
+    pub created_at: String,
+    pub updated_at: String,
+}}
+
 // ============ User Profile ============
 
 camel! {

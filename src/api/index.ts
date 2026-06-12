@@ -8,3 +8,4 @@ export * from './profile';
 export * from './auth';
 export * from './sync';
 export * from './reminders';
+export * from './reviews';

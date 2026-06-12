@@ -317,6 +317,31 @@ pub fn migrate(conn: &Connection) -> AppResult<()> {
         tx.execute("PRAGMA user_version = 10;", params![])?;
         tx.commit()?;
     }
+    if user_version < 11 {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(
+            r#"
+            CREATE TABLE review_reports (
+                id TEXT PRIMARY KEY,
+                period_type TEXT NOT NULL,
+                period_start TEXT NOT NULL,
+                period_end TEXT NOT NULL,
+                highlights TEXT NOT NULL DEFAULT '',
+                blockers TEXT NOT NULL DEFAULT '',
+                lessons TEXT NOT NULL DEFAULT '',
+                next_actions TEXT NOT NULL DEFAULT '',
+                score INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(period_type, period_start, period_end)
+            );
+            CREATE INDEX IF NOT EXISTS idx_review_reports_period
+                ON review_reports(period_type, period_start, period_end);
+            "#,
+        )?;
+        tx.execute("PRAGMA user_version = 11;", params![])?;
+        tx.commit()?;
+    }
     conn.execute(
         "DELETE FROM goals
          WHERE deleted_at IS NOT NULL

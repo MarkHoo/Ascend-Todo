@@ -208,6 +208,22 @@ export interface CheckInSummary {
   byDay: CheckIn[];
 }
 
+export type ReviewPeriodType = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+export interface ReviewReport {
+  id: string;
+  periodType: ReviewPeriodType;
+  periodStart: string;
+  periodEnd: string;
+  highlights: string;
+  blockers: string;
+  lessons: string;
+  nextActions: string;
+  score?: number | null;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+}
+
 export interface UserProfile {
   id: string;
   nickname?: string | null;

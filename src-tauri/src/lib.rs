@@ -222,6 +222,9 @@ pub fn run() {
             commands::checkins::list_check_ins,
             commands::checkins::check_in_summary,
             commands::checkins::upsert_check_in,
+            // period reviews
+            commands::reviews::get_review_report,
+            commands::reviews::save_review_report,
             // settings
             commands::settings::get_settings,
             commands::settings::set_setting,
