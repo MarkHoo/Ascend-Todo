@@ -47,6 +47,42 @@ pub fn get_review_report(
 }
 
 #[tauri::command]
+pub fn list_review_reports(
+    state: State<DbState>,
+    period_type: Option<String>,
+) -> AppResult<Vec<ReviewReport>> {
+    let c = conn(&state);
+    let mut reports = Vec::new();
+
+    if let Some(period_type) = period_type {
+        let mut stmt = c.prepare(
+            "SELECT id, period_type, period_start, period_end, highlights, blockers,
+                    lessons, next_actions, score, created_at, updated_at
+             FROM review_reports
+             WHERE period_type = ?
+             ORDER BY period_start DESC, updated_at DESC",
+        )?;
+        let rows = stmt.query_map(params![period_type], row_to_review)?;
+        for row in rows {
+            reports.push(row?);
+        }
+    } else {
+        let mut stmt = c.prepare(
+            "SELECT id, period_type, period_start, period_end, highlights, blockers,
+                    lessons, next_actions, score, created_at, updated_at
+             FROM review_reports
+             ORDER BY period_start DESC, updated_at DESC",
+        )?;
+        let rows = stmt.query_map([], row_to_review)?;
+        for row in rows {
+            reports.push(row?);
+        }
+    }
+
+    Ok(reports)
+}
+
+#[tauri::command]
 pub fn save_review_report(
     state: State<DbState>,
     period_type: String,

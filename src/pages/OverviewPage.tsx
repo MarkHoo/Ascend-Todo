@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
+  Archive,
   BarChart3,
   CalendarDays,
   CheckCircle2,
@@ -42,6 +43,7 @@ import type {
   PomodoroSession,
   ProgressLog,
   ReviewPeriodType,
+  ReviewReport,
   Task,
 } from '@/types';
 import {
@@ -102,6 +104,8 @@ export function OverviewPage() {
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
   const [goalLogs, setGoalLogs] = useState<Record<string, ProgressLog[]>>({});
   const [review, setReview] = useState<ReviewDraft>(EMPTY_REVIEW);
+  const [reviewHistory, setReviewHistory] = useState<ReviewReport[]>([]);
+  const [historyFilter, setHistoryFilter] = useState<ReviewPeriodType | 'all'>('all');
   const [reviewUpdatedAt, setReviewUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -186,6 +190,20 @@ export function OverviewPage() {
     };
   }, [period.end, period.start, periodType]);
 
+  const fetchReviewHistory = useCallback(async () => {
+    try {
+      setReviewHistory(await reviewsApi.list());
+    } catch (error) {
+      toast.error(`复盘记录加载失败：${String(error)}`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'review') {
+      void fetchReviewHistory();
+    }
+  }, [fetchReviewHistory, view]);
+
   const analysis = useMemo(
     () => buildAnalysis(tasks, goals, sessions, checkInSummary, checkIns, goalLogs, period, periodType),
     [tasks, goals, sessions, checkInSummary, checkIns, goalLogs, period, periodType],
@@ -201,6 +219,7 @@ export function OverviewPage() {
         review,
       );
       setReviewUpdatedAt(saved.updatedAt);
+      await fetchReviewHistory();
       toast.success('本期复盘已保存');
     } catch (error) {
       toast.error(`复盘保存失败：${String(error)}`);
@@ -213,6 +232,19 @@ export function OverviewPage() {
     const unit = periodType === 'quarter' ? 'month' : periodType;
     const step = periodType === 'quarter' ? amount * 3 : amount;
     setAnchor((current) => current.add(step, unit));
+  };
+
+  const openReviewReport = (report: ReviewReport) => {
+    setPeriodType(report.periodType);
+    setAnchor(dayjs(report.periodStart));
+    setReview({
+      highlights: report.highlights,
+      blockers: report.blockers,
+      lessons: report.lessons,
+      nextActions: report.nextActions,
+      score: report.score,
+    });
+    setReviewUpdatedAt(report.updatedAt);
   };
 
   return (
@@ -323,6 +355,12 @@ export function OverviewPage() {
           updatedAt={reviewUpdatedAt}
           saving={saving}
           onSave={saveReview}
+          history={reviewHistory}
+          historyFilter={historyFilter}
+          setHistoryFilter={setHistoryFilter}
+          currentPeriodType={periodType}
+          currentPeriodStart={period.start.format('YYYY-MM-DD')}
+          onOpenReport={openReviewReport}
         />
       )}
     </div>
@@ -528,6 +566,12 @@ function ReviewAnalysis({
   updatedAt,
   saving,
   onSave,
+  history,
+  historyFilter,
+  setHistoryFilter,
+  currentPeriodType,
+  currentPeriodStart,
+  onOpenReport,
 }: {
   analysis: ReturnType<typeof buildAnalysis>;
   review: ReviewDraft;
@@ -535,9 +579,94 @@ function ReviewAnalysis({
   updatedAt: string | null;
   saving: boolean;
   onSave: () => void;
+  history: ReviewReport[];
+  historyFilter: ReviewPeriodType | 'all';
+  setHistoryFilter: (filter: ReviewPeriodType | 'all') => void;
+  currentPeriodType: ReviewPeriodType;
+  currentPeriodStart: string;
+  onOpenReport: (report: ReviewReport) => void;
 }) {
+  const filteredHistory = historyFilter === 'all'
+    ? history
+    : history.filter((item) => item.periodType === historyFilter);
+
   return (
     <div className="space-y-4">
+      <section className="card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle
+            icon={<Archive size={16} />}
+            title="复盘记录"
+            subtitle={`已保存 ${history.length} 期，点击记录即可查看和继续编辑`}
+          />
+          <div className="inline-flex flex-wrap rounded-lg border border-border bg-surface p-1">
+            <button
+              className={`px-3 py-1.5 rounded-md text-xs ${historyFilter === 'all' ? 'bg-surface-2 text-primary font-medium' : 'text-text-muted'}`}
+              onClick={() => setHistoryFilter('all')}
+            >
+              全部
+            </button>
+            {PERIODS.map((item) => (
+              <button
+                key={item.value}
+                className={`px-3 py-1.5 rounded-md text-xs ${historyFilter === item.value ? 'bg-surface-2 text-primary font-medium' : 'text-text-muted'}`}
+                onClick={() => setHistoryFilter(item.value)}
+              >
+                {periodTypeShortLabel(item.value)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {filteredHistory.length === 0 ? (
+          <div className="h-24 flex items-center justify-center text-sm text-text-muted">
+            暂无已保存的复盘记录
+          </div>
+        ) : (
+          <div className="mt-4 border border-border rounded-lg overflow-x-auto">
+            <div className="min-w-[820px]">
+            <div className="grid grid-cols-[92px_minmax(180px,1fr)_80px_minmax(220px,1.4fr)_142px] bg-surface-2 text-xs text-text-muted">
+              <div className="px-3 py-2.5">周期</div>
+              <div className="px-3 py-2.5 border-l border-border">复盘日期</div>
+              <div className="px-3 py-2.5 border-l border-border">评分</div>
+              <div className="px-3 py-2.5 border-l border-border">内容摘要</div>
+              <div className="px-3 py-2.5 border-l border-border">更新时间</div>
+            </div>
+            <div className="max-h-[300px] overflow-y-auto">
+              {filteredHistory.map((report) => {
+                const active = report.periodType === currentPeriodType && report.periodStart === currentPeriodStart;
+                return (
+                  <button
+                    key={report.id}
+                    className={`w-full grid grid-cols-[92px_minmax(180px,1fr)_80px_minmax(220px,1.4fr)_142px] text-left text-sm border-t border-border first:border-t-0 transition-colors ${
+                      active ? 'bg-primary-soft' : 'hover:bg-surface-2'
+                    }`}
+                    onClick={() => onOpenReport(report)}
+                  >
+                    <div className="px-3 py-3">
+                      <span className="chip">{periodTypeShortLabel(report.periodType)}</span>
+                    </div>
+                    <div className="px-3 py-3 border-l border-border font-medium truncate">
+                      {reviewPeriodLabel(report)}
+                    </div>
+                    <div className="px-3 py-3 border-l border-border tabular-nums">
+                      {report.score ? `${report.score} 分` : '未评分'}
+                    </div>
+                    <div className="px-3 py-3 border-l border-border text-text-muted truncate">
+                      {reviewSummary(report)}
+                    </div>
+                    <div className="px-3 py-3 border-l border-border text-xs text-text-muted tabular-nums">
+                      {dayjs(report.updatedAt).format('YYYY-MM-DD HH:mm')}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            </div>
+          </div>
+        )}
+      </section>
+
       <AutomaticInsights insights={analysis.insights} />
 
       <section className="card p-5">
@@ -1059,6 +1188,35 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor((safe % 3600) / 60);
   if (hours > 0) return `${hours}小时${minutes > 0 ? `${minutes}分` : ''}`;
   return `${minutes}分钟`;
+}
+
+function periodTypeShortLabel(type: ReviewPeriodType) {
+  return {
+    day: '日复盘',
+    week: '周复盘',
+    month: '月复盘',
+    quarter: '季度复盘',
+    year: '年度复盘',
+  }[type];
+}
+
+function reviewPeriodLabel(report: ReviewReport) {
+  const start = dayjs(report.periodStart);
+  const end = dayjs(report.periodEnd);
+  if (report.periodType === 'day') return start.format('YYYY年M月D日');
+  if (report.periodType === 'week') return `${start.format('YYYY年M月D日')} - ${end.format('M月D日')}`;
+  if (report.periodType === 'month') return start.format('YYYY年M月');
+  if (report.periodType === 'quarter') return `${start.year()}年第${Math.floor(start.month() / 3) + 1}季度`;
+  return start.format('YYYY年');
+}
+
+function reviewSummary(report: ReviewReport) {
+  return [
+    report.highlights,
+    report.blockers,
+    report.lessons,
+    report.nextActions,
+  ].map((item) => item.trim()).find(Boolean) || '已保存复盘，暂未填写文字内容';
 }
 
 function formatPercent(value: number) {
