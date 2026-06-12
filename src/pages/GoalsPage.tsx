@@ -225,6 +225,7 @@ export function GoalsPage() {
       .map((goal) => ({ ...goal, subGoals: [] })),
     [allGoals],
   );
+  const hasListGoals = allGoals.some((goal) => goal.status !== 'draft');
 
   const sortedGoals = useMemo(() => {
     return [...visibleGoals].sort((a, b) => {
@@ -610,75 +611,84 @@ export function GoalsPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative w-full max-w-md">
-          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input
-            className="input w-full pl-9"
-            value={goalSearch}
-            onChange={(event) => setGoalSearch(event.target.value)}
-            placeholder={t('goal.searchPlaceholder')}
-          />
-        </div>
-        <div className="relative">
-          <Button variant="outline" onClick={() => setStatusFilterOpen((open) => !open)}>
-            <Filter size={16} />
-            {t('goal.statusFilter')}
-            <ChevronDown size={15} />
-          </Button>
-          {statusFilterOpen && (
-            <div className="absolute left-0 top-full z-30 mt-2 w-40 border border-border bg-surface py-1 shadow-lg">
-              {(['active', 'completed'] as GoalListStatus[]).map((status) => (
-                <label key={status} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-surface-2">
-                  <input
-                    type="checkbox"
-                    checked={goalStatuses.includes(status)}
-                    onChange={() => setGoalStatuses((statuses) => (
-                      statuses.includes(status)
-                        ? statuses.filter((item) => item !== status)
-                        : [...statuses, status]
-                    ))}
-                  />
-                  {status === 'active' ? t('goal.active') : t('goal.completedFilter')}
-                </label>
-              ))}
+      {hasListGoals ? (
+        <>
+          <div className="mb-4 flex items-center gap-3">
+            <div className="relative w-full max-w-md">
+              <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                className="input w-full pl-9"
+                value={goalSearch}
+                onChange={(event) => setGoalSearch(event.target.value)}
+                placeholder={t('goal.searchPlaceholder')}
+              />
             </div>
-          )}
-        </div>
-        <span className="ml-auto whitespace-nowrap text-sm text-text-muted">
-          {t('goal.goalCount', { count: visibleGoalCount })}
-        </span>
-      </div>
-
-      <div className="overflow-x-auto bg-surface">
-        <div className="min-w-[900px] relative">
-          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-10" style={{ right: 460 }} />
-          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-10" style={{ right: 140 }} />
-          <div className="grid grid-cols-[minmax(0,1fr)_320px_140px] border-b border-border text-[15px] font-semibold text-text">
-            <SortHeader label={t('goal.title')} active={sortField === 'title'} direction={sortDirection} onClick={() => setSort('title')} />
-            <SortHeader label={t('goal.progress')} active={sortField === 'progress'} direction={sortDirection} onClick={() => setSort('progress')} />
-            <div className="px-4 py-3 text-center">{t('goal.weight')}</div>
+            <div className="relative">
+              <Button variant="outline" onClick={() => setStatusFilterOpen((open) => !open)}>
+                <Filter size={16} />
+                {t('goal.statusFilter')}
+                <ChevronDown size={15} />
+              </Button>
+              {statusFilterOpen && (
+                <div className="absolute left-0 top-full z-30 mt-2 w-40 border border-border bg-surface py-1 shadow-lg">
+                  {(['active', 'completed'] as GoalListStatus[]).map((status) => (
+                    <label key={status} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-surface-2">
+                      <input
+                        type="checkbox"
+                        checked={goalStatuses.includes(status)}
+                        onChange={() => setGoalStatuses((statuses) => (
+                          statuses.includes(status)
+                            ? statuses.filter((item) => item !== status)
+                            : [...statuses, status]
+                        ))}
+                      />
+                      {status === 'active' ? t('goal.active') : t('goal.completedFilter')}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span className="ml-auto whitespace-nowrap text-sm text-text-muted">
+              {t('goal.goalCount', { count: visibleGoalCount })}
+            </span>
           </div>
 
-          {sortedGoals.length === 0 ? (
-            <div className="py-16 text-center text-text-muted">
-              <Target size={30} className="mx-auto mb-2 opacity-40" />
-              {t('goal.noGoals')}
+          <div className="overflow-x-auto bg-surface">
+            <div className="min-w-[900px] relative">
+              <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-10" style={{ right: 460 }} />
+              <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-border z-10" style={{ right: 140 }} />
+              <div className="grid grid-cols-[minmax(0,1fr)_320px_140px] border-b border-border text-[15px] font-semibold text-text">
+                <SortHeader label={t('goal.title')} active={sortField === 'title'} direction={sortDirection} onClick={() => setSort('title')} />
+                <SortHeader label={t('goal.progress')} active={sortField === 'progress'} direction={sortDirection} onClick={() => setSort('progress')} />
+                <div className="px-4 py-3 text-center">{t('goal.weight')}</div>
+              </div>
+
+              {sortedGoals.length === 0 ? (
+                <div className="py-16 text-center text-text-muted">
+                  <Target size={30} className="mx-auto mb-2 opacity-40" />
+                  {t('goal.noGoals')}
+                </div>
+              ) : (
+                sortedGoals.map((goal) => (
+                  <GoalTreeRows
+                    key={goal.id}
+                    goal={goal}
+                    level={0}
+                    expanded={expanded}
+                    setExpanded={setExpanded}
+                    onOpen={openDetail}
+                  />
+                ))
+              )}
             </div>
-          ) : (
-            sortedGoals.map((goal) => (
-              <GoalTreeRows
-                key={goal.id}
-                goal={goal}
-                level={0}
-                expanded={expanded}
-                setExpanded={setExpanded}
-                onOpen={openDetail}
-              />
-            ))
-          )}
+          </div>
+        </>
+      ) : (
+        <div className="py-20 text-center text-text-muted">
+          <Target size={34} className="mx-auto mb-3 opacity-40" />
+          {t('goal.noGoals')}
         </div>
-      </div>
+      )}
 
       <DraftBoxModal
         open={draftBoxOpen}

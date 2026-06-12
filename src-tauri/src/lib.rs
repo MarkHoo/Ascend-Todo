@@ -38,6 +38,13 @@ pub fn run() {
                 conn: Mutex::new(conn),
             });
 
+            if let (Some(window), Some(icon)) = (
+                app.get_webview_window("main"),
+                app.default_window_icon(),
+            ) {
+                window.set_icon(icon.clone())?;
+            }
+
             // Setup system tray icon with context menu
             use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
             let show_item = MenuItemBuilder::new("显示主窗口 / Show").id("show").build(app)?;

@@ -32,7 +32,8 @@
     "active": true,
     "targets": ["msi", "nsis"],
     "resources": {
-      "resources/WebView2Loader.dll": "WebView2Loader.dll"
+      "resources/WebView2Loader.dll": "WebView2Loader.dll",
+      "icons/icon.ico": "app-icon-1.0.0.ico"
     },
     "icon": [
       "icons/32x32.png",
@@ -51,12 +52,14 @@
         "silent": true
       },
       "nsis": {
+        "template": "nsis/installer.nsi",
         "languages": ["SimpChinese", "TradChinese", "English"],
         "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico",
         "installMode": "perMachine"
       },
       "wix": {
+        "template": "wix-main.wxs",
         "language": {
           "zh-CN": {
             "localePath": "wix-locale.wxl"
