@@ -276,4 +276,22 @@ export interface ReminderItem {
   isCompleted: boolean;
   boardName: string;
   listName: string;
+  boardId: string;
+  nextReminderAt?: string | null;
+  soundEnabled: boolean;
+  notificationEnabled: boolean;
+}
+
+export interface TaskReminderSettings {
+  taskId: string;
+  enabled: boolean;
+  reminderTime: string;
+  repeatMode: 'daily' | 'weekdays' | 'custom';
+  weekdays: number[];
+  notificationEnabled: boolean;
+  soundEnabled: boolean;
+  snoozeMinutes: number;
+  paused: boolean;
+  silentUntil?: string | null;
+  nextReminderAt?: string | null;
 }

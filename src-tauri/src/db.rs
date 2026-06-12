@@ -286,6 +286,37 @@ pub fn migrate(conn: &Connection) -> AppResult<()> {
         tx.execute("PRAGMA user_version = 9;", params![])?;
         tx.commit()?;
     }
+    if user_version < 10 {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(
+            r#"
+            CREATE TABLE task_reminder_settings (
+                task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                repeat_mode TEXT NOT NULL DEFAULT 'daily',
+                weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',
+                notification_enabled INTEGER NOT NULL DEFAULT 1,
+                sound_enabled INTEGER NOT NULL DEFAULT 1,
+                snooze_minutes INTEGER NOT NULL DEFAULT 0,
+                paused INTEGER NOT NULL DEFAULT 0,
+                silent_until TEXT,
+                next_reminder_at TEXT,
+                last_triggered_at TEXT,
+                trigger_count_date TEXT,
+                trigger_count INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            );
+            INSERT INTO task_reminder_settings
+                (task_id, enabled, repeat_mode, weekdays, notification_enabled, sound_enabled,
+                 snooze_minutes, paused, next_reminder_at, updated_at)
+            SELECT id, 1, 'daily', '1,2,3,4,5,6,7', 1, 1, 0, 0, NULL, datetime('now')
+            FROM tasks
+            WHERE reminder_time IS NOT NULL;
+            "#,
+        )?;
+        tx.execute("PRAGMA user_version = 10;", params![])?;
+        tx.commit()?;
+    }
     conn.execute(
         "DELETE FROM goals
          WHERE deleted_at IS NOT NULL

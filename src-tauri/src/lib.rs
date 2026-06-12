@@ -129,6 +129,9 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // Check if minimize-to-tray is enabled
                 let should_minimize = {
@@ -233,6 +236,12 @@ pub fn run() {
             commands::reminders::pending_reminders,
             commands::reminders::mark_reminder_sent,
             commands::reminders::upcoming_reminders,
+            commands::reminders::get_task_reminder_settings,
+            commands::reminders::update_task_reminder_settings,
+            commands::reminders::snooze_task_reminder,
+            commands::reminders::silence_task_reminder_today,
+            commands::reminders::show_reminder_popup,
+            commands::reminders::open_reminder_task,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

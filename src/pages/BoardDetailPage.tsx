@@ -28,7 +28,8 @@ import { TimePicker } from '@/components/common/DateTimePicker';
 import { ColorPicker } from '@/components/common/ColorPicker';
 import { toast } from '@/components/common/Toast';
 import { dayjs } from '@/utils/date';
-import type { ListWithTasks, TaskWithSubtasks } from '@/types';
+import { remindersApi } from '@/api';
+import type { ListWithTasks, TaskReminderSettings, TaskWithSubtasks } from '@/types';
 
 // ============ Constants ============
 
@@ -251,6 +252,7 @@ export function BoardDetailPage() {
   displayListsRef.current = displayLists;
   const taskStackRef = useRef(taskStack);
   taskStackRef.current = taskStack;
+  const reminderTaskOpenedRef = useRef<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; onConfirm: () => void; message?: string }>({
     open: false, onConfirm: () => {},
   });
@@ -266,6 +268,16 @@ export function BoardDetailPage() {
   useEffect(() => {
     if (!activeId && currentBoard?.lists) setDisplayLists(currentBoard.lists);
   }, [currentBoard?.lists]);
+  useEffect(() => {
+    if (!currentBoard || currentBoard.board.id !== id) return;
+    const query = window.location.hash.split('?')[1] || '';
+    const taskId = new URLSearchParams(query).get('task');
+    if (!taskId || reminderTaskOpenedRef.current === taskId) return;
+    reminderTaskOpenedRef.current = taskId;
+    getTask(taskId).then((task) => {
+      setTaskStack([{ task, depth: 0, hideSubtaskTab: false }]);
+    }).catch(() => {});
+  }, [currentBoard, getTask, id]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // ALL hooks must be BEFORE any early returns (Rules of Hooks)
@@ -605,6 +617,9 @@ function TaskDetailModal({
   const [subtaskSortOpen, setSubtaskSortOpen] = useState(false);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
+  const [reminderSettings, setReminderSettings] = useState<TaskReminderSettings | null>(null);
+  const [reminderSaving, setReminderSaving] = useState(false);
+  const [pendingTerminalStatus, setPendingTerminalStatus] = useState<TaskStatus | null>(null);
   const quickSubtaskRef = useRef<HTMLInputElement>(null);
   const canHaveSubtasks = depth < MAX_NESTING - 1 && !hideSubtaskTab;
 
@@ -616,6 +631,45 @@ function TaskDetailModal({
       priority: task.priority, startAt: task.startAt,
     });
   }, [task.id, task.title, task.description, task.dueAt, task.reminderTime, task.color, task.status, task.priority, task.startAt]);
+
+  useEffect(() => {
+    remindersApi.getSettings(task.id).then(setReminderSettings).catch(() => setReminderSettings(null));
+  }, [task.id]);
+
+  const saveReminderSettings = async (patch: Partial<TaskReminderSettings>) => {
+    if (!reminderSettings) return;
+    const next = { ...reminderSettings, ...patch };
+    setReminderSettings(next);
+    setReminderSaving(true);
+    try {
+      const saved = await remindersApi.updateSettings(next);
+      setReminderSettings(saved);
+      setDraft((current) => ({
+        ...current,
+        reminderTime: saved.enabled ? saved.reminderTime : null,
+      }));
+      window.dispatchEvent(new Event('ascend:reminders-changed'));
+      toast.success(t('reminder.updated'));
+      await onRefresh();
+    } catch {
+      setReminderSettings(reminderSettings);
+      toast.error(t('reminder.saveFailed'));
+    } finally {
+      setReminderSaving(false);
+    }
+  };
+
+  const changeTaskStatus = (status: TaskStatus) => {
+    const terminal = status === 'completed' || status === 'closed';
+    if (terminal && reminderSettings?.enabled) {
+      setPendingTerminalStatus(status);
+      return;
+    }
+    setDraft((current) => ({ ...current, status }));
+    if (!terminal && reminderSettings?.enabled && (task.status === 'completed' || task.status === 'closed')) {
+      saveReminderSettings({});
+    }
+  };
 
   useEffect(() => {
     if (!canHaveSubtasks && detailTab === 'subtask') {
@@ -848,7 +902,7 @@ function TaskDetailModal({
           <div>
             <label className="label">{t('board.currentStatus')}</label>
             <select className="input w-full" value={draft.status || 'not_started'}
-              onChange={(e) => setDraft({ ...draft, status: e.target.value as TaskStatus })}>
+              onChange={(e) => changeTaskStatus(e.target.value as TaskStatus)}>
               {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{statusLabel(s, t)}</option>)}
             </select>
           </div>
@@ -869,22 +923,142 @@ function TaskDetailModal({
           </div>
         </div>
 
-        {/* Label Color & Reminder */}
+        {/* Label color */}
         <div className="flex items-end gap-4 flex-wrap">
           <div>
             <label className="label">{t('board.labelColor')}</label>
             <ColorPicker value={draft.color} onChange={(v) => setDraft({ ...draft, color: v })} />
           </div>
-          <div>
-            <label className="label">{t('board.taskReminder')}</label>
-            <TimePicker value={draft.reminderTime} onChange={(v) => setDraft({ ...draft, reminderTime: v })} />
-          </div>
-          {draft.reminderTime && (
-            <span className="flex items-center gap-1 text-xs text-text-muted pb-0.5">
-              <Bell size={12} />{draft.reminderTime}
-            </span>
-          )}
         </div>
+
+        {reminderSettings && (
+          <section className="border border-border bg-surface-2/20 p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold">
+                <Bell size={17} className="text-primary" />
+                {t('board.taskReminder')}
+              </div>
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={reminderSettings.enabled}
+                  disabled={reminderSaving}
+                  onChange={(event) => saveReminderSettings({
+                    enabled: event.target.checked,
+                    paused: event.target.checked ? false : reminderSettings.paused,
+                  })}
+                />
+                {reminderSettings.enabled ? t('common.open') : t('common.close')}
+              </label>
+            </div>
+
+            {reminderSettings.enabled && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div>
+                    <label className="label">{t('reminder.time')}</label>
+                    <TimePicker
+                      value={reminderSettings.reminderTime}
+                      onChange={(value) => value && saveReminderSettings({ reminderTime: value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{t('reminder.repeat')}</label>
+                    <select
+                      className="input w-full"
+                      value={reminderSettings.repeatMode}
+                      onChange={(event) => saveReminderSettings({
+                        repeatMode: event.target.value as TaskReminderSettings['repeatMode'],
+                      })}
+                    >
+                      <option value="daily">{t('reminder.daily')}</option>
+                      <option value="weekdays">{t('reminder.weekdays')}</option>
+                      <option value="custom">{t('reminder.custom')}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{t('reminder.unhandled')}</label>
+                    <select
+                      className="input w-full"
+                      value={reminderSettings.snoozeMinutes}
+                      onChange={(event) => saveReminderSettings({ snoozeMinutes: Number(event.target.value) })}
+                    >
+                      <option value={0}>{t('reminder.noRepeat')}</option>
+                      <option value={10}>{t('reminder.after10')}</option>
+                      <option value={30}>{t('reminder.after30')}</option>
+                      <option value={60}>{t('reminder.after60')}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {reminderSettings.repeatMode === 'custom' && (
+                  <div>
+                    <label className="label">{t('reminder.customDays')}</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+                        const selected = reminderSettings.weekdays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            className={`h-9 w-10 border text-sm ${selected ? 'border-primary bg-primary text-white' : 'border-border bg-surface'}`}
+                            onClick={() => {
+                              const weekdays = selected
+                                ? reminderSettings.weekdays.filter((item) => item !== day)
+                                : [...reminderSettings.weekdays, day];
+                              if (weekdays.length > 0) saveReminderSettings({ weekdays });
+                            }}
+                          >
+                            {t(`reminder.day${day}`)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-6 text-sm">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={reminderSettings.notificationEnabled}
+                      onChange={(event) => saveReminderSettings({ notificationEnabled: event.target.checked })}
+                    />
+                    {t('reminder.systemNotification')}
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={reminderSettings.soundEnabled}
+                      onChange={(event) => saveReminderSettings({ soundEnabled: event.target.checked })}
+                    />
+                    {t('reminder.sound')}
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={reminderSettings.paused}
+                      onChange={(event) => saveReminderSettings({ paused: event.target.checked })}
+                    />
+                    {t('reminder.pause')}
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2 border-t border-border pt-3 text-sm text-text-muted">
+                  <Bell size={14} />
+                  <span>{t('reminder.next')}:</span>
+                  <span className="font-medium text-text">
+                    {reminderSettings.paused
+                      ? t('reminder.paused')
+                      : reminderSettings.nextReminderAt
+                        ? dayjs(reminderSettings.nextReminderAt).format('YYYY-MM-DD HH:mm')
+                        : t('reminder.notScheduled')}
+                  </span>
+                  {reminderSaving && <span>{t('reminder.saving')}</span>}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border pb-1">
@@ -1085,6 +1259,35 @@ function TaskDetailModal({
         await onRefresh();
       }}
     />
+    <Modal
+      open={pendingTerminalStatus !== null}
+      onClose={() => setPendingTerminalStatus(null)}
+      title={t('reminder.taskFinishedTitle')}
+      size="sm"
+    >
+      <p className="text-sm text-text-muted">{t('reminder.taskFinishedMessage')}</p>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => setPendingTerminalStatus(null)}>{t('common.cancel')}</Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (pendingTerminalStatus) setDraft((current) => ({ ...current, status: pendingTerminalStatus }));
+            setPendingTerminalStatus(null);
+          }}
+        >
+          {t('reminder.keepReminder')}
+        </Button>
+        <Button
+          onClick={async () => {
+            if (pendingTerminalStatus) setDraft((current) => ({ ...current, status: pendingTerminalStatus }));
+            await saveReminderSettings({ enabled: false });
+            setPendingTerminalStatus(null);
+          }}
+        >
+          {t('reminder.closeReminder')}
+        </Button>
+      </div>
+    </Modal>
     </>
   );
 }

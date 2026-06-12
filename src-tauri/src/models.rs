@@ -359,4 +359,23 @@ pub struct ReminderItem {
     pub is_completed: bool,
     pub board_name: String,
     pub list_name: String,
+    pub board_id: String,
+    pub next_reminder_at: Option<String>,
+    pub sound_enabled: bool,
+    pub notification_enabled: bool,
+}}
+
+camel! {
+pub struct TaskReminderSettings {
+    pub task_id: String,
+    pub enabled: bool,
+    pub reminder_time: String,
+    pub repeat_mode: String,
+    pub weekdays: Vec<i32>,
+    pub notification_enabled: bool,
+    pub sound_enabled: bool,
+    pub snooze_minutes: i32,
+    pub paused: bool,
+    pub silent_until: Option<String>,
+    pub next_reminder_at: Option<String>,
 }}

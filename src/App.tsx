@@ -47,6 +47,10 @@ function useLangSync() {
 
 function getNextReminderDelay(item: ReminderItem, now: Date): number | null {
   const candidates: number[] = [];
+  if (item.nextReminderAt) {
+    const next = new Date(item.nextReminderAt).getTime();
+    if (!Number.isNaN(next)) return Math.max(0, next - now.getTime());
+  }
   if (item.reminderAt) {
     const at = new Date(item.reminderAt).getTime();
     if (!Number.isNaN(at)) candidates.push(at - now.getTime());
@@ -74,14 +78,6 @@ function useReminderScheduling() {
         '@tauri-apps/plugin-notification'
       );
       const currentSettings = useSettingsStore.getState().settings;
-      if (!currentSettings.notificationEnabled) return;
-      let granted = await isPermissionGranted();
-      if (!granted) {
-        const p = await requestPermission();
-        granted = p === 'granted';
-      }
-      if (!granted) return;
-
       const items = await remindersApi.pending(new Date().toISOString());
       const lang = currentSettings.language;
       const appName =
@@ -90,16 +86,25 @@ function useReminderScheduling() {
       const title = lang.startsWith('zh') ? '\u4efb\u52a1\u63d0\u9192' : 'Task Reminder';
 
       for (const it of items) {
-        sendNotification({
-          title: `${appName} · ${title}`,
-          body: `${it.taskTitle} (${it.boardName} / ${it.listName})`,
-        });
+        if (currentSettings.notificationEnabled && it.notificationEnabled) {
+          let granted = await isPermissionGranted();
+          if (!granted) {
+            const permission = await requestPermission();
+            granted = permission === 'granted';
+          }
+          if (granted) {
+            sendNotification({
+              title: `${appName} · ${title}`,
+              body: `${it.taskTitle} (${it.boardName} / ${it.listName})`,
+            });
+          }
+        }
         try {
           await remindersApi.markSent(it.taskId);
         } catch {
           /* ignore */
         }
-        if (currentSettings.reminderSound !== 'none') {
+        if (it.soundEnabled && currentSettings.reminderSound !== 'none') {
           try {
             const { playReminderSound } = await import('@/utils/sound');
             playReminderSound(currentSettings.reminderSound);
@@ -107,9 +112,10 @@ function useReminderScheduling() {
             /* ignore */
           }
         }
+        await remindersApi.showPopup(it);
       }
-    } catch {
-      /* ignore */
+    } catch (error) {
+      console.error('Reminder tick failed', error);
     }
   }, []);
 
@@ -127,7 +133,7 @@ function useReminderScheduling() {
 
     const scheduleNext = async () => {
       clearReminderTimer();
-      if (!settings.notificationEnabled || disposed) return;
+      if (disposed) return;
       try {
         const { remindersApi } = await import('@/api');
         const upcoming = await remindersApi.upcoming(100);
@@ -141,7 +147,8 @@ function useReminderScheduling() {
           await tick();
           scheduleNext();
         }, Math.max(0, delay));
-      } catch {
+      } catch (error) {
+        console.error('Reminder scheduling failed', error);
         timer = window.setTimeout(scheduleNext, REMINDER_FALLBACK_MS);
       }
     };
@@ -172,7 +179,16 @@ function useTrayNavigation() {
     const unlisten = listen<string>('navigate', (event) => {
       window.location.hash = `#${event.payload}`;
     });
-    return () => { unlisten.then((fn) => fn()); };
+    const unlistenReminder = listen<{ boardId: string; taskId: string }>(
+      'open-reminder-task',
+      (event) => {
+        window.location.hash = `#/boards/${event.payload.boardId}?task=${event.payload.taskId}`;
+      },
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+      unlistenReminder.then((fn) => fn());
+    };
   }, []);
 }
 
