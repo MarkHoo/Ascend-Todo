@@ -9,3 +9,4 @@ export * from './auth';
 export * from './sync';
 export * from './reminders';
 export * from './reviews';
+export * from './updates';

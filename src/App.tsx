@@ -7,11 +7,15 @@ import { setDayjsLocale } from '@/utils/date';
 import { settingsApi } from '@/api';
 import { AppRouter } from './router';
 import type { ReminderItem } from '@/types';
+import { checkForAppUpdate, cleanupInstalledUpdate } from '@/utils/appUpdater';
+import { detectAppLanguage } from '@/utils/language';
 
 export const REMINDERS_CHANGED_EVENT = 'ascend:reminders-changed';
 
 const REMINDER_FALLBACK_MS = 60_000;
 const REMINDER_MAX_DELAY_MS = 24 * 60 * 60 * 1000;
+const UPDATE_FIRST_CHECK_MS = 6_000;
+const UPDATE_INTERVAL_MS = 20 * 60 * 1000;
 
 function useThemeSync() {
   const settings = useSettingsStore((s) => s.settings);
@@ -25,6 +29,12 @@ function useThemeSync() {
     (async () => {
       try {
         const remote = await settingsApi.get();
+        const hasSavedLanguage = await settingsApi.has('language');
+        if (!hasSavedLanguage) {
+          const { locale } = await import('@tauri-apps/plugin-os');
+          remote.language = detectAppLanguage(await locale());
+          await settingsApi.save(remote);
+        }
         setAll(remote);
       } catch {
         /* first run */
@@ -192,10 +202,41 @@ function useTrayNavigation() {
   }, []);
 }
 
+function useAutoUpdater() {
+  const autoUpdate = useSettingsStore((s) => s.settings.autoUpdate);
+
+  useEffect(() => {
+    cleanupInstalledUpdate().catch((error) => {
+      console.error('Update cache cleanup failed', error);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!autoUpdate) return;
+    let disposed = false;
+
+    const runCheck = () => {
+      if (disposed) return;
+      checkForAppUpdate({ silent: true }).catch((error) => {
+        console.error('Auto update check failed', error);
+      });
+    };
+
+    const firstTimer = window.setTimeout(runCheck, UPDATE_FIRST_CHECK_MS);
+    const interval = window.setInterval(runCheck, UPDATE_INTERVAL_MS);
+    return () => {
+      disposed = true;
+      window.clearTimeout(firstTimer);
+      window.clearInterval(interval);
+    };
+  }, [autoUpdate]);
+}
+
 export default function App() {
   useThemeSync();
   useLangSync();
   useReminderScheduling();
   useTrayNavigation();
+  useAutoUpdater();
   return <AppRouter />;
 }

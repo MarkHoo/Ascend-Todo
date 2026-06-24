@@ -12,6 +12,12 @@ import { toast } from '@/components/common/Toast';
 import { dayjs } from '@/utils/date';
 import { playSoundPreview, stopSound } from '@/utils/sound';
 import type { SyncStatus } from '@/types';
+import {
+  checkForAppUpdate,
+  getDownloadedUpdateStatus,
+  installDownloadedUpdate,
+  type UpdateStatus,
+} from '@/utils/appUpdater';
 
 export function SettingsPage() {
   const { t } = useTranslation();
@@ -24,6 +30,8 @@ export function SettingsPage() {
   const [pw, setPw] = useState('');
   const previewTimerRef = useRef<number | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
 
   const stopPreviewSound = useCallback(() => {
     if (previewTimerRef.current) {
@@ -60,6 +68,14 @@ export function SettingsPage() {
       }
     })();
   }, [setSession]);
+
+  useEffect(() => {
+    getDownloadedUpdateStatus()
+      .then((status) => {
+        if (status) setUpdateStatus(status);
+      })
+      .catch(() => {});
+  }, []);
 
   const onSaveSettings = async (patch: Partial<typeof settings>) => {
     const next = { ...settings, ...patch };
@@ -120,9 +136,32 @@ export function SettingsPage() {
   };
 
   const onCheckUpdate = async () => {
-    // Tauri updater plugin is not initialized in this build (no public update
-    // server configured). Show a friendly placeholder.
-    toast.info('Update check unavailable: no update server configured');
+    setUpdateBusy(true);
+    try {
+      const status = await checkForAppUpdate({
+        onStatus: setUpdateStatus,
+      });
+      if (status.state === 'downloaded') {
+        toast.success(status.message || '新版本已下载');
+      } else if (status.state === 'not-available') {
+        toast.info(status.message || '当前已是最新版本');
+      } else if (status.state === 'error') {
+        toast.error(status.error || '更新检查失败');
+      }
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
+
+  const onInstallUpdate = async () => {
+    setUpdateBusy(true);
+    try {
+      await installDownloadedUpdate();
+      toast.info('正在启动更新安装程序，应用即将退出');
+    } catch (error) {
+      toast.error(String(error));
+      setUpdateBusy(false);
+    }
   };
 
   return (
@@ -369,10 +408,28 @@ export function SettingsPage() {
           />
         </Row>
         <Row label={t('settings.checkUpdate')}>
-          <Button size="sm" variant="outline" onClick={onCheckUpdate}>
-            <RefreshCw size={14} />
-            {t('settings.checkUpdate')}
-          </Button>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={onCheckUpdate} disabled={updateBusy}>
+                <RefreshCw size={14} className={updateBusy ? 'animate-spin' : ''} />
+                {updateBusy ? '更新中' : t('settings.checkUpdate')}
+              </Button>
+              {updateStatus?.state === 'downloaded' && (
+                <Button size="sm" onClick={onInstallUpdate} disabled={updateBusy}>
+                  安装 v{updateStatus.latestVersion}
+                </Button>
+              )}
+            </div>
+            <div className="text-xs text-text-muted leading-5">
+              {updateStatus?.message || '使用 GitHub Release 自动检查并静默下载新版本安装包。'}
+              {updateStatus?.state === 'downloaded' && updateStatus.packagePath && (
+                <div className="truncate">已下载：{updateStatus.packagePath}</div>
+              )}
+              {updateStatus?.error && (
+                <div className="text-danger break-all">{updateStatus.error}</div>
+              )}
+            </div>
+          </div>
         </Row>
       </Section>
     </div>

@@ -1,10 +1,13 @@
 name: Build & Release
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v0.2.0). Leave empty to build only.'
+        description: 'Release tag, for example v1.0.1. Leave empty to build artifacts only.'
         required: false
         default: ''
 
@@ -17,26 +20,36 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            targets: msi nsis
-            args: ''
-            label: Windows
-          - os: macos-latest
-            targets: dmg
-            args: '--target universal-apple-darwin'
-            label: macOS
-          - os: ubuntu-22.04
-            targets: deb appimage
-            args: ''
-            label: Ubuntu
-          - os: ubuntu-22.04
-            targets: rpm
-            args: ''
-            label: CentOS
-          - os: ubuntu-22.04
-            targets: appimage
-            args: ''
-            label: ArchLinux
+          - label: windows-x86_64-msi
+            os: windows-latest
+            rustTarget: x86_64-pc-windows-msvc
+            bundles: msi
+            artifactPattern: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            assetSuffix: windows-x86_64.msi
+          - label: macos-x86_64-dmg
+            os: macos-15-intel
+            rustTarget: x86_64-apple-darwin
+            bundles: dmg
+            artifactPattern: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            assetSuffix: macos-x86_64.dmg
+          - label: macos-aarch64-dmg
+            os: macos-latest
+            rustTarget: aarch64-apple-darwin
+            bundles: dmg
+            artifactPattern: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            assetSuffix: macos-aarch64.dmg
+          - label: linux-x86_64-appimage
+            os: ubuntu-22.04
+            rustTarget: x86_64-unknown-linux-gnu
+            bundles: appimage
+            artifactPattern: src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            assetSuffix: linux-x86_64.AppImage
+          - label: linux-aarch64-appimage
+            os: ubuntu-24.04-arm
+            rustTarget: aarch64-unknown-linux-gnu
+            bundles: appimage
+            artifactPattern: src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            assetSuffix: linux-aarch64.AppImage
 
     runs-on: ${{ matrix.os }}
     name: build (${{ matrix.label }})
@@ -44,6 +57,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=manual-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -58,10 +86,6 @@ jobs:
             libssl-dev \
             libsoup-3.0-dev \
             libjavascriptcoregtk-4.1-dev
-          if [[ "${{ matrix.targets }}" == *"rpm"* ]]; then
-            sudo apt-get install -y rpm
-            mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-          fi
 
       - name: Create placeholder for Windows-only resource
         if: runner.os != 'Windows'
@@ -72,44 +96,58 @@ jobs:
       - name: Setup Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: >-
-            ${{
-              matrix.os == 'macos-latest'
-              && 'aarch64-apple-darwin,x86_64-apple-darwin'
-              || ''
-            }}
+          targets: ${{ matrix.rustTarget }}
 
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build & publish
+      - name: Build package
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
-          tagName: ${{ inputs.tag || '' }}
-          releaseName: 'Ascend Todo ${{ inputs.tag }}'
-          releaseBody: |
-            ## Ascend Todo / 光阶Todo ${{ inputs.tag }}
-            > **Master your time, elevate your life.** / **拾光而上，有序人生。**
+          args: --target ${{ matrix.rustTarget }} --bundles ${{ matrix.bundles }}
 
-            ### Downloads / 下载
+      - name: Rename package
+        id: package
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path '${{ matrix.artifactPattern }}'
+          if ($files.Count -eq 0) {
+            throw 'No package files found for ${{ matrix.label }}'
+          }
+          $source = $files | Select-Object -First 1
+          $targetName = 'Ascend-Todo-${{ steps.release.outputs.tag }}-${{ matrix.assetSuffix }}'
+          $target = Join-Path $source.DirectoryName $targetName
+          Move-Item -LiteralPath $source.FullName -Destination $target -Force
+          "path=$target" >> $env:GITHUB_OUTPUT
 
-            | Platform | Package | Notes |
-            | --- | --- | --- |
-            | **Windows** | `.msi` or `-setup.exe` | NSIS auto-installs WebView2 Runtime |
-            | **macOS** | `.dmg` | Universal — Intel + Apple Silicon |
-            | **Ubuntu / Debian** | `_amd64.deb` | `sudo dpkg -i *.deb` |
-            | **CentOS / RHEL / Fedora** | `.rpm` | `sudo rpm -i *.rpm` |
-            | **Arch Linux** | `.AppImage` | Make executable then double-click |
+      - name: Upload manual build artifact
+        if: steps.release.outputs.publish != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ascend-todo-${{ matrix.label }}
+          path: ${{ steps.package.outputs.path }}
+          if-no-files-found: error
 
-            ### System Requirements / 系统要求
+      - name: Upload release asset
+        if: steps.release.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: Ascend Todo ${{ steps.release.outputs.tag }}
+          body: |
+            ## Ascend Todo ${{ steps.release.outputs.tag }}
 
-            - **Windows 10+** (WebView2 Runtime auto-installed by NSIS)
-            - **macOS 11+**
-            - **Linux**: GTK 3 + WebKitGTK 4.1 (Ubuntu 22+, Fedora 36+, Arch)
-          releaseDraft: false
+            This release is built from GitHub Actions and includes:
+
+            - Windows x86_64 MSI
+            - macOS x86_64 DMG
+            - macOS aarch64 DMG
+            - Linux x86_64 AppImage
+            - Linux aarch64 AppImage
+          draft: false
           prerelease: false
-          args: '--bundles ${{ matrix.targets }} ${{ matrix.args }}'
+          files: ${{ steps.package.outputs.path }}

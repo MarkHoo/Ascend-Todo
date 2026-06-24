@@ -80,6 +80,19 @@ pub fn set_setting(state: State<DbState>, key: String, value: String) -> AppResu
 }
 
 #[tauri::command]
+pub fn has_setting(state: State<DbState>, key: String) -> AppResult<bool> {
+    let c = conn(&state);
+    let count: i32 = c
+        .query_row(
+            "SELECT COUNT(*) FROM settings WHERE key = ?",
+            params![key],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    Ok(count > 0)
+}
+
+#[tauri::command]
 pub fn save_settings(state: State<DbState>, settings: AppSettings) -> AppResult<()> {
     let pairs: Vec<(&str, String)> = vec![
         ("theme", settings.theme.clone()),

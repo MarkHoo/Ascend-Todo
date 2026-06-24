@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AppSettings } from '@/types';
+import { detectAppLanguage } from '@/utils/language';
 
 interface State {
   settings: AppSettings;
@@ -10,7 +11,7 @@ interface State {
 
 const defaultSettings: AppSettings = {
   theme: 'aurora-day',
-  language: 'en',
+  language: detectAppLanguage(),
   weekStart: 'mon',
   pomodoroDuration: 25 * 60,
   pomodoroLongBreak: 5 * 60,

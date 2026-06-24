@@ -10,3 +10,4 @@ pub mod auth;
 pub mod sync;
 pub mod reminders;
 pub mod reviews;
+pub mod updates;

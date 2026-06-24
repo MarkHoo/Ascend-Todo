@@ -229,6 +229,7 @@ pub fn run() {
             // settings
             commands::settings::get_settings,
             commands::settings::set_setting,
+            commands::settings::has_setting,
             commands::settings::save_settings,
             // profile
             commands::profile::get_profile,
@@ -253,6 +254,8 @@ pub fn run() {
             commands::reminders::silence_task_reminder_today,
             commands::reminders::show_reminder_popup,
             commands::reminders::open_reminder_task,
+            // updates
+            commands::updates::install_update_package,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
