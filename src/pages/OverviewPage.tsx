@@ -360,6 +360,7 @@ export function OverviewPage() {
           setHistoryFilter={setHistoryFilter}
           currentPeriodType={periodType}
           currentPeriodStart={period.start.format('YYYY-MM-DD')}
+          currentPeriodLabel={period.label}
           onOpenReport={openReviewReport}
         />
       )}
@@ -571,6 +572,7 @@ function ReviewAnalysis({
   setHistoryFilter,
   currentPeriodType,
   currentPeriodStart,
+  currentPeriodLabel,
   onOpenReport,
 }: {
   analysis: ReturnType<typeof buildAnalysis>;
@@ -584,6 +586,7 @@ function ReviewAnalysis({
   setHistoryFilter: (filter: ReviewPeriodType | 'all') => void;
   currentPeriodType: ReviewPeriodType;
   currentPeriodStart: string;
+  currentPeriodLabel: string;
   onOpenReport: (report: ReviewReport) => void;
 }) {
   const filteredHistory = historyFilter === 'all'
@@ -670,7 +673,11 @@ function ReviewAnalysis({
       <AutomaticInsights insights={analysis.insights} />
 
       <section className="card p-5">
-        <SectionTitle icon={<BarChart3 size={16} />} title="本期复盘" subtitle="将数据结论转化为下一周期可执行的行动" />
+        <SectionTitle
+          icon={<BarChart3 size={16} />}
+          title={periodReviewTitle(currentPeriodType)}
+          subtitle={`${currentPeriodLabel} · 将数据结论转化为下一周期可执行的行动`}
+        />
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
           {[1, 2, 3, 4, 5].map((score) => (
             <button
@@ -1191,6 +1198,16 @@ function formatDuration(seconds: number) {
 }
 
 function periodTypeShortLabel(type: ReviewPeriodType) {
+  return {
+    day: '日复盘',
+    week: '周复盘',
+    month: '月复盘',
+    quarter: '季度复盘',
+    year: '年度复盘',
+  }[type];
+}
+
+function periodReviewTitle(type: ReviewPeriodType) {
   return {
     day: '日复盘',
     week: '周复盘',
