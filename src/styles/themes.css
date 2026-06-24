@@ -1,4 +1,4 @@
-/* 4 themes via CSS variables on [data-theme=...] */
+/* Themes via CSS variables on [data-theme=...] */
 
 :root,
 [data-theme='aurora-day'] {
@@ -83,6 +83,90 @@
   --heatmap-2: #f0a88a;
   --heatmap-3: #da7756;
   --heatmap-4: #c4623d;
+}
+
+[data-theme='rose-mist'] {
+  --bg: #fff7fb;
+  --surface: #ffffff;
+  --surface-2: #fdebf3;
+  --text: #321424;
+  --text-muted: #8b5c73;
+  --primary: #e05287;
+  --primary-hover: #c7366e;
+  --primary-soft: #fde7f0;
+  --border: #f3c8d9;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --shadow: rgba(133, 30, 78, 0.08);
+  --heatmap-0: #fdebf3;
+  --heatmap-1: #fbcfe8;
+  --heatmap-2: #f9a8d4;
+  --heatmap-3: #f472b6;
+  --heatmap-4: #e05287;
+}
+
+[data-theme='sakura-pink'] {
+  --bg: #fff9f7;
+  --surface: #ffffff;
+  --surface-2: #fff0ee;
+  --text: #311817;
+  --text-muted: #8a6762;
+  --primary: #f05f7f;
+  --primary-hover: #dc3f67;
+  --primary-soft: #ffe6eb;
+  --border: #f8d4d0;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --shadow: rgba(130, 48, 58, 0.07);
+  --heatmap-0: #fff0ee;
+  --heatmap-1: #ffd4dc;
+  --heatmap-2: #fda4b7;
+  --heatmap-3: #fb7185;
+  --heatmap-4: #f05f7f;
+}
+
+[data-theme='ocean-breeze'] {
+  --bg: #f3fbff;
+  --surface: #ffffff;
+  --surface-2: #e6f6fb;
+  --text: #0d2530;
+  --text-muted: #527181;
+  --primary: #0ea5b7;
+  --primary-hover: #028396;
+  --primary-soft: #d9f5f9;
+  --border: #c9e7ef;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --shadow: rgba(14, 94, 115, 0.07);
+  --heatmap-0: #e6f6fb;
+  --heatmap-1: #bae6fd;
+  --heatmap-2: #67e8f9;
+  --heatmap-3: #22d3ee;
+  --heatmap-4: #0ea5b7;
+}
+
+[data-theme='forest-night'] {
+  --bg: #071410;
+  --surface: #0f211b;
+  --surface-2: #173229;
+  --text: #e5f4ee;
+  --text-muted: #93b6a9;
+  --primary: #38d39f;
+  --primary-hover: #6ee7b7;
+  --primary-soft: #163b31;
+  --border: #21483c;
+  --danger: #f87171;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --shadow: rgba(0, 0, 0, 0.42);
+  --heatmap-0: #173229;
+  --heatmap-1: #166534;
+  --heatmap-2: #15803d;
+  --heatmap-3: #22c55e;
+  --heatmap-4: #86efac;
 }
 
 * {

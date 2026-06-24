@@ -9,6 +9,10 @@ export const THEMES = [
   { id: 'mint-garden', name: 'Mint Garden' },
   { id: 'midnight', name: 'Midnight' },
   { id: 'amber-dawn', name: 'Amber Dawn' },
+  { id: 'rose-mist', name: 'Rose Mist' },
+  { id: 'sakura-pink', name: 'Sakura Pink' },
+  { id: 'ocean-breeze', name: 'Ocean Breeze' },
+  { id: 'forest-night', name: 'Forest Night' },
 ] as const;
 
 export const LANGUAGES = [

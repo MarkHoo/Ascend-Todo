@@ -235,7 +235,15 @@ export interface UserProfile {
 }
 
 export interface AppSettings {
-  theme: 'aurora-day' | 'mint-garden' | 'midnight' | 'amber-dawn';
+  theme:
+    | 'aurora-day'
+    | 'mint-garden'
+    | 'midnight'
+    | 'amber-dawn'
+    | 'rose-mist'
+    | 'sakura-pink'
+    | 'ocean-breeze'
+    | 'forest-night';
   language: 'en' | 'zh-CN' | 'zh-TW';
   weekStart: 'mon' | 'sun';
   pomodoroDuration: number;
@@ -243,7 +251,7 @@ export interface AppSettings {
   autoUpdate: boolean;
   syncEnabled: boolean;
   syncServerUrl?: string | null;
-  reminderSound: 'bell' | 'chime' | 'digital' | 'none';
+  reminderSound: 'bell' | 'chime' | 'digital' | 'waiting' | 'marimba-waiting' | 'none';
   notificationEnabled: boolean;
   motivationalQuotes: boolean;
   autoStart: boolean;
