@@ -301,6 +301,7 @@ export interface SyncStatus {
   lastPulledAt?: string | null;
   pendingChanges: number;
   serverUrl?: string | null;
+  remoteVersion?: number | null;
 }
 
 export interface CalendarEntry {

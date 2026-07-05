@@ -14,6 +14,7 @@ use crate::{
 };
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SimpleResponse {
     pub ok: bool,
 }

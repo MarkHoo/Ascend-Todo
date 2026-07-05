@@ -7,6 +7,7 @@ use serde_json::Value;
 pub struct PushSnapshotRequest {
     pub snapshot: Value,
     pub local_version: Option<i64>,
+    pub base_remote_version: Option<i64>,
     pub client_version: Option<String>,
 }
 

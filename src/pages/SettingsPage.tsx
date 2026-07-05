@@ -236,6 +236,13 @@ const settingsCopy = {
       syncNow: '立即同步',
       uploadLocal: '上传本机数据',
       restoreCloud: '从云端恢复',
+      smartMerge: '智能合并',
+      rename: '重命名',
+      remove: '移除',
+      removeOthers: '移除其他设备',
+      requestWipe: '请求清理',
+      currentDevice: '当前设备',
+      remoteVersion: '云端版本：{{version}}',
       lastSync: '上次同步：{{time}}',
       autoStart: '开机自启',
       minimizeToTray: '关闭时最小化到托盘',
@@ -397,6 +404,13 @@ const settingsCopy = {
       syncNow: '立即同步',
       uploadLocal: '上傳本機資料',
       restoreCloud: '從雲端恢復',
+      smartMerge: '智慧合併',
+      rename: '重新命名',
+      remove: '移除',
+      removeOthers: '移除其他設備',
+      requestWipe: '請求清理',
+      currentDevice: '目前設備',
+      remoteVersion: '雲端版本：{{version}}',
       lastSync: '上次同步：{{time}}',
       autoStart: '開機自啟',
       minimizeToTray: '關閉時最小化到系統匣',
@@ -558,6 +572,13 @@ const settingsCopy = {
       syncNow: 'Sync now',
       uploadLocal: 'Upload local data',
       restoreCloud: 'Restore from cloud',
+      smartMerge: 'Smart merge',
+      rename: 'Rename',
+      remove: 'Remove',
+      removeOthers: 'Remove others',
+      requestWipe: 'Request wipe',
+      currentDevice: 'Current device',
+      remoteVersion: 'Remote version: {{version}}',
       lastSync: 'Last sync: {{time}}',
       autoStart: 'Launch at startup',
       minimizeToTray: 'Minimize to tray on close',
@@ -1553,19 +1574,85 @@ export function SettingsPage() {
     }
   };
 
-  const onSync = async (action: 'push' | 'pull') => {
+  const refreshCloudDevices = async () => {
+    setCloudDevices(await authApi.listDevices().catch(() => []));
+  };
+
+  const onSync = async (action: 'push' | 'pull' | 'merge') => {
     setBusy(true);
     try {
       if (action === 'push') {
         await syncApi.push();
         toast.success(msg('pushSuccess'));
-      } else {
+      } else if (action === 'pull') {
         await syncApi.pull();
         toast.success(msg('pullSuccess'));
+      } else {
+        await syncApi.merge();
+        toast.success(settings.language === 'en' ? 'Data merged and uploaded' : settings.language === 'zh-TW' ? '資料已合併並上傳' : '数据已合并并上传');
       }
       setSyncStatus(await syncApi.status());
     } catch (e) {
       toast.error(t('sync.failed', { msg: String(e) }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRenameCloudDevice = async (device: CloudDevice) => {
+    const nextName = window.prompt(ui.rename, device.deviceName);
+    if (!nextName?.trim() || nextName.trim() === device.deviceName) return;
+    setBusy(true);
+    try {
+      await authApi.renameDevice(device.id, nextName.trim());
+      await refreshCloudDevices();
+      toast.success(settings.language === 'en' ? 'Device renamed' : settings.language === 'zh-TW' ? '設備已重新命名' : '设备已重命名');
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRevokeCloudDevice = async (device: CloudDevice) => {
+    if (device.id === session?.deviceId) return;
+    if (!window.confirm(`${ui.remove}: ${device.deviceName}?`)) return;
+    setBusy(true);
+    try {
+      await authApi.revokeDevice(device.id);
+      await refreshCloudDevices();
+      toast.success(settings.language === 'en' ? 'Device removed' : settings.language === 'zh-TW' ? '設備已移除' : '设备已移除');
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRequestCloudDeviceWipe = async (device: CloudDevice) => {
+    if (device.id === session?.deviceId) return;
+    if (!window.confirm(`${ui.requestWipe}: ${device.deviceName}?`)) return;
+    setBusy(true);
+    try {
+      await authApi.requestDeviceWipe(device.id);
+      await refreshCloudDevices();
+      toast.success(settings.language === 'en' ? 'Cleanup requested' : settings.language === 'zh-TW' ? '已請求清理' : '已请求清理');
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRevokeOtherCloudDevices = async () => {
+    if (!window.confirm(ui.removeOthers)) return;
+    setBusy(true);
+    try {
+      await authApi.revokeOtherDevices();
+      await refreshCloudDevices();
+      toast.success(settings.language === 'en' ? 'Other devices removed' : settings.language === 'zh-TW' ? '其他設備已移除' : '其他设备已移除');
+    } catch (error) {
+      toast.error(String(error));
     } finally {
       setBusy(false);
     }
@@ -2255,14 +2342,36 @@ export function SettingsPage() {
                 {session && (
                   <Row label={ui.devices}>
                     <div className="grid gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={refreshCloudDevices} disabled={busy}>
+                          <RefreshCw size={14} />
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={onRevokeOtherCloudDevices} disabled={busy || cloudDevices.length <= 1}>
+                          {ui.removeOthers}
+                        </Button>
+                      </div>
                       {cloudDevices.length === 0 ? (
                         <span className="text-xs text-text-muted">-</span>
                       ) : cloudDevices.map((device) => (
                         <div key={device.id} className="rounded-md border border-border/70 bg-surface-subtle px-3 py-2 text-sm">
-                          <div className="font-medium">{device.deviceName}</div>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="font-medium">
+                              {device.deviceName}
+                              {device.id === session.deviceId && (
+                                <span className="ml-2 text-xs text-primary">{ui.currentDevice}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              <Button size="sm" variant="outline" onClick={() => onRenameCloudDevice(device)} disabled={busy}>{ui.rename}</Button>
+                              <Button size="sm" variant="outline" onClick={() => onRequestCloudDeviceWipe(device)} disabled={busy || device.id === session.deviceId || Boolean(device.wipeRequestedAt)}>{ui.requestWipe}</Button>
+                              <Button size="sm" variant="danger" onClick={() => onRevokeCloudDevice(device)} disabled={busy || device.id === session.deviceId}>{ui.remove}</Button>
+                            </div>
+                          </div>
                           <div className="text-xs text-text-muted">
                             {[device.platform, device.appVersion].filter(Boolean).join(' · ') || '-'}
                             {device.lastSyncAt ? ` · ${dayjs(device.lastSyncAt).format('YYYY-MM-DD HH:mm')}` : ''}
+                            {device.revokedAt ? ` · ${ui.remove}` : ''}
+                            {device.wipeRequestedAt ? ` · ${ui.requestWipe}` : ''}
                           </div>
                         </div>
                       ))}
@@ -2273,8 +2382,14 @@ export function SettingsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <Button size="sm" onClick={() => onSync('push')} disabled={busy || !session || !session.emailVerified}>{ui.uploadLocal}</Button>
                     <Button size="sm" variant="outline" onClick={() => onSync('pull')} disabled={busy || !session || !session.emailVerified}>{ui.restoreCloud}</Button>
+                    <Button size="sm" variant="outline" onClick={() => onSync('merge')} disabled={busy || !session || !session.emailVerified}>{ui.smartMerge}</Button>
                     {session && !session.emailVerified && (
                       <span className="text-xs text-amber-600">{ui.verifyEmail}</span>
+                    )}
+                    {syncStatus?.remoteVersion && (
+                      <span className="text-xs text-text-muted">
+                        {ui.remoteVersion.replace('{{version}}', String(syncStatus.remoteVersion))}
+                      </span>
                     )}
                     {syncStatus?.lastPushedAt && (
                       <span className="text-xs text-text-muted">

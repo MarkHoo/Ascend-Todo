@@ -4,7 +4,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    error::AppResult,
+    error::{AppError, AppResult},
     models::sync::{PullSnapshotResponse, PushSnapshotRequest, SyncLog},
     services::auth_service,
     state::AppState,
@@ -49,10 +49,32 @@ pub async fn push_snapshot(
         .map(|v| v.len() as i64)
         .ok();
     let remote_version = now.and_utc().timestamp_millis();
-    let exists = sqlx::query("SELECT id FROM sync_snapshots WHERE user_id = ?")
+    let exists = sqlx::query("SELECT id, version FROM sync_snapshots WHERE user_id = ?")
         .bind(&ctx.user_id)
         .fetch_optional(&state.db)
         .await?;
+    if let Some(row) = &exists {
+        let current_version: i64 = row.get("version");
+        if let Some(base_remote_version) = input.base_remote_version {
+            if base_remote_version != current_version {
+                write_sync_log(
+                    &state,
+                    &ctx.user_id,
+                    Some(&ctx.device_id),
+                    "push",
+                    "failed",
+                    input.local_version,
+                    Some(current_version),
+                    Some("remote snapshot changed before push"),
+                    payload_size,
+                )
+                .await?;
+                return Err(AppError::Conflict(
+                    "remote snapshot changed before push; pull or merge before uploading".into(),
+                ));
+            }
+        }
+    }
     if exists.is_some() {
         sqlx::query("UPDATE sync_snapshots SET snapshot_json = ?, version = ?, client_version = ?, device_id = ?, updated_at = ? WHERE user_id = ?")
             .bind(&input.snapshot)

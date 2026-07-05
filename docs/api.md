@@ -42,6 +42,8 @@ POST   /devices/:id/request-wipe
 
 远程移除设备只保证撤销云端访问能力；本地数据只有在旧设备重新联网并执行清理请求时才可能被删除。
 
+`PATCH /devices/:id` 使用 `deviceName` 重命名设备。
+
 ## Sync
 
 ```text
@@ -51,7 +53,7 @@ GET  /sync/pull-snapshot
 GET  /sync/logs
 ```
 
-第一版使用全量快照同步。
+同步使用云端快照版本号做冲突保护。客户端推送时传入 `baseRemoteVersion`；如果云端版本已经被其他设备更新，服务端返回 `409 CONFLICT`，客户端需要先拉取或执行智能合并。
 
 ## Admin
 

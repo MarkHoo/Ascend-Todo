@@ -9,6 +9,7 @@ export interface CloudDevice {
   lastLoginAt?: string | null;
   lastSyncAt?: string | null;
   revokedAt?: string | null;
+  wipeRequestedAt?: string | null;
 }
 
 export const authApi = {
@@ -22,4 +23,9 @@ export const authApi = {
   sendEmailVerificationCode: () => invoke<void>('send_email_verification_code'),
   verifyEmailCode: (code: string) => invoke<AuthSession>('verify_email_code', { code }),
   listDevices: () => invoke<CloudDevice[]>('list_cloud_devices'),
+  renameDevice: (deviceId: string, deviceName: string) =>
+    invoke<void>('rename_cloud_device', { deviceId, deviceName }),
+  revokeDevice: (deviceId: string) => invoke<void>('revoke_cloud_device', { deviceId }),
+  revokeOtherDevices: () => invoke<void>('revoke_other_cloud_devices'),
+  requestDeviceWipe: (deviceId: string) => invoke<void>('request_cloud_device_wipe', { deviceId }),
 };

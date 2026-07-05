@@ -362,6 +362,7 @@ pub struct SyncStatus {
     pub last_pulled_at: Option<String>,
     pub pending_changes: i32,
     pub server_url: Option<String>,
+    pub remote_version: Option<i64>,
 }}
 
 // ============ Aggregate Snapshots (for sync) ============

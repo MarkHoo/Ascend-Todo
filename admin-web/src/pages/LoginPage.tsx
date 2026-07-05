@@ -1,4 +1,4 @@
-﻿import { LockOutlined, MailOutlined } from '@ant-design/icons';
+import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { Button, Card, Form, Input, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { adminApi } from '@/api/admin';
@@ -15,7 +15,7 @@ export function LoginPage() {
         deviceName: 'Admin Web',
         deviceFingerprint: `admin-web-${navigator.userAgent}`,
         platform: navigator.platform,
-        appVersion: '2.0.0',
+        appVersion: '2.1.0',
       });
       setToken(result.accessToken);
       navigate('/');

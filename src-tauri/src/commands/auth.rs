@@ -114,6 +114,14 @@ pub struct CloudDevice {
     pub last_sync_at: Option<String>,
     #[serde(alias = "revoked_at")]
     pub revoked_at: Option<String>,
+    #[serde(alias = "wipe_requested_at")]
+    pub wipe_requested_at: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RenameDeviceRequest {
+    device_name: String,
 }
 
 fn request_auth(
@@ -328,6 +336,95 @@ pub fn list_cloud_devices(state: State<DbState>) -> AppResult<Vec<CloudDevice>> 
     response
         .json()
         .map_err(|e| AppError::Auth(format!("invalid devices response: {e}")))
+}
+
+#[tauri::command]
+pub fn rename_cloud_device(
+    state: State<DbState>,
+    device_id: String,
+    device_name: String,
+) -> AppResult<()> {
+    let session =
+        current_session(state.clone())?.ok_or_else(|| AppError::Auth("not logged in".into()))?;
+    let base = api_base(session.server_url.clone());
+    let response = reqwest::blocking::Client::new()
+        .patch(format!("{base}/api/devices/{device_id}"))
+        .bearer_auth(&session.token)
+        .json(&RenameDeviceRequest { device_name })
+        .send()
+        .map_err(|e| AppError::Auth(format!("rename device failed: {e}")))?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(AppError::Auth(
+            response
+                .text()
+                .unwrap_or_else(|_| "rename device failed".into()),
+        ))
+    }
+}
+
+#[tauri::command]
+pub fn revoke_cloud_device(state: State<DbState>, device_id: String) -> AppResult<()> {
+    let session =
+        current_session(state.clone())?.ok_or_else(|| AppError::Auth("not logged in".into()))?;
+    let base = api_base(session.server_url.clone());
+    let response = reqwest::blocking::Client::new()
+        .delete(format!("{base}/api/devices/{device_id}"))
+        .bearer_auth(&session.token)
+        .send()
+        .map_err(|e| AppError::Auth(format!("remove device failed: {e}")))?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(AppError::Auth(
+            response
+                .text()
+                .unwrap_or_else(|_| "remove device failed".into()),
+        ))
+    }
+}
+
+#[tauri::command]
+pub fn revoke_other_cloud_devices(state: State<DbState>) -> AppResult<()> {
+    let session =
+        current_session(state.clone())?.ok_or_else(|| AppError::Auth("not logged in".into()))?;
+    let base = api_base(session.server_url.clone());
+    let response = reqwest::blocking::Client::new()
+        .post(format!("{base}/api/devices/revoke-others"))
+        .bearer_auth(&session.token)
+        .send()
+        .map_err(|e| AppError::Auth(format!("remove other devices failed: {e}")))?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(AppError::Auth(
+            response
+                .text()
+                .unwrap_or_else(|_| "remove other devices failed".into()),
+        ))
+    }
+}
+
+#[tauri::command]
+pub fn request_cloud_device_wipe(state: State<DbState>, device_id: String) -> AppResult<()> {
+    let session =
+        current_session(state.clone())?.ok_or_else(|| AppError::Auth("not logged in".into()))?;
+    let base = api_base(session.server_url.clone());
+    let response = reqwest::blocking::Client::new()
+        .post(format!("{base}/api/devices/{device_id}/request-wipe"))
+        .bearer_auth(&session.token)
+        .send()
+        .map_err(|e| AppError::Auth(format!("request device cleanup failed: {e}")))?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(AppError::Auth(
+            response
+                .text()
+                .unwrap_or_else(|_| "request device cleanup failed".into()),
+        ))
+    }
 }
 
 #[tauri::command]

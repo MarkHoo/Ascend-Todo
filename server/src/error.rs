@@ -13,6 +13,8 @@ pub enum AppError {
     Unauthorized,
     #[error("forbidden")]
     Forbidden,
+    #[error("conflict: {0}")]
+    Conflict(String),
     #[error("not found")]
     NotFound,
     #[error("database error: {0}")]
@@ -33,6 +35,7 @@ impl IntoResponse for AppError {
             AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "BAD_REQUEST"),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED"),
             AppError::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN"),
+            AppError::Conflict(_) => (StatusCode::CONFLICT, "CONFLICT"),
             AppError::NotFound => (StatusCode::NOT_FOUND, "NOT_FOUND"),
             AppError::Db(_) | AppError::Internal(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR")
