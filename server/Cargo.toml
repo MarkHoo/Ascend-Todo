@@ -1,12 +1,12 @@
 [package]
 name = "ascend-todo-server"
-version = "2.2.0"
+version = "2.3.0"
 edition = "2021"
 
 [dependencies]
 argon2 = "0.5"
 async-trait = "0.1"
-axum = "0.7"
+axum = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
 jsonwebtoken = "9"
@@ -22,5 +22,7 @@ tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+utoipa = { version = "5.5.0", features = ["axum_extras", "chrono"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 validator = { version = "0.18", features = ["derive"] }

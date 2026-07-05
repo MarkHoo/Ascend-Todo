@@ -33,6 +33,7 @@ async fn main() -> anyhow_like::Result<()> {
     let state = AppState::new(config.clone(), pool);
     let app = Router::new()
         .nest("/api", routes::api())
+        .merge(routes::docs::docs())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);

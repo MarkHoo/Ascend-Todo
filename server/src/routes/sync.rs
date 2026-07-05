@@ -1,6 +1,7 @@
 use axum::{extract::State, http::HeaderMap, Json};
 use serde::Serialize;
 use sqlx::Row;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
     utils::time,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncStatusResponse {
     pub email_verified: bool,
@@ -20,6 +21,13 @@ pub struct SyncStatusResponse {
     pub last_sync_at: Option<chrono::NaiveDateTime>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/sync/status",
+    tag = "Sync",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Cloud sync status", body = SyncStatusResponse))
+)]
 pub async fn status(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -37,6 +45,14 @@ pub async fn status(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/sync/push-snapshot",
+    tag = "Sync",
+    security(("bearerAuth" = [])),
+    request_body = PushSnapshotRequest,
+    responses((status = 200, description = "Snapshot uploaded", body = SyncStatusResponse))
+)]
 pub async fn push_snapshot(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -124,6 +140,13 @@ pub async fn push_snapshot(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/sync/pull-snapshot",
+    tag = "Sync",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Cloud snapshot", body = PullSnapshotResponse))
+)]
 pub async fn pull_snapshot(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -155,6 +178,13 @@ pub async fn pull_snapshot(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/sync/logs",
+    tag = "Sync",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Recent sync logs", body = Vec<SyncLog>))
+)]
 pub async fn logs(
     State(state): State<AppState>,
     headers: HeaderMap,

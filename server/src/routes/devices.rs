@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use serde::Serialize;
+use utoipa::ToSchema;
 
 use crate::{
     error::AppResult,
@@ -13,12 +14,20 @@ use crate::{
     utils::time,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
+#[schema(as = DeviceSimpleResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct SimpleResponse {
     pub ok: bool,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/devices",
+    tag = "Devices",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Signed-in devices", body = Vec<Device>))
+)]
 pub async fn list_devices(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -33,6 +42,15 @@ pub async fn list_devices(
     Ok(Json(rows))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/devices/{id}",
+    tag = "Devices",
+    security(("bearerAuth" = [])),
+    params(("id" = String, Path, description = "Device id")),
+    request_body = RenameDeviceRequest,
+    responses((status = 200, description = "Device renamed", body = SimpleResponse))
+)]
 pub async fn rename_device(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -52,6 +70,14 @@ pub async fn rename_device(
     Ok(Json(SimpleResponse { ok: true }))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/devices/{id}",
+    tag = "Devices",
+    security(("bearerAuth" = [])),
+    params(("id" = String, Path, description = "Device id")),
+    responses((status = 200, description = "Device revoked", body = SimpleResponse))
+)]
 pub async fn revoke_device(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -76,6 +102,13 @@ pub async fn revoke_device(
     Ok(Json(SimpleResponse { ok: true }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/devices/revoke-others",
+    tag = "Devices",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Other devices revoked", body = SimpleResponse))
+)]
 pub async fn revoke_others(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -100,6 +133,14 @@ pub async fn revoke_others(
     Ok(Json(SimpleResponse { ok: true }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/devices/{id}/request-wipe",
+    tag = "Devices",
+    security(("bearerAuth" = [])),
+    params(("id" = String, Path, description = "Device id")),
+    responses((status = 200, description = "Device cleanup requested", body = SimpleResponse))
+)]
 pub async fn request_wipe(
     State(state): State<AppState>,
     headers: HeaderMap,

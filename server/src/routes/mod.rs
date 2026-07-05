@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod auth;
 pub mod devices;
+pub mod docs;
 pub mod email;
 pub mod health;
 pub mod sync;
@@ -29,10 +30,10 @@ pub fn api() -> Router<AppState> {
         .route("/devices", get(devices::list_devices))
         .route("/devices/revoke-others", post(devices::revoke_others))
         .route(
-            "/devices/:id",
+            "/devices/{id}",
             patch(devices::rename_device).delete(devices::revoke_device),
         )
-        .route("/devices/:id/request-wipe", post(devices::request_wipe))
+        .route("/devices/{id}/request-wipe", post(devices::request_wipe))
         .route("/sync/status", get(sync::status))
         .route("/sync/push-snapshot", post(sync::push_snapshot))
         .route("/sync/pull-snapshot", get(sync::pull_snapshot))
@@ -40,7 +41,7 @@ pub fn api() -> Router<AppState> {
         .route("/admin/login", post(admin::login))
         .route("/admin/overview", get(admin::overview))
         .route("/admin/users", get(admin::users))
-        .route("/admin/users/:id", get(admin::user_detail))
+        .route("/admin/users/{id}", get(admin::user_detail))
         .route("/admin/devices", get(admin::devices))
         .route("/admin/sync-logs", get(admin::sync_logs))
         .route("/admin/system-health", get(admin::system_health))

@@ -2,6 +2,7 @@ use axum::{extract::State, http::HeaderMap, Json};
 use chrono::Duration;
 use serde::Serialize;
 use sqlx::Row;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -12,11 +13,20 @@ use crate::{
     utils::{crypto, time},
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
+#[schema(as = EmailSimpleResponse)]
 pub struct SimpleResponse {
     pub ok: bool,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/email/send-verification-code",
+    tag = "Email",
+    security(("bearerAuth" = [])),
+    request_body = SendEmailCodeRequest,
+    responses((status = 200, description = "Verification code sent", body = SimpleResponse))
+)]
 pub async fn send_verification_code(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -54,6 +64,14 @@ pub async fn send_verification_code(
     Ok(Json(SimpleResponse { ok: true }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/email/verify",
+    tag = "Email",
+    security(("bearerAuth" = [])),
+    request_body = VerifyEmailRequest,
+    responses((status = 200, description = "Email verified", body = SimpleResponse))
+)]
 pub async fn verify_email(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -89,6 +107,12 @@ pub async fn verify_email(
     Ok(Json(SimpleResponse { ok: true }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/phone/send-verification-code",
+    tag = "Phone",
+    responses((status = 400, description = "Reserved endpoint", body = SimpleResponse))
+)]
 pub async fn phone_reserved() -> AppResult<Json<SimpleResponse>> {
     Err(AppError::BadRequest("手机验证码暂未开放".into()))
 }

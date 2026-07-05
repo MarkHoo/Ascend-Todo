@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::Serialize;
 use sqlx::Row;
+use utoipa::ToSchema;
 
 use crate::{
     error::{AppError, AppResult},
@@ -18,7 +19,7 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct OverviewResponse {
     pub total_users: i64,
     pub verified_users: i64,
@@ -27,6 +28,13 @@ pub struct OverviewResponse {
     pub sync_failed_today: i64,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/login",
+    tag = "Admin",
+    request_body = LoginRequest,
+    responses((status = 200, description = "Admin session", body = AuthResponse))
+)]
 pub async fn login(
     State(state): State<AppState>,
     Json(input): Json<LoginRequest>,
@@ -42,6 +50,13 @@ pub async fn login(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/overview",
+    tag = "Admin",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Admin overview metrics", body = OverviewResponse))
+)]
 pub async fn overview(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -74,6 +89,13 @@ pub async fn overview(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/users",
+    tag = "Admin",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Recent users", body = Vec<User>))
+)]
 pub async fn users(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -86,6 +108,14 @@ pub async fn users(
     Ok(Json(rows))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/users/{id}",
+    tag = "Admin",
+    security(("bearerAuth" = [])),
+    params(("id" = String, Path, description = "User id")),
+    responses((status = 200, description = "User detail", body = User))
+)]
 pub async fn user_detail(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -100,6 +130,13 @@ pub async fn user_detail(
     Ok(Json(row))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/devices",
+    tag = "Admin",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Recent devices", body = Vec<Device>))
+)]
 pub async fn devices(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -114,6 +151,13 @@ pub async fn devices(
     Ok(Json(rows))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/sync-logs",
+    tag = "Admin",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Recent sync logs", body = Vec<SyncLog>))
+)]
 pub async fn sync_logs(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -127,13 +171,20 @@ pub async fn sync_logs(
     Ok(Json(rows))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct SystemHealthResponse {
     pub ok: bool,
     pub database: bool,
     pub version: &'static str,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/system-health",
+    tag = "Admin",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Backend system health", body = SystemHealthResponse))
+)]
 pub async fn system_health(
     State(state): State<AppState>,
     headers: HeaderMap,

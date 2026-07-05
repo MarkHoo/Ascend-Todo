@@ -1,6 +1,7 @@
 use axum::{extract::State, http::HeaderMap, Json};
 use serde::Serialize;
 use sqlx::Row;
+use utoipa::ToSchema;
 
 use crate::{
     error::{AppError, AppResult},
@@ -13,6 +14,13 @@ use crate::{
     utils::{crypto, jwt, time},
 };
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/register",
+    tag = "Auth",
+    request_body = RegisterRequest,
+    responses((status = 200, description = "Registered user profile", body = UserProfile))
+)]
 pub async fn register(
     State(state): State<AppState>,
     Json(input): Json<RegisterRequest>,
@@ -21,6 +29,13 @@ pub async fn register(
     Ok(Json(user))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/login",
+    tag = "Auth",
+    request_body = LoginRequest,
+    responses((status = 200, description = "Authenticated session", body = crate::models::auth::AuthResponse))
+)]
 pub async fn login(
     State(state): State<AppState>,
     Json(input): Json<LoginRequest>,
@@ -30,6 +45,13 @@ pub async fn login(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/auth/me",
+    tag = "Auth",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Current user profile", body = UserProfile))
+)]
 pub async fn me(State(state): State<AppState>, headers: HeaderMap) -> AppResult<Json<UserProfile>> {
     let ctx = auth_service::authenticate(&headers, &state).await?;
     let row =
@@ -47,11 +69,18 @@ pub async fn me(State(state): State<AppState>, headers: HeaderMap) -> AppResult<
     }))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct LogoutResponse {
     pub ok: bool,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/logout",
+    tag = "Auth",
+    security(("bearerAuth" = [])),
+    responses((status = 200, description = "Logged out", body = LogoutResponse))
+)]
 pub async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -67,6 +96,13 @@ pub async fn logout(
     Ok(Json(LogoutResponse { ok: true }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/refresh",
+    tag = "Auth",
+    request_body = RefreshTokenRequest,
+    responses((status = 200, description = "Refreshed session", body = crate::models::auth::AuthResponse))
+)]
 pub async fn refresh(
     State(state): State<AppState>,
     Json(input): Json<RefreshTokenRequest>,
