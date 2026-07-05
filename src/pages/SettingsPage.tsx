@@ -4,7 +4,6 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  Cloud,
   Database,
   HelpCircle,
   Info,
@@ -23,13 +22,11 @@ import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { settingsApi, syncApi, authApi, calendarApi } from '@/api';
-import type { CloudDevice } from '@/api/auth';
+import { settingsApi, syncApi, calendarApi } from '@/api';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { toast } from '@/components/common/Toast';
-import { useAuthStore } from '@/store/useAuthStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { APP_VERSION, LANGUAGES, SOUNDS, THEMES } from '@/utils/constants';
 import { dayjs, setDayjsLocale } from '@/utils/date';
@@ -41,14 +38,13 @@ import {
   installDownloadedUpdate,
   type UpdateStatus,
 } from '@/utils/appUpdater';
-import type { AppSettings, CalendarEmailAccount, CalendarHolidaySource, CalendarSyncStatus, SyncStatus } from '@/types';
+import type { AppSettings, CalendarEmailAccount, CalendarHolidaySource, CalendarSyncStatus } from '@/types';
 
 type SectionId =
   | 'appearance'
   | 'calendar'
   | 'notifications'
   | 'pomodoro'
-  | 'sync'
   | 'window'
   | 'data'
   | 'about';
@@ -89,7 +85,6 @@ const navItems: Array<{ id: SectionId; icon: React.ReactNode }> = [
   { id: 'calendar', icon: <CalendarDays size={16} /> },
   { id: 'notifications', icon: <Bell size={16} /> },
   { id: 'pomodoro', icon: <Timer size={16} /> },
-  { id: 'sync', icon: <Cloud size={16} /> },
   { id: 'window', icon: <MonitorCog size={16} /> },
   { id: 'data', icon: <Database size={16} /> },
   { id: 'about', icon: <Info size={16} /> },
@@ -102,7 +97,6 @@ const settingsCopy = {
       calendar: '日历同步',
       notifications: '提醒与通知',
       pomodoro: '番茄钟',
-      sync: '同步与账号',
       window: '窗口行为',
       data: '数据与隐私',
       about: '关于与更新',
@@ -112,7 +106,6 @@ const settingsCopy = {
       calendar: '添加节假日日历，管理邮箱会议同步账号。',
       notifications: '管理提醒通知和提示音。',
       pomodoro: '调整专注和休息节奏。',
-      sync: '管理账号登录和数据同步。',
       window: '设置启动、关闭和后台运行方式。',
       data: '查看本机数据和缓存说明。',
       about: '查看版本并安装可用更新。',
@@ -135,7 +128,7 @@ const settingsCopy = {
       countryCalendarDesc: '按所选国家或地区自动同步公开节假日。',
       selected: '已选择',
       use: '使用',
-      sync: '同步',
+      sync: '???',
       delete: '删除',
       userSource: '已添加的 ICS 日历',
       noUserSource: '还没有添加自定义 ICS 日历。',
@@ -219,7 +212,6 @@ const settingsCopy = {
       longBreakHint: '完成一组专注后进入的较长休息时间。',
       minutesUnit: '分钟',
       syncEnabled: '启用同步',
-      serverUrl: '服务器地址',
       account: '账号',
       loggedInAs: '已登录：{{name}}',
       logout: '退出登录',
@@ -270,7 +262,6 @@ const settingsCopy = {
       calendar: '日曆同步',
       notifications: '提醒與通知',
       pomodoro: '番茄鐘',
-      sync: '同步與帳號',
       window: '視窗行為',
       data: '資料與隱私',
       about: '關於與更新',
@@ -280,7 +271,6 @@ const settingsCopy = {
       calendar: '新增節假日日曆，管理郵箱會議同步帳號。',
       notifications: '管理提醒通知和提示音。',
       pomodoro: '調整專注和休息節奏。',
-      sync: '管理帳號登入和資料同步。',
       window: '設定啟動、關閉和背景執行方式。',
       data: '查看本機資料和快取說明。',
       about: '查看版本並安裝可用更新。',
@@ -303,7 +293,7 @@ const settingsCopy = {
       countryCalendarDesc: '按所選國家或地區自動同步公開節假日。',
       selected: '已選擇',
       use: '使用',
-      sync: '同步',
+      sync: '???',
       delete: '刪除',
       userSource: '已新增的 ICS 日曆',
       noUserSource: '還沒有新增自訂 ICS 日曆。',
@@ -387,7 +377,6 @@ const settingsCopy = {
       longBreakHint: '完成一組專注後進入的較長休息時間。',
       minutesUnit: '分鐘',
       syncEnabled: '啟用同步',
-      serverUrl: '伺服器地址',
       account: '帳號',
       loggedInAs: '已登入：{{name}}',
       logout: '登出',
@@ -438,7 +427,6 @@ const settingsCopy = {
       calendar: 'Calendar Sync',
       notifications: 'Reminders',
       pomodoro: 'Pomodoro',
-      sync: 'Sync & Account',
       window: 'Window behavior',
       data: 'Data & Privacy',
       about: 'About & Updates',
@@ -448,7 +436,6 @@ const settingsCopy = {
       calendar: 'Add holiday calendars and manage email meeting sync.',
       notifications: 'Manage reminder notifications and sounds.',
       pomodoro: 'Adjust focus and break rhythm.',
-      sync: 'Manage sign-in and data sync.',
       window: 'Set startup, close, and background behavior.',
       data: 'View local data and cache information.',
       about: 'View version and install available updates.',
@@ -555,7 +542,6 @@ const settingsCopy = {
       longBreakHint: 'Longer break time after completing a focus set.',
       minutesUnit: 'min',
       syncEnabled: 'Enable sync',
-      serverUrl: 'Server URL',
       account: 'Account',
       loggedInAs: 'Signed in as {{name}}',
       logout: 'Sign out',
@@ -984,6 +970,7 @@ const calendarCopyOverrides = {
     holidayCountryDesc: 'Sync public holidays automatically for the selected country or region. Data is loaded from an online holiday service.',
     syncCountry: 'Sync selected region',
     countrySynced: 'Holiday calendar synced',
+    sync: 'Sync',
   },
 } satisfies Record<AppSettings['language'], Record<string, string>>;
 
@@ -1098,9 +1085,7 @@ export function SettingsPage() {
       setCalendarAccountBusy((prev) => ({ ...prev, [accountId]: false }));
     }
   };
-  const { session, setSession } = useAuthStore();
   const [active, setActive] = useState<SectionId>('appearance');
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [calendarStatus, setCalendarStatus] = useState<CalendarSyncStatus | null>(null);
   const [holidaySources, setHolidaySources] = useState<CalendarHolidaySource[]>([]);
   const [holidayIcsUrl, setHolidayIcsUrl] = useState('');
@@ -1117,12 +1102,6 @@ export function SettingsPage() {
   const [calendarSyncAllBusy, setCalendarSyncAllBusy] = useState(false);
   const [calendarAccountBusy, setCalendarAccountBusy] = useState<Record<string, boolean>>({});
   const [calendarConfigBusy, setCalendarConfigBusy] = useState(false);
-  const [serverUrl, setServerUrl] = useState('');
-  const [accountEmail, setAccountEmail] = useState('');
-  const [pw, setPw] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [cloudDevices, setCloudDevices] = useState<CloudDevice[]>([]);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
     if (calendarEmailProvider === 'imap') return;
@@ -1171,28 +1150,12 @@ export function SettingsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const s = await syncApi.status();
-        setSyncStatus(s);
-        setServerUrl(s.serverUrl || 'http://127.0.0.1:11911');
-      } catch {
-        /* status is optional */
-      }
-      try {
-        const sess = await authApi.current();
-        if (sess) {
-          setSession(sess);
-          authApi.listDevices().then(setCloudDevices).catch(() => setCloudDevices([]));
-        }
-      } catch {
-        /* auth is optional */
-      }
-      try {
         await refreshCalendarSync();
       } catch {
         /* calendar sync is optional */
       }
     })();
-  }, [setSession]);
+  }, []);
 
   useEffect(() => {
     getDownloadedUpdateStatus()
@@ -1514,150 +1477,6 @@ export function SettingsPage() {
     }
   };
 
-  const onAuth = async () => {
-    if (!accountEmail.trim() || !pw) {
-      toast.error(msg('enterAccount'));
-      return;
-    }
-    setBusy(true);
-    try {
-      const s = authMode === 'login'
-        ? await authApi.login({ email: accountEmail.trim(), password: pw, serverUrl: serverUrl || undefined })
-        : await authApi.register({ email: accountEmail.trim(), password: pw, serverUrl: serverUrl || undefined });
-      setSession(s);
-      setCloudDevices(await authApi.listDevices().catch(() => []));
-      setPw('');
-      toast.success(authMode === 'login' ? msg('loginSuccess') : msg('registerSuccess'));
-    } catch (e) {
-      toast.error(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onSendEmailCode = async () => {
-    setBusy(true);
-    try {
-      await authApi.sendEmailVerificationCode();
-      toast.success(settings.language === 'en' ? 'Verification code sent' : settings.language === 'zh-TW' ? '驗證碼已發送' : '验证码已发送');
-    } catch (e) {
-      toast.error(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onVerifyEmail = async () => {
-    if (!verificationCode.trim()) return;
-    setBusy(true);
-    try {
-      const s = await authApi.verifyEmailCode(verificationCode.trim());
-      setSession(s);
-      setCloudDevices(await authApi.listDevices().catch(() => []));
-      setVerificationCode('');
-      toast.success(settings.language === 'en' ? 'Email verified' : settings.language === 'zh-TW' ? '郵箱已驗證' : '邮箱已验证');
-    } catch (e) {
-      toast.error(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onLogout = async () => {
-    try {
-      await authApi.logout();
-      setSession(null);
-      setCloudDevices([]);
-      toast.info(t('sync.loggedOut'));
-    } catch (e) {
-      toast.error(String(e));
-    }
-  };
-
-  const refreshCloudDevices = async () => {
-    setCloudDevices(await authApi.listDevices().catch(() => []));
-  };
-
-  const onSync = async (action: 'push' | 'pull' | 'merge') => {
-    setBusy(true);
-    try {
-      if (action === 'push') {
-        await syncApi.push();
-        toast.success(msg('pushSuccess'));
-      } else if (action === 'pull') {
-        await syncApi.pull();
-        toast.success(msg('pullSuccess'));
-      } else {
-        await syncApi.merge();
-        toast.success(settings.language === 'en' ? 'Data merged and uploaded' : settings.language === 'zh-TW' ? '資料已合併並上傳' : '数据已合并并上传');
-      }
-      setSyncStatus(await syncApi.status());
-    } catch (e) {
-      toast.error(t('sync.failed', { msg: String(e) }));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onRenameCloudDevice = async (device: CloudDevice) => {
-    const nextName = window.prompt(ui.rename, device.deviceName);
-    if (!nextName?.trim() || nextName.trim() === device.deviceName) return;
-    setBusy(true);
-    try {
-      await authApi.renameDevice(device.id, nextName.trim());
-      await refreshCloudDevices();
-      toast.success(settings.language === 'en' ? 'Device renamed' : settings.language === 'zh-TW' ? '設備已重新命名' : '设备已重命名');
-    } catch (error) {
-      toast.error(String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onRevokeCloudDevice = async (device: CloudDevice) => {
-    if (device.id === session?.deviceId) return;
-    if (!window.confirm(`${ui.remove}: ${device.deviceName}?`)) return;
-    setBusy(true);
-    try {
-      await authApi.revokeDevice(device.id);
-      await refreshCloudDevices();
-      toast.success(settings.language === 'en' ? 'Device removed' : settings.language === 'zh-TW' ? '設備已移除' : '设备已移除');
-    } catch (error) {
-      toast.error(String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onRequestCloudDeviceWipe = async (device: CloudDevice) => {
-    if (device.id === session?.deviceId) return;
-    if (!window.confirm(`${ui.requestWipe}: ${device.deviceName}?`)) return;
-    setBusy(true);
-    try {
-      await authApi.requestDeviceWipe(device.id);
-      await refreshCloudDevices();
-      toast.success(settings.language === 'en' ? 'Cleanup requested' : settings.language === 'zh-TW' ? '已請求清理' : '已请求清理');
-    } catch (error) {
-      toast.error(String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onRevokeOtherCloudDevices = async () => {
-    if (!window.confirm(ui.removeOthers)) return;
-    setBusy(true);
-    try {
-      await authApi.revokeOtherDevices();
-      await refreshCloudDevices();
-      toast.success(settings.language === 'en' ? 'Other devices removed' : settings.language === 'zh-TW' ? '其他設備已移除' : '其他设备已移除');
-    } catch (error) {
-      toast.error(String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const onExportBackup = async () => {
     setBusy(true);
     try {
@@ -1701,8 +1520,7 @@ export function SettingsPage() {
       const preImportBackup = await syncApi.exportBackup();
       await writeTextFile(backupSiblingPath(pendingImport.path), preImportBackup);
       toast.info(msg('preImportBackupSaved'));
-      const status = await syncApi.importBackup(pendingImport.content);
-      setSyncStatus(status);
+      await syncApi.importBackup(pendingImport.content);
       setPendingImport(null);
       toast.success(msg('importSuccess'));
       window.setTimeout(() => window.location.reload(), 600);
@@ -2275,127 +2093,6 @@ export function SettingsPage() {
                       className="w-28"
                     />
                     <span className="text-sm text-text-muted">{ui.minutesUnit}</span>
-                  </div>
-                </Row>
-              </Panel>
-            )}
-
-            {active === 'sync' && (
-              <Panel>
-                <Row label={ui.syncEnabled}>
-                  <Toggle
-                    value={settings.syncEnabled}
-                    onChange={async (v) => {
-                      await onSaveSettings({ syncEnabled: v });
-                      if (v) setSyncStatus(await syncApi.status());
-                    }}
-                  />
-                </Row>
-                <Row label={ui.serverUrl}>
-                  <Input
-                    value={settings.syncServerUrl || ''}
-                    onChange={(e) => {
-                      setServerUrl(e.target.value);
-                      onSaveSettings({ syncServerUrl: e.target.value || null });
-                    }}
-                    placeholder="https://..."
-                    className="max-w-xl"
-                  />
-                </Row>
-                <Row label={ui.account}>
-                  {session ? (
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="chip">{ui.loggedInAs.replace('{{name}}', session.email || session.nickname)}</span>
-                        <span className={`chip ${session.emailVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          {session.emailVerified ? ui.verified : ui.unverified}
-                        </span>
-                        <Button size="sm" variant="danger" onClick={onLogout}>{ui.logout}</Button>
-                      </div>
-                      {!session.emailVerified && (
-                        <div className="flex flex-wrap items-end gap-2">
-                          <Input
-                            label={ui.verificationCode}
-                            value={verificationCode}
-                            onChange={(e) => setVerificationCode(e.target.value)}
-                            className="w-44"
-                          />
-                          <Button size="sm" variant="outline" onClick={onSendEmailCode} disabled={busy}>{ui.sendCode}</Button>
-                          <Button size="sm" onClick={onVerifyEmail} disabled={busy || !verificationCode.trim()}>{ui.verifyEmail}</Button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <Segmented>
-                        <SegmentButton active={authMode === 'login'} onClick={() => setAuthMode('login')}>{ui.login}</SegmentButton>
-                        <SegmentButton active={authMode === 'register'} onClick={() => setAuthMode('register')}>{ui.register}</SegmentButton>
-                      </Segmented>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl">
-                        <Input label={ui.nickname} type="email" value={accountEmail} onChange={(e) => setAccountEmail(e.target.value)} />
-                        <Input label={ui.password} type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
-                      </div>
-                      <Button onClick={onAuth} disabled={busy}>{authMode === 'login' ? ui.login : ui.register}</Button>
-                    </div>
-                  )}
-                </Row>
-                {session && (
-                  <Row label={ui.devices}>
-                    <div className="grid gap-2">
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={refreshCloudDevices} disabled={busy}>
-                          <RefreshCw size={14} />
-                        </Button>
-                        <Button size="sm" variant="danger" onClick={onRevokeOtherCloudDevices} disabled={busy || cloudDevices.length <= 1}>
-                          {ui.removeOthers}
-                        </Button>
-                      </div>
-                      {cloudDevices.length === 0 ? (
-                        <span className="text-xs text-text-muted">-</span>
-                      ) : cloudDevices.map((device) => (
-                        <div key={device.id} className="rounded-md border border-border/70 bg-surface-subtle px-3 py-2 text-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="font-medium">
-                              {device.deviceName}
-                              {device.id === session.deviceId && (
-                                <span className="ml-2 text-xs text-primary">{ui.currentDevice}</span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                              <Button size="sm" variant="outline" onClick={() => onRenameCloudDevice(device)} disabled={busy}>{ui.rename}</Button>
-                              <Button size="sm" variant="outline" onClick={() => onRequestCloudDeviceWipe(device)} disabled={busy || device.id === session.deviceId || Boolean(device.wipeRequestedAt)}>{ui.requestWipe}</Button>
-                              <Button size="sm" variant="danger" onClick={() => onRevokeCloudDevice(device)} disabled={busy || device.id === session.deviceId}>{ui.remove}</Button>
-                            </div>
-                          </div>
-                          <div className="text-xs text-text-muted">
-                            {[device.platform, device.appVersion].filter(Boolean).join(' · ') || '-'}
-                            {device.lastSyncAt ? ` · ${dayjs(device.lastSyncAt).format('YYYY-MM-DD HH:mm')}` : ''}
-                            {device.revokedAt ? ` · ${ui.remove}` : ''}
-                            {device.wipeRequestedAt ? ` · ${ui.requestWipe}` : ''}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Row>
-                )}
-                <Row label={ui.syncNow}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" onClick={() => onSync('push')} disabled={busy || !session || !session.emailVerified}>{ui.uploadLocal}</Button>
-                    <Button size="sm" variant="outline" onClick={() => onSync('pull')} disabled={busy || !session || !session.emailVerified}>{ui.restoreCloud}</Button>
-                    <Button size="sm" variant="outline" onClick={() => onSync('merge')} disabled={busy || !session || !session.emailVerified}>{ui.smartMerge}</Button>
-                    {session && !session.emailVerified && (
-                      <span className="text-xs text-amber-600">{ui.verifyEmail}</span>
-                    )}
-                    {syncStatus?.remoteVersion && (
-                      <span className="text-xs text-text-muted">
-                        {ui.remoteVersion.replace('{{version}}', String(syncStatus.remoteVersion))}
-                      </span>
-                    )}
-                    {syncStatus?.lastPushedAt && (
-                      <span className="text-xs text-text-muted">
-                        {ui.lastSync.replace('{{time}}', dayjs(syncStatus.lastPushedAt).format('YYYY-MM-DD HH:mm'))}
-                      </span>
-                    )}
                   </div>
                 </Row>
               </Panel>

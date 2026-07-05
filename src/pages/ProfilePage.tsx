@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Camera, Check, CircleAlert, IdCard, Save, User, X } from 'lucide-react';
+import { Camera, Check, CircleAlert, Cloud, IdCard, LogOut, RefreshCw, Save, ShieldCheck, User, X } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
+import { authApi, settingsApi, syncApi } from '@/api';
+import type { CloudDevice } from '@/api/auth';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { toast } from '@/components/common/Toast';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useProfileStore } from '@/store/useProfileStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { dayjs } from '@/utils/date';
+import type { SyncStatus } from '@/types';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const AVATAR_IMAGE_SIZE = 512;
@@ -86,12 +90,152 @@ const profileCopy = {
   },
 } as const;
 
+const cloudCopy = {
+  'zh-CN': {
+    title: '账号与同步',
+    subtitle: '登录账号后可在多设备之间同步任务、目标、设置和日历数据。头像仍只保存在本机。',
+    syncEnabled: '启用云端同步',
+    login: '登录',
+    register: '注册',
+    email: '账号邮箱',
+    password: '密码',
+    loggedInAs: '已登录：{{name}}',
+    verified: '邮箱已验证',
+    unverified: '邮箱未验证',
+    verificationCode: '邮箱验证码',
+    sendCode: '发送验证码',
+    verifyEmail: '验证邮箱',
+    logout: '退出登录',
+    syncActions: '数据同步',
+    uploadLocal: '上传本机数据',
+    restoreCloud: '从云端恢复',
+    smartMerge: '智能合并',
+    devices: '登录设备',
+    refresh: '刷新',
+    currentDevice: '当前设备',
+    rename: '重命名',
+    remove: '移除',
+    removeOthers: '移除其他设备',
+    requestWipe: '请求清理',
+    emptyDevices: '暂无设备记录',
+    remoteVersion: '云端版本：{{version}}',
+    lastSync: '上次同步：{{time}}',
+    verifyRequired: '验证邮箱后才可以同步',
+    enterAccount: '请输入邮箱和密码',
+    loginSuccess: '登录成功',
+    registerSuccess: '注册成功',
+    codeSent: '验证码已发送',
+    emailVerified: '邮箱已验证',
+    loggedOut: '已退出登录',
+    pushSuccess: '本机数据已上传',
+    pullSuccess: '云端数据已恢复到本机',
+    mergeSuccess: '数据已合并并上传',
+    syncFailed: '同步失败：{{msg}}',
+    deviceRenamed: '设备已重命名',
+    deviceRemoved: '设备已移除',
+    wipeRequested: '已请求清理',
+    othersRemoved: '其他设备已移除',
+  },
+  'zh-TW': {
+    title: '帳號與同步',
+    subtitle: '登入帳號後可在多裝置之間同步任務、目標、設定和日曆資料。頭像仍只保存在本機。',
+    syncEnabled: '啟用雲端同步',
+    login: '登入',
+    register: '註冊',
+    email: '帳號信箱',
+    password: '密碼',
+    loggedInAs: '已登入：{{name}}',
+    verified: '信箱已驗證',
+    unverified: '信箱未驗證',
+    verificationCode: '信箱驗證碼',
+    sendCode: '傳送驗證碼',
+    verifyEmail: '驗證信箱',
+    logout: '登出',
+    syncActions: '資料同步',
+    uploadLocal: '上傳本機資料',
+    restoreCloud: '從雲端還原',
+    smartMerge: '智慧合併',
+    devices: '登入裝置',
+    refresh: '重新整理',
+    currentDevice: '目前裝置',
+    rename: '重新命名',
+    remove: '移除',
+    removeOthers: '移除其他裝置',
+    requestWipe: '請求清理',
+    emptyDevices: '暫無裝置記錄',
+    remoteVersion: '雲端版本：{{version}}',
+    lastSync: '上次同步：{{time}}',
+    verifyRequired: '驗證信箱後才可以同步',
+    enterAccount: '請輸入信箱和密碼',
+    loginSuccess: '登入成功',
+    registerSuccess: '註冊成功',
+    codeSent: '驗證碼已傳送',
+    emailVerified: '信箱已驗證',
+    loggedOut: '已登出',
+    pushSuccess: '本機資料已上傳',
+    pullSuccess: '雲端資料已還原到本機',
+    mergeSuccess: '資料已合併並上傳',
+    syncFailed: '同步失敗：{{msg}}',
+    deviceRenamed: '裝置已重新命名',
+    deviceRemoved: '裝置已移除',
+    wipeRequested: '已請求清理',
+    othersRemoved: '其他裝置已移除',
+  },
+  en: {
+    title: 'Account & Sync',
+    subtitle: 'Sign in to sync tasks, goals, settings, and calendar data across devices. Avatar stays local.',
+    syncEnabled: 'Enable cloud sync',
+    login: 'Log in',
+    register: 'Register',
+    email: 'Account email',
+    password: 'Password',
+    loggedInAs: 'Signed in: {{name}}',
+    verified: 'Email verified',
+    unverified: 'Email not verified',
+    verificationCode: 'Email code',
+    sendCode: 'Send code',
+    verifyEmail: 'Verify email',
+    logout: 'Log out',
+    syncActions: 'Data sync',
+    uploadLocal: 'Upload local data',
+    restoreCloud: 'Restore from cloud',
+    smartMerge: 'Smart merge',
+    devices: 'Signed-in devices',
+    refresh: 'Refresh',
+    currentDevice: 'Current device',
+    rename: 'Rename',
+    remove: 'Remove',
+    removeOthers: 'Remove other devices',
+    requestWipe: 'Request cleanup',
+    emptyDevices: 'No device records',
+    remoteVersion: 'Cloud version: {{version}}',
+    lastSync: 'Last sync: {{time}}',
+    verifyRequired: 'Verify your email before syncing',
+    enterAccount: 'Enter email and password',
+    loginSuccess: 'Signed in',
+    registerSuccess: 'Registered',
+    codeSent: 'Verification code sent',
+    emailVerified: 'Email verified',
+    loggedOut: 'Signed out',
+    pushSuccess: 'Local data uploaded',
+    pullSuccess: 'Cloud data restored locally',
+    mergeSuccess: 'Data merged and uploaded',
+    syncFailed: 'Sync failed: {{msg}}',
+    deviceRenamed: 'Device renamed',
+    deviceRemoved: 'Device removed',
+    wipeRequested: 'Cleanup requested',
+    othersRemoved: 'Other devices removed',
+  },
+} as const;
+
 export function ProfilePage() {
   const { t } = useTranslation();
-  const language = useSettingsStore((state) => state.settings.language);
+  const { settings, setSettings, setAll } = useSettingsStore();
+  const language = settings.language;
   const copy = profileCopy[language];
+  const cloudText = cloudCopy[language];
   const { profile, fetchProfile, saveProfile } = useProfileStore();
-  const session = useAuthStore((state) => state.session);
+  const { session, setSession } = useAuthStore();
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -103,11 +247,36 @@ export function ProfilePage() {
   const [editingSignature, setEditingSignature] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState('');
   const [signatureDraft, setSignatureDraft] = useState('');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [cloudDevices, setCloudDevices] = useState<CloudDevice[]>([]);
+  const [cloudEmail, setCloudEmail] = useState('');
+  const [cloudPassword, setCloudPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [cloudBusy, setCloudBusy] = useState(false);
   const hydratedRef = useRef(false);
 
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [status, currentSession] = await Promise.all([
+          syncApi.status().catch(() => null),
+          authApi.current().catch(() => null),
+        ]);
+        if (status) setSyncStatus(status);
+        if (currentSession) {
+          setSession(currentSession);
+          setCloudDevices(await authApi.listDevices().catch(() => []));
+        }
+      } catch {
+        /* Cloud account is optional. */
+      }
+    })();
+  }, [setSession]);
 
   useEffect(() => {
     if (profile) {
@@ -276,6 +445,178 @@ export function ProfilePage() {
     setLastSavedText('');
   };
 
+  const saveSettingsPatch = async (patch: Partial<typeof settings>) => {
+    const previous = settings;
+    const next = { ...settings, ...patch };
+    setSettings(patch);
+    try {
+      await settingsApi.save(next);
+      if (patch.syncEnabled !== undefined) {
+        setSyncStatus(await syncApi.status().catch(() => syncStatus));
+      }
+    } catch (error) {
+      setAll(previous);
+      toast.error(String(error));
+    }
+  };
+
+  const refreshCloudDevices = async () => {
+    setCloudDevices(await authApi.listDevices().catch(() => []));
+  };
+
+  const refreshCloudStatus = async () => {
+    const [status, devices] = await Promise.all([
+      syncApi.status().catch(() => null),
+      authApi.listDevices().catch(() => []),
+    ]);
+    if (status) setSyncStatus(status);
+    setCloudDevices(devices);
+  };
+
+  const onCloudAuth = async () => {
+    if (!cloudEmail.trim() || !cloudPassword) {
+      toast.error(cloudText.enterAccount);
+      return;
+    }
+    setCloudBusy(true);
+    try {
+      const nextSession = authMode === 'login'
+        ? await authApi.login({ email: cloudEmail.trim(), password: cloudPassword })
+        : await authApi.register({ email: cloudEmail.trim(), password: cloudPassword });
+      setSession(nextSession);
+      setCloudPassword('');
+      await refreshCloudStatus();
+      toast.success(authMode === 'login' ? cloudText.loginSuccess : cloudText.registerSuccess);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const onSendEmailCode = async () => {
+    setCloudBusy(true);
+    try {
+      await authApi.sendEmailVerificationCode();
+      toast.success(cloudText.codeSent);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const onVerifyEmail = async () => {
+    if (!verificationCode.trim()) return;
+    setCloudBusy(true);
+    try {
+      const nextSession = await authApi.verifyEmailCode(verificationCode.trim());
+      setSession(nextSession);
+      setVerificationCode('');
+      await refreshCloudStatus();
+      toast.success(cloudText.emailVerified);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const onLogout = async () => {
+    setCloudBusy(true);
+    try {
+      await authApi.logout();
+      setSession(null);
+      setCloudDevices([]);
+      setSyncStatus(await syncApi.status().catch(() => null));
+      toast.info(cloudText.loggedOut);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const onSync = async (action: 'push' | 'pull' | 'merge') => {
+    setCloudBusy(true);
+    try {
+      if (action === 'push') {
+        await syncApi.push();
+        toast.success(cloudText.pushSuccess);
+      } else if (action === 'pull') {
+        await syncApi.pull();
+        toast.success(cloudText.pullSuccess);
+      } else {
+        await syncApi.merge();
+        toast.success(cloudText.mergeSuccess);
+      }
+      await refreshCloudStatus();
+    } catch (error) {
+      toast.error(cloudText.syncFailed.replace('{{msg}}', String(error)));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const onRenameCloudDevice = async (device: CloudDevice) => {
+    const nextName = window.prompt(cloudText.rename, device.deviceName);
+    if (!nextName?.trim() || nextName.trim() === device.deviceName) return;
+    setCloudBusy(true);
+    try {
+      await authApi.renameDevice(device.id, nextName.trim());
+      await refreshCloudDevices();
+      toast.success(cloudText.deviceRenamed);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const onRevokeCloudDevice = async (device: CloudDevice) => {
+    if (device.id === session?.deviceId) return;
+    if (!window.confirm(`${cloudText.remove}: ${device.deviceName}?`)) return;
+    setCloudBusy(true);
+    try {
+      await authApi.revokeDevice(device.id);
+      await refreshCloudDevices();
+      toast.success(cloudText.deviceRemoved);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const onRequestCloudDeviceWipe = async (device: CloudDevice) => {
+    if (device.id === session?.deviceId) return;
+    if (!window.confirm(`${cloudText.requestWipe}: ${device.deviceName}?`)) return;
+    setCloudBusy(true);
+    try {
+      await authApi.requestDeviceWipe(device.id);
+      await refreshCloudDevices();
+      toast.success(cloudText.wipeRequested);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const onRevokeOtherCloudDevices = async () => {
+    if (!window.confirm(cloudText.removeOthers)) return;
+    setCloudBusy(true);
+    try {
+      await authApi.revokeOtherDevices();
+      await refreshCloudDevices();
+      toast.success(cloudText.othersRemoved);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 mb-4">
@@ -424,6 +765,159 @@ export function ProfilePage() {
             </div>
           </section>
 
+          <section className="card p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <Cloud size={16} />
+                  {cloudText.title}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-text-muted">{cloudText.subtitle}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-sm font-medium">{cloudText.syncEnabled}</span>
+                <ProfileToggle value={settings.syncEnabled} onChange={(value) => saveSettingsPatch({ syncEnabled: value })} />
+              </div>
+            </div>
+
+            <div className="mt-5 border-t border-border pt-4">
+              {session ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="chip">
+                      {cloudText.loggedInAs.replace('{{name}}', session.email || session.nickname)}
+                    </span>
+                    <span className={`chip ${session.emailVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {session.emailVerified ? cloudText.verified : cloudText.unverified}
+                    </span>
+                    <Button size="sm" variant="outline" onClick={onLogout} disabled={cloudBusy}>
+                      <LogOut size={14} />
+                      {cloudText.logout}
+                    </Button>
+                  </div>
+
+                  {!session.emailVerified && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3">
+                      <div className="mb-2 flex items-center gap-2 text-sm font-medium text-amber-700">
+                        <ShieldCheck size={15} />
+                        {cloudText.verifyRequired}
+                      </div>
+                      <div className="flex flex-wrap items-end gap-2">
+                        <Input
+                          label={cloudText.verificationCode}
+                          value={verificationCode}
+                          onChange={(event) => setVerificationCode(event.target.value)}
+                          className="w-44"
+                        />
+                        <Button size="sm" variant="outline" onClick={onSendEmailCode} disabled={cloudBusy}>
+                          {cloudText.sendCode}
+                        </Button>
+                        <Button size="sm" onClick={onVerifyEmail} disabled={cloudBusy || !verificationCode.trim()}>
+                          {cloudText.verifyEmail}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border border-border bg-surface-subtle p-3">
+                    <div className="mb-3 text-sm font-semibold">{cloudText.syncActions}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" onClick={() => onSync('push')} disabled={cloudBusy || !settings.syncEnabled || !session.emailVerified}>
+                        {cloudText.uploadLocal}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => onSync('pull')} disabled={cloudBusy || !settings.syncEnabled || !session.emailVerified}>
+                        {cloudText.restoreCloud}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => onSync('merge')} disabled={cloudBusy || !settings.syncEnabled || !session.emailVerified}>
+                        {cloudText.smartMerge}
+                      </Button>
+                      {syncStatus?.remoteVersion && (
+                        <span className="text-xs text-text-muted">
+                          {cloudText.remoteVersion.replace('{{version}}', String(syncStatus.remoteVersion))}
+                        </span>
+                      )}
+                      {syncStatus?.lastPushedAt && (
+                        <span className="text-xs text-text-muted">
+                          {cloudText.lastSync.replace('{{time}}', dayjs(syncStatus.lastPushedAt).format('YYYY-MM-DD HH:mm'))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-surface-subtle p-3">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-semibold">{cloudText.devices}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={refreshCloudStatus} disabled={cloudBusy} title={cloudText.refresh}>
+                          <RefreshCw size={14} />
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={onRevokeOtherCloudDevices} disabled={cloudBusy || cloudDevices.length <= 1}>
+                          {cloudText.removeOthers}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      {cloudDevices.length === 0 ? (
+                        <div className="text-xs text-text-muted">{cloudText.emptyDevices}</div>
+                      ) : cloudDevices.map((device) => (
+                        <div key={device.id} className="rounded-md border border-border bg-surface px-3 py-2 text-sm shadow-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0 font-medium">
+                              <span className="truncate">{device.deviceName}</span>
+                              {device.id === session.deviceId && (
+                                <span className="ml-2 text-xs text-primary">{cloudText.currentDevice}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              <Button size="sm" variant="outline" onClick={() => onRenameCloudDevice(device)} disabled={cloudBusy}>
+                                {cloudText.rename}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onRequestCloudDeviceWipe(device)}
+                                disabled={cloudBusy || device.id === session.deviceId || Boolean(device.wipeRequestedAt)}
+                              >
+                                {cloudText.requestWipe}
+                              </Button>
+                              <Button size="sm" variant="danger" onClick={() => onRevokeCloudDevice(device)} disabled={cloudBusy || device.id === session.deviceId}>
+                                {cloudText.remove}
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="mt-1 text-xs text-text-muted">
+                            {[device.platform, device.appVersion].filter(Boolean).join(' / ') || '-'}
+                            {device.lastSyncAt ? ` / ${dayjs(device.lastSyncAt).format('YYYY-MM-DD HH:mm')}` : ''}
+                            {device.revokedAt ? ` / ${cloudText.remove}` : ''}
+                            {device.wipeRequestedAt ? ` / ${cloudText.requestWipe}` : ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <ProfileSegmented>
+                    <ProfileSegmentButton active={authMode === 'login'} onClick={() => setAuthMode('login')}>
+                      {cloudText.login}
+                    </ProfileSegmentButton>
+                    <ProfileSegmentButton active={authMode === 'register'} onClick={() => setAuthMode('register')}>
+                      {cloudText.register}
+                    </ProfileSegmentButton>
+                  </ProfileSegmented>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Input label={cloudText.email} type="email" value={cloudEmail} onChange={(event) => setCloudEmail(event.target.value)} />
+                    <Input label={cloudText.password} type="password" value={cloudPassword} onChange={(event) => setCloudPassword(event.target.value)} />
+                  </div>
+                  <Button onClick={onCloudAuth} disabled={cloudBusy}>
+                    {authMode === 'login' ? cloudText.login : cloudText.register}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </section>
+
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onReset} disabled={!dirty || saving}>{copy.cancelChanges}</Button>
             <Button onClick={onSave} disabled={!dirty || saving}>
@@ -456,6 +950,52 @@ function IconAction({
       onClick={onClick}
       disabled={disabled}
       className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text-muted transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ProfileToggle({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className="relative h-6 w-11 rounded-full transition-colors"
+      style={{ background: value ? 'var(--primary)' : 'var(--surface-2)' }}
+    >
+      <span
+        className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
+        style={{ left: value ? '22px' : '2px' }}
+      />
+    </button>
+  );
+}
+
+function ProfileSegmented({ children }: { children: ReactNode }) {
+  return (
+    <div className="inline-flex items-center rounded-lg border border-border bg-surface-subtle p-0.5 text-sm">
+      {children}
+    </div>
+  );
+}
+
+function ProfileSegmentButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md px-3 py-1.5 transition-colors ${
+        active ? 'bg-primary text-white' : 'text-text-muted hover:bg-surface hover:text-text'
+      }`}
     >
       {children}
     </button>
