@@ -39,13 +39,22 @@ pub fn load_kr_internal(c: &Connection, id: &str) -> AppResult<KeyResult> {
 fn calculate_kr_progress(kr: &KeyResult) -> f64 {
     match kr.kr_type.as_str() {
         "boolean" => {
-            if kr.is_completed { 100.0 } else { 0.0 }
+            if kr.is_completed {
+                100.0
+            } else {
+                0.0
+            }
         }
         "task" => {
             // For task-type, current_value = completed count, target_value = total count
             let range = kr.target_value - kr.start_value;
-            if range.abs() < f64::EPSILON { 0.0 }
-            else { ((kr.current_value - kr.start_value) / range * 100.0).max(0.0).min(100.0) }
+            if range.abs() < f64::EPSILON {
+                0.0
+            } else {
+                ((kr.current_value - kr.start_value) / range * 100.0)
+                    .max(0.0)
+                    .min(100.0)
+            }
         }
         _ => {
             let range = kr.target_value - kr.start_value;
@@ -108,11 +117,13 @@ fn load_kr_with_logs(c: &Connection, kr_id: &str) -> AppResult<KeyResultWithLogs
 }
 
 #[tauri::command]
-pub fn list_key_results(state: State<DbState>, goal_id: String) -> AppResult<Vec<KeyResultWithLogs>> {
+pub fn list_key_results(
+    state: State<DbState>,
+    goal_id: String,
+) -> AppResult<Vec<KeyResultWithLogs>> {
     let c = conn(&state);
-    let mut stmt = c.prepare(
-        "SELECT id FROM key_results WHERE goal_id = ? ORDER BY position ASC",
-    )?;
+    let mut stmt =
+        c.prepare("SELECT id FROM key_results WHERE goal_id = ? ORDER BY position ASC")?;
     let ids: Vec<String> = stmt
         .query_map(params![goal_id], |r| r.get(0))?
         .filter_map(|r| r.ok())
@@ -158,7 +169,21 @@ pub fn create_key_result(
             (id, goal_id, title, type, start_value, target_value, current_value,
              unit, weight, health_status, check_date, is_completed, position, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
-        params![id, goal_id, title, kr_type, sv, tv, sv, unit, w, health_status.as_deref().unwrap_or("normal"), check_date, max_pos + 1, n],
+        params![
+            id,
+            goal_id,
+            title,
+            kr_type,
+            sv,
+            tv,
+            sv,
+            unit,
+            w,
+            health_status.as_deref().unwrap_or("normal"),
+            check_date,
+            max_pos + 1,
+            n
+        ],
     )?;
     Ok(KeyResult {
         id,
@@ -209,8 +234,15 @@ pub fn update_key_result(
             check_date = CASE WHEN ? THEN ? ELSE check_date END
          WHERE id = ?",
         params![
-            title, kr_type, start_value, target_value, unit, weight, health_status,
-            check_date.is_some() as i64, check_date.unwrap_or(None),
+            title,
+            kr_type,
+            start_value,
+            target_value,
+            unit,
+            weight,
+            health_status,
+            check_date.is_some() as i64,
+            check_date.unwrap_or(None),
             id
         ],
     )?;
@@ -254,7 +286,11 @@ pub fn toggle_kr_completed(state: State<DbState>, id: String) -> AppResult<bool>
     let c = conn(&state);
     let kr = load_kr_internal(&c, &id)?;
     let new_val = !kr.is_completed;
-    let cv = if new_val { kr.target_value } else { kr.start_value };
+    let cv = if new_val {
+        kr.target_value
+    } else {
+        kr.start_value
+    };
     c.execute(
         "UPDATE key_results SET is_completed = ?, current_value = ? WHERE id = ?",
         params![new_val as i64, cv, id],
@@ -263,7 +299,18 @@ pub fn toggle_kr_completed(state: State<DbState>, id: String) -> AppResult<bool>
     c.execute(
         "INSERT INTO progress_logs (id, kr_id, old_value, new_value, comment, created_at)
          VALUES (?, ?, ?, ?, ?, ?)",
-        params![new_id(), id, kr.current_value, cv, if new_val { Some("Marked completed".to_string()) } else { None }, now()],
+        params![
+            new_id(),
+            id,
+            kr.current_value,
+            cv,
+            if new_val {
+                Some("Marked completed".to_string())
+            } else {
+                None
+            },
+            now()
+        ],
     )?;
     recalc_goal_progress(&c, &kr.goal_id)?;
     Ok(new_val)
@@ -297,7 +344,11 @@ pub fn reorder_key_results(state: State<DbState>, ids: Vec<String>) -> AppResult
 }
 
 #[tauri::command]
-pub fn kr_progress_history(state: State<DbState>, kr_id: String, limit: Option<i32>) -> AppResult<Vec<ProgressLog>> {
+pub fn kr_progress_history(
+    state: State<DbState>,
+    kr_id: String,
+    limit: Option<i32>,
+) -> AppResult<Vec<ProgressLog>> {
     let c = conn(&state);
     let lim = limit.unwrap_or(50);
     let mut stmt = c.prepare(
@@ -349,16 +400,28 @@ pub fn recalc_goal_progress(c: &Connection, goal_id: &str) -> AppResult<()> {
     let mut total_weight = 0i32;
     for (kr_type, sv, tv, cv, w, completed) in &rows {
         let progress = match kr_type.as_str() {
-            "boolean" => if *completed { 100.0 } else { 0.0 },
+            "boolean" => {
+                if *completed {
+                    100.0
+                } else {
+                    0.0
+                }
+            }
             "task" => {
                 let range = tv - sv;
-                if range.abs() < f64::EPSILON { 0.0 }
-                else { ((cv - sv) / range * 100.0).max(0.0).min(100.0) }
-            },
+                if range.abs() < f64::EPSILON {
+                    0.0
+                } else {
+                    ((cv - sv) / range * 100.0).max(0.0).min(100.0)
+                }
+            }
             _ => {
                 let range = tv - sv;
-                if range.abs() < f64::EPSILON { 0.0 }
-                else { ((cv - sv) / range * 100.0).max(0.0).min(100.0) }
+                if range.abs() < f64::EPSILON {
+                    0.0
+                } else {
+                    ((cv - sv) / range * 100.0).max(0.0).min(100.0)
+                }
             }
         };
         weighted_sum += progress * (*w as f64);

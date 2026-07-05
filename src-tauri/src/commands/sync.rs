@@ -1,13 +1,48 @@
 use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::db::{now, DbState};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::{BackupEnvelope, Snapshot, SyncStatus};
 use crate::sync_engine;
 
 fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
     state.conn.lock().expect("db lock")
+}
+
+fn api_base(server_url: Option<String>) -> String {
+    server_url
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| "http://127.0.0.1:11911".to_string())
+        .trim_end_matches('/')
+        .to_string()
+}
+
+fn auth_meta(c: &Connection) -> AppResult<(String, String)> {
+    let (server_url, token): (Option<String>, Option<String>) = c.query_row(
+        "SELECT server_url, auth_token FROM sync_meta WHERE id = 1",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    let token = token
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| AppError::Auth("please login before syncing".into()))?;
+    Ok((api_base(server_url), token))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PushSnapshotRequest<'a> {
+    snapshot: &'a Snapshot,
+    client_version: String,
+    local_version: Option<i64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PullSnapshotResponse {
+    snapshot: Option<Snapshot>,
 }
 
 #[tauri::command]
@@ -41,29 +76,65 @@ pub fn sync_status(state: State<DbState>) -> AppResult<SyncStatus> {
     })
 }
 
-/// Push local snapshot to the (Mock) server.
 #[tauri::command]
 pub fn sync_push(state: State<DbState>) -> AppResult<SyncStatus> {
-    let snap = {
+    let (snap, base, token) = {
         let c = conn(&state);
         let snap = sync_engine::build_snapshot(&c)?;
+        let (base, token) = auth_meta(&c)?;
+        (snap, base, token)
+    };
+    let response = reqwest::blocking::Client::new()
+        .post(format!("{base}/api/sync/push-snapshot"))
+        .bearer_auth(token)
+        .json(&PushSnapshotRequest {
+            snapshot: &snap,
+            client_version: env!("CARGO_PKG_VERSION").to_string(),
+            local_version: Some(chrono::Utc::now().timestamp_millis()),
+        })
+        .send()
+        .map_err(|e| AppError::Invalid(format!("cloud push failed: {e}")))?;
+    if !response.status().is_success() {
+        return Err(AppError::Invalid(
+            response
+                .text()
+                .unwrap_or_else(|_| "cloud push failed".into()),
+        ));
+    }
+    {
+        let c = conn(&state);
         c.execute(
             "UPDATE sync_meta SET last_pushed_at = ? WHERE id = 1",
             params![now()],
         )?;
-        snap
-    };
-    sync_engine::mock_push(&snap)?;
+    }
     sync_status(state)
 }
 
-/// Pull from (Mock) server and overwrite local data.
 #[tauri::command]
 pub fn sync_pull(state: State<DbState>) -> AppResult<SyncStatus> {
+    let (base, token) = {
+        let c = conn(&state);
+        auth_meta(&c)?
+    };
+    let response = reqwest::blocking::Client::new()
+        .get(format!("{base}/api/sync/pull-snapshot"))
+        .bearer_auth(token)
+        .send()
+        .map_err(|e| AppError::Invalid(format!("cloud pull failed: {e}")))?;
+    if !response.status().is_success() {
+        return Err(AppError::Invalid(
+            response
+                .text()
+                .unwrap_or_else(|_| "cloud pull failed".into()),
+        ));
+    }
+    let body: PullSnapshotResponse = response
+        .json()
+        .map_err(|e| AppError::Invalid(format!("invalid cloud snapshot: {e}")))?;
     {
         let c = conn(&state);
-        let snap = sync_engine::mock_pull()?;
-        if let Some(s) = snap {
+        if let Some(s) = body.snapshot {
             sync_engine::apply_snapshot(&c, &s)?;
         }
         c.execute(

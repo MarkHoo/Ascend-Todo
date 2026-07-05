@@ -73,10 +73,14 @@ pub fn save_profile(
          WHERE id = 'me'",
         params![
             nickname,
-            avatar_v.is_some() as i64, avatar_v.unwrap_or(None),
-            phone_v.is_some() as i64, phone_v.unwrap_or(None),
-            email_v.is_some() as i64, email_v.unwrap_or(None),
-            sig_v.is_some() as i64, sig_v.unwrap_or(None),
+            avatar_v.is_some() as i64,
+            avatar_v.unwrap_or(None),
+            phone_v.is_some() as i64,
+            phone_v.unwrap_or(None),
+            email_v.is_some() as i64,
+            email_v.unwrap_or(None),
+            sig_v.is_some() as i64,
+            sig_v.unwrap_or(None),
             now(),
         ],
     )?;

@@ -1,11 +1,11 @@
+use chrono::Datelike;
 use rusqlite::{params, Connection, OptionalExtension};
 use tauri::State;
-use chrono::Datelike;
 
+use crate::commands::key_results::recalc_goal_progress;
 use crate::db::{new_id, now, DbState};
 use crate::error::{AppError, AppResult};
 use crate::models::{Goal, GoalWithDetails, Milestone};
-use crate::commands::key_results::recalc_goal_progress;
 
 fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
     state.conn.lock().expect("db lock")
@@ -21,7 +21,11 @@ fn purge_expired_deleted_goals(c: &Connection) -> AppResult<()> {
     Ok(())
 }
 
-fn validate_parent_goal(c: &Connection, goal_id: Option<&str>, parent_goal_id: Option<&str>) -> AppResult<()> {
+fn validate_parent_goal(
+    c: &Connection,
+    goal_id: Option<&str>,
+    parent_goal_id: Option<&str>,
+) -> AppResult<()> {
     let Some(parent_id) = parent_goal_id else {
         return Ok(());
     };
@@ -41,7 +45,11 @@ fn validate_parent_goal(c: &Connection, goal_id: Option<&str>, parent_goal_id: O
     match parent_status.as_deref() {
         None => return Err(AppError::Invalid("所选父目标不存在或已被删除".to_string())),
         Some("active") => {}
-        Some(_) => return Err(AppError::Invalid("只能关联进行中的目标为父目标".to_string())),
+        Some(_) => {
+            return Err(AppError::Invalid(
+                "只能关联进行中的目标为父目标".to_string(),
+            ))
+        }
     }
 
     if let Some(current_id) = goal_id {
@@ -59,7 +67,9 @@ fn validate_parent_goal(c: &Connection, goal_id: Option<&str>, parent_goal_id: O
         )?;
 
         if creates_cycle {
-            return Err(AppError::Invalid("不能将子目标或孙级目标设置为父目标".to_string()));
+            return Err(AppError::Invalid(
+                "不能将子目标或孙级目标设置为父目标".to_string(),
+            ));
         }
     }
 
@@ -218,12 +228,20 @@ fn build_goal_with(c: &Connection, goal: Goal) -> AppResult<GoalWithDetails> {
             weighted_sum += kr_progress * (kr.weight as f64);
             total_weight += kr.weight;
         }
-        if total_weight > 0 { weighted_sum / (total_weight as f64 * 100.0) } else { 0.0 }
+        if total_weight > 0 {
+            weighted_sum / (total_weight as f64 * 100.0)
+        } else {
+            0.0
+        }
     } else {
         let total = milestones.len() + sub_goals.len();
         let done = milestones.iter().filter(|m| m.is_completed).count()
             + sub_goals.iter().filter(|g| g.progress >= 1.0).count();
-        if total == 0 { 0.0 } else { done as f64 / total as f64 }
+        if total == 0 {
+            0.0
+        } else {
+            done as f64 / total as f64
+        }
     };
     Ok(GoalWithDetails {
         goal,
@@ -237,23 +255,42 @@ fn build_goal_with(c: &Connection, goal: Goal) -> AppResult<GoalWithDetails> {
 
 fn calc_kr_progress(kr: &crate::models::KeyResult) -> f64 {
     match kr.kr_type.as_str() {
-        "boolean" => if kr.is_completed { 100.0 } else { 0.0 },
+        "boolean" => {
+            if kr.is_completed {
+                100.0
+            } else {
+                0.0
+            }
+        }
         "task" => {
             // Task-type KR: progress = completed linked tasks / total linked tasks
             // This is computed dynamically in build_goal_with, so here we return current_value-based progress
             let range = kr.target_value - kr.start_value;
-            if range.abs() < f64::EPSILON { 0.0 }
-            else { ((kr.current_value - kr.start_value) / range * 100.0).max(0.0).min(100.0) }
-        },
+            if range.abs() < f64::EPSILON {
+                0.0
+            } else {
+                ((kr.current_value - kr.start_value) / range * 100.0)
+                    .max(0.0)
+                    .min(100.0)
+            }
+        }
         _ => {
             let range = kr.target_value - kr.start_value;
-            if range.abs() < f64::EPSILON { 0.0 }
-            else { ((kr.current_value - kr.start_value) / range * 100.0).max(0.0).min(100.0) }
+            if range.abs() < f64::EPSILON {
+                0.0
+            } else {
+                ((kr.current_value - kr.start_value) / range * 100.0)
+                    .max(0.0)
+                    .min(100.0)
+            }
         }
     }
 }
 
-fn load_key_results_for_goal(c: &Connection, goal_id: &str) -> AppResult<Vec<crate::models::KeyResult>> {
+fn load_key_results_for_goal(
+    c: &Connection,
+    goal_id: &str,
+) -> AppResult<Vec<crate::models::KeyResult>> {
     let mut stmt = c.prepare(
         "SELECT id, goal_id, title, type, start_value, target_value, current_value,
                 unit, weight, health_status, check_date, is_completed, position, created_at
@@ -278,7 +315,9 @@ fn load_key_results_for_goal(c: &Connection, goal_id: &str) -> AppResult<Vec<cra
         })
     })?;
     let mut out = Vec::new();
-    for r in rows { out.push(r?); }
+    for r in rows {
+        out.push(r?);
+    }
     Ok(out)
 }
 
@@ -307,7 +346,9 @@ fn load_linked_tasks(c: &Connection, goal_id: &str) -> AppResult<Vec<crate::mode
         })
     })?;
     let mut out = Vec::new();
-    for r in rows { out.push(r?); }
+    for r in rows {
+        out.push(r?);
+    }
     Ok(out)
 }
 
@@ -405,7 +446,11 @@ pub fn create_goal(
     let goal_status = status.unwrap_or_else(|| "active".to_string());
     let (computed_start, computed_due) = compute_period_dates(&p);
     // For custom period, use provided dates; otherwise use computed dates
-    let final_start = if p == "custom" { start_date } else { computed_start };
+    let final_start = if p == "custom" {
+        start_date
+    } else {
+        computed_start
+    };
     let final_due = if p == "custom" { due_at } else { computed_due };
 
     c.execute(
@@ -522,16 +567,25 @@ pub fn update_goal(
          WHERE id = ?",
         params![
             title,
-            desc_v.is_some() as i64, desc_v.unwrap_or(None),
-            color_v.is_some() as i64, color_v.unwrap_or(None),
-            icon_v.is_some() as i64, icon_v.unwrap_or(None),
-            final_due.is_some() as i64, final_due.unwrap_or(None),
-            parent_v.is_some() as i64, parent_v.unwrap_or(None),
-            progress_mode, progress_value, progress_total,
+            desc_v.is_some() as i64,
+            desc_v.unwrap_or(None),
+            color_v.is_some() as i64,
+            color_v.unwrap_or(None),
+            icon_v.is_some() as i64,
+            icon_v.unwrap_or(None),
+            final_due.is_some() as i64,
+            final_due.unwrap_or(None),
+            parent_v.is_some() as i64,
+            parent_v.unwrap_or(None),
+            progress_mode,
+            progress_value,
+            progress_total,
             period,
-            final_start.is_some() as i64, final_start.unwrap_or(None),
+            final_start.is_some() as i64,
+            final_start.unwrap_or(None),
             status,
-            now(), id,
+            now(),
+            id,
         ],
     )?;
     Ok(())
@@ -586,8 +640,8 @@ fn load_deleted_sub_goals(c: &Connection, parent_id: &str) -> AppResult<Vec<Goal
             status: r.get(16)?,
             review_score: r.get(17)?,
             review_note: r.get(18)?,
-                period: r.get(19)?,
-                deleted_at: r.get(20)?,
+            period: r.get(19)?,
+            deleted_at: r.get(20)?,
         })
     })?;
     let mut out = Vec::new();
@@ -858,11 +912,7 @@ pub fn save_review(
 // =================== Task Linking (for task-type KR) ===================
 
 #[tauri::command]
-pub fn link_task_to_kr(
-    state: State<DbState>,
-    kr_id: String,
-    task_id: String,
-) -> AppResult<()> {
+pub fn link_task_to_kr(state: State<DbState>, kr_id: String, task_id: String) -> AppResult<()> {
     let c = conn(&state);
     // Get the goal_id from the KR
     let goal_id: String = c.query_row(
@@ -883,11 +933,7 @@ pub fn link_task_to_kr(
 }
 
 #[tauri::command]
-pub fn unlink_task_from_kr(
-    state: State<DbState>,
-    kr_id: String,
-    task_id: String,
-) -> AppResult<()> {
+pub fn unlink_task_from_kr(state: State<DbState>, kr_id: String, task_id: String) -> AppResult<()> {
     let c = conn(&state);
     let goal_id: String = c.query_row(
         "SELECT goal_id FROM key_results WHERE id = ?",
@@ -911,11 +957,13 @@ fn recalc_task_kr_progress(c: &Connection, kr_id: &str) -> AppResult<()> {
         return Ok(());
     }
     // Count linked tasks
-    let total: i32 = c.query_row(
-        "SELECT COUNT(*) FROM goal_tasks WHERE kr_id = ?",
-        params![kr_id],
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let total: i32 = c
+        .query_row(
+            "SELECT COUNT(*) FROM goal_tasks WHERE kr_id = ?",
+            params![kr_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
     let completed: i32 = if total > 0 {
         c.query_row(
             "SELECT COUNT(*) FROM goal_tasks gt JOIN tasks t ON t.id = gt.task_id WHERE gt.kr_id = ? AND t.is_completed = 1",
@@ -929,7 +977,12 @@ fn recalc_task_kr_progress(c: &Connection, kr_id: &str) -> AppResult<()> {
     let target_value = total as f64;
     c.execute(
         "UPDATE key_results SET current_value = ?, target_value = ?, is_completed = ? WHERE id = ?",
-        params![current_value, target_value, (current_value >= target_value && total > 0) as i64, kr_id],
+        params![
+            current_value,
+            target_value,
+            (current_value >= target_value && total > 0) as i64,
+            kr_id
+        ],
     )?;
     Ok(())
 }

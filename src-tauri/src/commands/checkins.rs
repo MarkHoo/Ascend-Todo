@@ -40,7 +40,10 @@ pub fn list_check_ins(
     end: Option<String>,
 ) -> AppResult<Vec<CheckIn>> {
     let c = conn(&state);
-    let (s, e) = (start.unwrap_or_else(|| "0000-00-00".into()), end.unwrap_or_else(|| "9999-12-31".into()));
+    let (s, e) = (
+        start.unwrap_or_else(|| "0000-00-00".into()),
+        end.unwrap_or_else(|| "9999-12-31".into()),
+    );
     let mut stmt = c.prepare(
         "SELECT id, date, count FROM check_ins WHERE date BETWEEN ? AND ? ORDER BY date ASC",
     )?;
@@ -62,7 +65,9 @@ pub fn list_check_ins(
 pub fn check_in_summary(state: State<DbState>) -> AppResult<CheckInSummary> {
     let c = conn(&state);
     let total: i32 = c
-        .query_row("SELECT COALESCE(SUM(count), 0) FROM check_ins", [], |r| r.get(0))
+        .query_row("SELECT COALESCE(SUM(count), 0) FROM check_ins", [], |r| {
+            r.get(0)
+        })
         .unwrap_or(0);
     let today_date = today();
     let today_count: i32 = c
@@ -74,9 +79,7 @@ pub fn check_in_summary(state: State<DbState>) -> AppResult<CheckInSummary> {
         .unwrap_or(0);
 
     // Compute streak: count consecutive days from today backwards with count > 0
-    let mut stmt = c.prepare(
-        "SELECT date, count FROM check_ins ORDER BY date DESC LIMIT 365",
-    )?;
+    let mut stmt = c.prepare("SELECT date, count FROM check_ins ORDER BY date DESC LIMIT 365")?;
     let rows: Vec<(String, i32)> = stmt
         .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
         .filter_map(|r| r.ok())

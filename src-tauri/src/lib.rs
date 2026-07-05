@@ -38,22 +38,35 @@ pub fn run() {
                 conn: Mutex::new(conn),
             });
 
-            if let (Some(window), Some(icon)) = (
-                app.get_webview_window("main"),
-                app.default_window_icon(),
-            ) {
+            if let (Some(window), Some(icon)) =
+                (app.get_webview_window("main"), app.default_window_icon())
+            {
                 window.set_icon(icon.clone())?;
             }
 
             // Setup system tray icon with context menu
             use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-            let show_item = MenuItemBuilder::new("显示主窗口 / Show").id("show").build(app)?;
-            let pomodoro_item = MenuItemBuilder::new("开始番茄钟 / Start Pomodoro").id("pomodoro").build(app)?;
-            let overview_item = MenuItemBuilder::new("总览 / Overview").id("overview").build(app)?;
-            let boards_item = MenuItemBuilder::new("任务看板 / Boards").id("boards").build(app)?;
-            let goals_item = MenuItemBuilder::new("目标 / Goals").id("goals").build(app)?;
-            let calendar_item = MenuItemBuilder::new("日历 / Calendar").id("calendar").build(app)?;
-            let settings_item = MenuItemBuilder::new("设置 / Settings").id("settings").build(app)?;
+            let show_item = MenuItemBuilder::new("显示主窗口 / Show")
+                .id("show")
+                .build(app)?;
+            let pomodoro_item = MenuItemBuilder::new("开始番茄钟 / Start Pomodoro")
+                .id("pomodoro")
+                .build(app)?;
+            let overview_item = MenuItemBuilder::new("总览 / Overview")
+                .id("overview")
+                .build(app)?;
+            let boards_item = MenuItemBuilder::new("任务看板 / Boards")
+                .id("boards")
+                .build(app)?;
+            let goals_item = MenuItemBuilder::new("目标 / Goals")
+                .id("goals")
+                .build(app)?;
+            let calendar_item = MenuItemBuilder::new("日历 / Calendar")
+                .id("calendar")
+                .build(app)?;
+            let settings_item = MenuItemBuilder::new("设置 / Settings")
+                .id("settings")
+                .build(app)?;
             let quit_item = MenuItemBuilder::new("退出 / Quit").id("quit").build(app)?;
 
             let nav_menu = SubmenuBuilder::new(app, "导航 / Navigate")
@@ -264,6 +277,10 @@ pub fn run() {
             commands::auth::login,
             commands::auth::logout,
             commands::auth::current_session,
+            commands::auth::refresh_cloud_session,
+            commands::auth::send_email_verification_code,
+            commands::auth::verify_email_code,
+            commands::auth::list_cloud_devices,
             // sync
             commands::sync::sync_status,
             commands::sync::sync_push,

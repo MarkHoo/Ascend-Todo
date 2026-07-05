@@ -82,10 +82,9 @@ fn download_update_package_blocking(asset_url: String, package_path: String) -> 
         std::fs::create_dir_all(parent)?;
     }
 
-    let mut response = http_client()?
-        .get(asset_url)
-        .send()
-        .map_err(|error| AppError::Internal(format!("failed to download update package: {error}")))?;
+    let mut response = http_client()?.get(asset_url).send().map_err(|error| {
+        AppError::Internal(format!("failed to download update package: {error}"))
+    })?;
 
     if !response.status().is_success() {
         return Err(AppError::Internal(format!(
@@ -95,7 +94,8 @@ fn download_update_package_blocking(asset_url: String, package_path: String) -> 
     }
 
     let mut file = std::fs::File::create(&target)?;
-    response.copy_to(&mut file)
+    response
+        .copy_to(&mut file)
         .map_err(|error| AppError::Internal(format!("failed to save update package: {error}")))?;
     Ok(())
 }

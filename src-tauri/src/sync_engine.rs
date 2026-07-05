@@ -38,9 +38,7 @@ pub fn build_snapshot(c: &Connection) -> AppResult<Snapshot> {
 
     let mut lists = Vec::new();
     {
-        let mut stmt = c.prepare(
-            "SELECT id, board_id, name, position, created_at FROM lists",
-        )?;
+        let mut stmt = c.prepare("SELECT id, board_id, name, position, created_at FROM lists")?;
         for r in stmt.query_map([], |r| {
             Ok(List {
                 id: r.get(0)?,
@@ -193,9 +191,8 @@ pub fn build_snapshot(c: &Connection) -> AppResult<Snapshot> {
 
     let mut goal_task_links = Vec::new();
     {
-        let mut stmt = c.prepare(
-            "SELECT id, goal_id, kr_id, task_id, created_at FROM goal_tasks",
-        )?;
+        let mut stmt =
+            c.prepare("SELECT id, goal_id, kr_id, task_id, created_at FROM goal_tasks")?;
         for r in stmt.query_map([], |r| {
             Ok(GoalTaskLink {
                 id: r.get(0)?,
@@ -521,9 +518,20 @@ pub fn apply_snapshot(c: &Connection, s: &Snapshot) -> AppResult<()> {
                  unit, weight, health_status, check_date, is_completed, position, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
-                kr.id, kr.goal_id, kr.title, kr.kr_type, kr.start_value, kr.target_value,
-                kr.current_value, kr.unit, kr.weight, kr.health_status, kr.check_date,
-                kr.is_completed as i64, kr.position, kr.created_at
+                kr.id,
+                kr.goal_id,
+                kr.title,
+                kr.kr_type,
+                kr.start_value,
+                kr.target_value,
+                kr.current_value,
+                kr.unit,
+                kr.weight,
+                kr.health_status,
+                kr.check_date,
+                kr.is_completed as i64,
+                kr.position,
+                kr.created_at
             ],
         )?;
     }
@@ -531,14 +539,27 @@ pub fn apply_snapshot(c: &Connection, s: &Snapshot) -> AppResult<()> {
         tx.execute(
             "INSERT INTO progress_logs (id, kr_id, old_value, new_value, comment, created_at)
              VALUES (?, ?, ?, ?, ?, ?)",
-            params![log.id, log.kr_id, log.old_value, log.new_value, log.comment, log.created_at],
+            params![
+                log.id,
+                log.kr_id,
+                log.old_value,
+                log.new_value,
+                log.comment,
+                log.created_at
+            ],
         )?;
     }
     for link in &s.goal_task_links {
         tx.execute(
             "INSERT INTO goal_tasks (id, goal_id, kr_id, task_id, created_at)
              VALUES (?, ?, ?, ?, ?)",
-            params![link.id, link.goal_id, link.kr_id, link.task_id, link.created_at],
+            params![
+                link.id,
+                link.goal_id,
+                link.kr_id,
+                link.task_id,
+                link.created_at
+            ],
         )?;
     }
     for p in &s.pomodoro_sessions {
@@ -565,9 +586,17 @@ pub fn apply_snapshot(c: &Connection, s: &Snapshot) -> AppResult<()> {
                  lessons, next_actions, score, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
-                report.id, report.period_type, report.period_start, report.period_end,
-                report.highlights, report.blockers, report.lessons, report.next_actions,
-                report.score, report.created_at, report.updated_at
+                report.id,
+                report.period_type,
+                report.period_start,
+                report.period_end,
+                report.highlights,
+                report.blockers,
+                report.lessons,
+                report.next_actions,
+                report.score,
+                report.created_at,
+                report.updated_at
             ],
         )?;
     }
@@ -579,11 +608,25 @@ pub fn apply_snapshot(c: &Connection, s: &Snapshot) -> AppResult<()> {
                  color, holiday_type, raw_ics, created_at, updated_at, synced_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
-                event.id, event.title, event.description, event.start_time, event.end_time,
-                event.all_day as i64, event.location, event.source_type, event.source_account_id,
-                event.external_uid, event.sequence, event.status, event.readonly as i64,
-                event.color, event.holiday_type, event.raw_ics, event.created_at,
-                event.updated_at, event.synced_at
+                event.id,
+                event.title,
+                event.description,
+                event.start_time,
+                event.end_time,
+                event.all_day as i64,
+                event.location,
+                event.source_type,
+                event.source_account_id,
+                event.external_uid,
+                event.sequence,
+                event.status,
+                event.readonly as i64,
+                event.color,
+                event.holiday_type,
+                event.raw_ics,
+                event.created_at,
+                event.updated_at,
+                event.synced_at
             ],
         )?;
     }
@@ -604,9 +647,17 @@ pub fn apply_snapshot(c: &Connection, s: &Snapshot) -> AppResult<()> {
                  sync_interval_minutes, last_sync_at, last_error, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
-                account.id, account.provider, account.email, account.imap_host, account.imap_port,
-                account.enabled as i64, account.sync_interval_minutes, account.last_sync_at,
-                account.last_error, account.created_at, account.updated_at
+                account.id,
+                account.provider,
+                account.email,
+                account.imap_host,
+                account.imap_port,
+                account.enabled as i64,
+                account.sync_interval_minutes,
+                account.last_sync_at,
+                account.last_error,
+                account.created_at,
+                account.updated_at
             ],
         )?;
     }
@@ -617,9 +668,15 @@ pub fn apply_snapshot(c: &Connection, s: &Snapshot) -> AppResult<()> {
                  last_sync_at, last_error, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
-                config.id, config.country_code, config.region, config.enabled as i64,
-                config.show_workdays as i64, config.source_url, config.last_sync_at,
-                config.last_error, config.updated_at
+                config.id,
+                config.country_code,
+                config.region,
+                config.enabled as i64,
+                config.show_workdays as i64,
+                config.source_url,
+                config.last_sync_at,
+                config.last_error,
+                config.updated_at
             ],
         )?;
     }

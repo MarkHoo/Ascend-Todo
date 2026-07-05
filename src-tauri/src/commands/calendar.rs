@@ -10,10 +10,10 @@ use crate::db::DbState;
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AuthorizeCalendarEmailOAuthRequest, CalendarEmailAccount, CalendarEmailCredentialStatus,
-    CalendarEmailSyncResult, CalendarEntry, CalendarHolidaySource, CalendarSyncStatus, CreateCalendarEmailAccountRequest,
-    CreateManualCalendarEventRequest,
-    ImportCalendarIcsSourceRequest, ImportHolidayJsonSourceRequest, SaveCalendarEmailCredentialRequest,
-    SyncHolidayCountryRequest,
+    CalendarEmailSyncResult, CalendarEntry, CalendarHolidaySource, CalendarSyncStatus,
+    CreateCalendarEmailAccountRequest, CreateManualCalendarEventRequest,
+    ImportCalendarIcsSourceRequest, ImportHolidayJsonSourceRequest,
+    SaveCalendarEmailCredentialRequest, SyncHolidayCountryRequest,
 };
 
 fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
@@ -33,7 +33,10 @@ fn local_parts(value: Option<String>) -> (String, Option<String>, Option<String>
         );
     }
     let date = raw.get(0..10).unwrap_or("").to_string();
-    let time = raw.get(11..16).map(|s| s.to_string()).filter(|s| !s.is_empty());
+    let time = raw
+        .get(11..16)
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty());
     (date, time, Some(raw))
 }
 
@@ -136,8 +139,12 @@ fn localized_holiday_title(country_code: &str, name: &str, language: &str) -> St
         ("HK", "buddha's birthday", "zh-TW") => Some("佛誕"),
         ("HK", "tuen ng festival", "zh-CN") => Some("端午节"),
         ("HK", "tuen ng festival", "zh-TW") => Some("端午節"),
-        ("HK", "hong kong special administrative region establishment day", "zh-CN") => Some("香港特别行政区成立纪念日"),
-        ("HK", "hong kong special administrative region establishment day", "zh-TW") => Some("香港特別行政區成立紀念日"),
+        ("HK", "hong kong special administrative region establishment day", "zh-CN") => {
+            Some("香港特别行政区成立纪念日")
+        }
+        ("HK", "hong kong special administrative region establishment day", "zh-TW") => {
+            Some("香港特別行政區成立紀念日")
+        }
         ("HK", "national day", "zh-CN") => Some("国庆节"),
         ("HK", "national day", "zh-TW") => Some("國慶節"),
         ("HK", "chung yeung festival", "zh-CN") => Some("重阳节"),
@@ -148,7 +155,9 @@ fn localized_holiday_title(country_code: &str, name: &str, language: &str) -> St
         ("HK", "boxing day", "zh-TW") => Some("聖誕節翌日"),
         _ => None,
     };
-    translated.map(str::to_string).unwrap_or_else(|| localized_generic_holiday(country_code, language))
+    translated
+        .map(str::to_string)
+        .unwrap_or_else(|| localized_generic_holiday(country_code, language))
 }
 
 fn china_adjusted_workdays(year: i32, language: &str) -> Vec<ParsedHolidayEvent> {
@@ -156,14 +165,21 @@ fn china_adjusted_workdays(year: i32, language: &str) -> Vec<ParsedHolidayEvent>
         return Vec::new();
     }
     let title = localized_workday_title(language);
-    ["2026-01-04", "2026-02-14", "2026-02-28", "2026-05-09", "2026-09-20", "2026-10-10"]
-        .into_iter()
-        .map(|date| ParsedHolidayEvent {
-            date: date.into(),
-            title: title.clone(),
-            holiday_type: "workday".into(),
-        })
-        .collect()
+    [
+        "2026-01-04",
+        "2026-02-14",
+        "2026-02-28",
+        "2026-05-09",
+        "2026-09-20",
+        "2026-10-10",
+    ]
+    .into_iter()
+    .map(|date| ParsedHolidayEvent {
+        date: date.into(),
+        title: title.clone(),
+        holiday_type: "workday".into(),
+    })
+    .collect()
 }
 
 fn localized_china_holiday_title(key: &str, language: &str) -> String {
@@ -240,7 +256,6 @@ fn china_adjusted_holidays(year: i32, language: &str) -> Vec<ParsedHolidayEvent>
         })
         .collect()
 }
-
 
 fn ensure_default_holiday_config(c: &Connection) -> AppResult<()> {
     let count: i64 = c.query_row(
@@ -321,16 +336,25 @@ fn parse_holiday_json(content: &str) -> AppResult<Vec<ParsedHolidayEvent>> {
             .unwrap_or("holiday")
             .trim()
             .to_lowercase();
-        if date.len() != 10 || !date.chars().enumerate().all(|(i, c)| {
-            if i == 4 || i == 7 { c == '-' } else { c.is_ascii_digit() }
-        }) {
-            return Err(crate::error::AppError::Invalid(format!("日期格式错误：{date}")));
+        if date.len() != 10
+            || !date.chars().enumerate().all(|(i, c)| {
+                if i == 4 || i == 7 {
+                    c == '-'
+                } else {
+                    c.is_ascii_digit()
+                }
+            })
+        {
+            return Err(crate::error::AppError::Invalid(format!(
+                "日期格式错误：{date}"
+            )));
         }
-        let normalized_type = if holiday_type == "workday" || holiday_type == "ban" || holiday_type == "班" {
-            "workday".to_string()
-        } else {
-            "holiday".to_string()
-        };
+        let normalized_type =
+            if holiday_type == "workday" || holiday_type == "ban" || holiday_type == "班" {
+                "workday".to_string()
+            } else {
+                "holiday".to_string()
+            };
         holidays.push(ParsedHolidayEvent {
             date,
             title,
@@ -373,7 +397,11 @@ fn write_holiday_events(
                 format!("{}T23:59:59+08:00", h.date),
                 source_id,
                 format!("{}-{}", source_id, h.date),
-                if h.holiday_type == "workday" { "#16a34a" } else { "#ef4444" },
+                if h.holiday_type == "workday" {
+                    "#16a34a"
+                } else {
+                    "#ef4444"
+                },
                 h.holiday_type,
                 raw_content,
                 now,
@@ -403,7 +431,9 @@ pub fn import_holiday_json_source(
     }
     let holidays = parse_holiday_json(&input.content)?;
     if holidays.is_empty() {
-        return Err(crate::error::AppError::Invalid("导入源中没有节假日数据".into()));
+        return Err(crate::error::AppError::Invalid(
+            "导入源中没有节假日数据".into(),
+        ));
     }
     let c = conn(&state);
     ensure_default_holiday_config(&c)?;
@@ -453,7 +483,11 @@ fn write_ics_source_events(
                 event.sequence,
                 event.status,
                 if event.all_day { "#ef4444" } else { "#0ea5e9" },
-                if event.all_day { Some("holiday".to_string()) } else { None },
+                if event.all_day {
+                    Some("holiday".to_string())
+                } else {
+                    None
+                },
                 raw_content,
                 timestamp,
                 timestamp,
@@ -534,7 +568,10 @@ pub fn delete_calendar_holiday_source(
         "DELETE FROM calendar_events WHERE source_type = 'holiday' AND source_account_id = ?",
         params![id],
     )?;
-    c.execute("DELETE FROM calendar_holiday_sources WHERE id = ?", params![id])?;
+    c.execute(
+        "DELETE FROM calendar_holiday_sources WHERE id = ?",
+        params![id],
+    )?;
     drop(c);
     calendar_sync_status(state)
 }
@@ -756,11 +793,17 @@ fn oauth_pkce_challenge(verifier: &str) -> String {
     base64_url_no_pad(&digest)
 }
 
-fn pomodoro_record_end_at(started_at: Option<&str>, ended_at: Option<String>, duration_seconds: i32) -> Option<String> {
+fn pomodoro_record_end_at(
+    started_at: Option<&str>,
+    ended_at: Option<String>,
+    duration_seconds: i32,
+) -> Option<String> {
     if duration_seconds > 0 {
         if let Some(started_at) = started_at {
             if let Ok(start) = chrono::DateTime::parse_from_rfc3339(started_at) {
-                return Some((start + chrono::Duration::seconds(duration_seconds as i64)).to_rfc3339());
+                return Some(
+                    (start + chrono::Duration::seconds(duration_seconds as i64)).to_rfc3339(),
+                );
             }
         }
     }
@@ -796,7 +839,8 @@ fn open_external_url(url: &str) -> AppResult<()> {
 
 fn wait_for_oauth_code(listener: TcpListener, expected_state: &str) -> AppResult<String> {
     for stream in listener.incoming() {
-        let mut stream = stream.map_err(|e| AppError::Invalid(format!("OAuth callback failed: {e}")))?;
+        let mut stream =
+            stream.map_err(|e| AppError::Invalid(format!("OAuth callback failed: {e}")))?;
         let mut buffer = [0_u8; 4096];
         let read = stream
             .read(&mut buffer)
@@ -838,7 +882,13 @@ fn wait_for_oauth_code(listener: TcpListener, expected_state: &str) -> AppResult
     Err(AppError::Auth("OAuth authorization timed out".into()))
 }
 
-fn exchange_oauth_code(provider: &str, client_id: &str, redirect_uri: &str, code: &str, verifier: &str) -> AppResult<CalendarOAuthCredential> {
+fn exchange_oauth_code(
+    provider: &str,
+    client_id: &str,
+    redirect_uri: &str,
+    code: &str,
+    verifier: &str,
+) -> AppResult<CalendarOAuthCredential> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
@@ -858,7 +908,9 @@ fn exchange_oauth_code(provider: &str, client_id: &str, redirect_uri: &str, code
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().unwrap_or_default();
-        return Err(AppError::Auth(format!("OAuth token exchange failed: {status} {text}")));
+        return Err(AppError::Auth(format!(
+            "OAuth token exchange failed: {status} {text}"
+        )));
     }
     let token: OAuthTokenResponse = response
         .json()
@@ -868,15 +920,19 @@ fn exchange_oauth_code(provider: &str, client_id: &str, redirect_uri: &str, code
         client_id: client_id.to_string(),
         access_token: token.access_token,
         refresh_token: token.refresh_token,
-        expires_at: token.expires_in.map(|seconds| chrono::Utc::now().timestamp() + seconds - 60),
+        expires_at: token
+            .expires_in
+            .map(|seconds| chrono::Utc::now().timestamp() + seconds - 60),
     })
 }
 
-fn refresh_oauth_credential(provider: &str, credential: &CalendarOAuthCredential) -> AppResult<CalendarOAuthCredential> {
-    let refresh_token = credential
-        .refresh_token
-        .as_deref()
-        .ok_or_else(|| AppError::Auth("OAuth refresh token missing, please authorize again".into()))?;
+fn refresh_oauth_credential(
+    provider: &str,
+    credential: &CalendarOAuthCredential,
+) -> AppResult<CalendarOAuthCredential> {
+    let refresh_token = credential.refresh_token.as_deref().ok_or_else(|| {
+        AppError::Auth("OAuth refresh token missing, please authorize again".into())
+    })?;
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
@@ -894,7 +950,9 @@ fn refresh_oauth_credential(provider: &str, credential: &CalendarOAuthCredential
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().unwrap_or_default();
-        return Err(AppError::Auth(format!("OAuth token refresh failed: {status} {text}")));
+        return Err(AppError::Auth(format!(
+            "OAuth token refresh failed: {status} {text}"
+        )));
     }
     let token: OAuthTokenResponse = response
         .json()
@@ -903,12 +961,20 @@ fn refresh_oauth_credential(provider: &str, credential: &CalendarOAuthCredential
         provider: provider.to_string(),
         client_id: credential.client_id.clone(),
         access_token: token.access_token,
-        refresh_token: token.refresh_token.or_else(|| credential.refresh_token.clone()),
-        expires_at: token.expires_in.map(|seconds| chrono::Utc::now().timestamp() + seconds - 60),
+        refresh_token: token
+            .refresh_token
+            .or_else(|| credential.refresh_token.clone()),
+        expires_at: token
+            .expires_in
+            .map(|seconds| chrono::Utc::now().timestamp() + seconds - 60),
     })
 }
 
-fn resolve_calendar_email_secret(account: &CalendarEmailAccount, raw_secret: &str, entry: &keyring::Entry) -> AppResult<String> {
+fn resolve_calendar_email_secret(
+    account: &CalendarEmailAccount,
+    raw_secret: &str,
+    entry: &keyring::Entry,
+) -> AppResult<String> {
     let provider = normalized_email_provider(&account.provider);
     if provider != "gmail" && provider != "outlook" {
         return Ok(raw_secret.to_string());
@@ -997,15 +1063,19 @@ fn ics_line_name(line: &str) -> String {
 }
 
 fn ics_line_value(line: &str) -> String {
-    line.split_once(':').map(|(_, v)| v.trim().to_string()).unwrap_or_default()
+    line.split_once(':')
+        .map(|(_, v)| v.trim().to_string())
+        .unwrap_or_default()
 }
 
 fn fix_mojibake_text(value: &str) -> String {
-    let has_suspicious_marker = value
-        .chars()
-        .any(|ch| matches!(ch, 'Ã' | 'Â' | 'Ä' | 'Å' | 'Æ' | 'Ç' | 'È' | 'É' | 'ä' | 'å' | 'æ' | 'ç' | 'è' | 'é')
-            || cp1252_mojibake_byte(ch).is_some()
-            || ('\u{0080}'..='\u{009f}').contains(&ch));
+    let has_suspicious_marker = value.chars().any(|ch| {
+        matches!(
+            ch,
+            'Ã' | 'Â' | 'Ä' | 'Å' | 'Æ' | 'Ç' | 'È' | 'É' | 'ä' | 'å' | 'æ' | 'ç' | 'è' | 'é'
+        ) || cp1252_mojibake_byte(ch).is_some()
+            || ('\u{0080}'..='\u{009f}').contains(&ch)
+    });
     if !has_suspicious_marker {
         return value.replace('\u{00a0}', " ");
     }
@@ -1132,7 +1202,11 @@ fn parse_ics_events(ics: &str) -> Vec<ParsedIcsEvent> {
                 };
                 events.push(ParsedIcsEvent {
                     uid: uid.clone(),
-                    title: if title.is_empty() { "未命名会议".into() } else { title.clone() },
+                    title: if title.is_empty() {
+                        "未命名会议".into()
+                    } else {
+                        title.clone()
+                    },
                     description: full_description,
                     location: location.clone(),
                     start_time: start_time.clone().unwrap_or_default(),
@@ -1310,7 +1384,11 @@ pub fn export_calendar_sync_config(state: State<DbState>) -> AppResult<String> {
         Ok(CalendarHolidaySource {
             id: r.get(0)?,
             name: r.get(1)?,
-            description: if source_type == "json" { "JSON holiday source".into() } else { "ICS calendar source".into() },
+            description: if source_type == "json" {
+                "JSON holiday source".into()
+            } else {
+                "ICS calendar source".into()
+            },
             built_in: false,
             url: r.get(3)?,
         })
@@ -1344,13 +1422,20 @@ pub fn export_calendar_sync_config(state: State<DbState>) -> AppResult<String> {
 }
 
 #[tauri::command]
-pub fn import_calendar_sync_config(state: State<DbState>, content: String) -> AppResult<CalendarSyncStatus> {
+pub fn import_calendar_sync_config(
+    state: State<DbState>,
+    content: String,
+) -> AppResult<CalendarSyncStatus> {
     let backup: CalendarSyncConfigBackup = serde_json::from_str(&content)
         .map_err(|e| AppError::Invalid(format!("Calendar sync config parse failed: {e}")))?;
     let c = conn(&state);
     let now = crate::db::now();
     for source in backup.holiday_sources {
-        let source_type = if source.url.as_deref().unwrap_or_default().trim().is_empty() { "json" } else { "ics" };
+        let source_type = if source.url.as_deref().unwrap_or_default().trim().is_empty() {
+            "json"
+        } else {
+            "ics"
+        };
         let exists: i64 = c.query_row(
             "SELECT COUNT(*) FROM calendar_holiday_sources WHERE name = ? AND COALESCE(url, '') = COALESCE(?, '')",
             params![source.name, source.url],
@@ -1422,16 +1507,7 @@ pub fn create_calendar_email_account(
             (id, provider, email, imap_host, imap_port, enabled, sync_interval_minutes,
              last_sync_at, last_error, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 1, ?, NULL, NULL, ?, ?)",
-        params![
-            id,
-            provider,
-            email,
-            imap_host,
-            imap_port,
-            interval,
-            now,
-            now,
-        ],
+        params![id, provider, email, imap_host, imap_port, interval, now, now,],
     )?;
     let account = c.query_row(
         "SELECT id, provider, email, imap_host, imap_port, enabled, sync_interval_minutes,
@@ -1465,7 +1541,10 @@ pub fn delete_calendar_email_account(state: State<DbState>, id: String) -> AppRe
         "DELETE FROM calendar_events WHERE source_type IN ('meeting', 'email') AND source_account_id = ?",
         params![id],
     )?;
-    tx.execute("DELETE FROM calendar_sync_accounts WHERE id = ?", params![id])?;
+    tx.execute(
+        "DELETE FROM calendar_sync_accounts WHERE id = ?",
+        params![id],
+    )?;
     tx.commit()?;
     if let Ok(entry) = email_credential_entry(&id) {
         let _ = entry.delete_credential();
@@ -1524,7 +1603,9 @@ pub fn authorize_calendar_email_oauth(
 
     let provider = normalized_email_provider(&account.provider);
     if provider != "gmail" && provider != "outlook" {
-        return Err(AppError::Invalid("OAuth is only available for Gmail and Outlook accounts".into()));
+        return Err(AppError::Invalid(
+            "OAuth is only available for Gmail and Outlook accounts".into(),
+        ));
     }
     let client_id = input.client_id.trim();
     if client_id.is_empty() {
@@ -1637,16 +1718,13 @@ fn sync_calendar_email_account_blocking(
         .ok_or_else(|| crate::error::AppError::Invalid("请先设置 IMAP 服务器".into()))?;
     let port = account.imap_port.unwrap_or(993) as u16;
     let credential_entry = email_credential_entry(&account.id)
-        .map_err(|e| crate::error::AppError::Auth(format!("无法访问系统凭据管理：{e}")))?
-        ;
-    let raw_secret = credential_entry
-        .get_password()
-        .map_err(|_| {
-            crate::error::AppError::Auth(format!(
-                "请先保存{}",
-                provider_auth_label(&normalized_email_provider(&account.provider))
-            ))
-        })?;
+        .map_err(|e| crate::error::AppError::Auth(format!("无法访问系统凭据管理：{e}")))?;
+    let raw_secret = credential_entry.get_password().map_err(|_| {
+        crate::error::AppError::Auth(format!(
+            "请先保存{}",
+            provider_auth_label(&normalized_email_provider(&account.provider))
+        ))
+    })?;
     let secret = resolve_calendar_email_secret(&account, &raw_secret, &credential_entry)?;
 
     let sync_result = (|| -> AppResult<CalendarEmailSyncResult> {
@@ -1672,7 +1750,9 @@ fn sync_calendar_email_account_blocking(
         session
             .select("INBOX")
             .map_err(|e| crate::error::AppError::Invalid(format!("打开 INBOX 失败：{e}")))?;
-        let since = (chrono::Local::now() - chrono::Duration::days(45)).format("%d-%b-%Y").to_string();
+        let since = (chrono::Local::now() - chrono::Duration::days(45))
+            .format("%d-%b-%Y")
+            .to_string();
         let ids = session
             .search(format!("SINCE {}", since))
             .map_err(|e| crate::error::AppError::Invalid(format!("搜索邮件失败：{e}")))?;
@@ -1740,7 +1820,9 @@ pub async fn sync_calendar_email_account(
     .map_err(|e| AppError::Invalid(format!("calendar email sync task failed: {e}")))?
 }
 
-fn sync_calendar_email_accounts_blocking(state: State<DbState>) -> AppResult<Vec<CalendarEmailSyncResult>> {
+fn sync_calendar_email_accounts_blocking(
+    state: State<DbState>,
+) -> AppResult<Vec<CalendarEmailSyncResult>> {
     let accounts = list_calendar_email_accounts(state.clone())?;
     let mut results = Vec::new();
     for account in accounts.into_iter().filter(|account| account.enabled) {
@@ -1752,7 +1834,9 @@ fn sync_calendar_email_accounts_blocking(state: State<DbState>) -> AppResult<Vec
 }
 
 #[tauri::command]
-pub async fn sync_calendar_email_accounts(app: AppHandle) -> AppResult<Vec<CalendarEmailSyncResult>> {
+pub async fn sync_calendar_email_accounts(
+    app: AppHandle,
+) -> AppResult<Vec<CalendarEmailSyncResult>> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<DbState>();
         sync_calendar_email_accounts_blocking(state)
@@ -1761,7 +1845,11 @@ pub async fn sync_calendar_email_accounts(app: AppHandle) -> AppResult<Vec<Calen
     .map_err(|e| AppError::Invalid(format!("calendar email sync task failed: {e}")))?
 }
 
-fn fetch_nager_holidays(country_code: &str, year: i32, language: &str) -> AppResult<Vec<ParsedHolidayEvent>> {
+fn fetch_nager_holidays(
+    country_code: &str,
+    year: i32,
+    language: &str,
+) -> AppResult<Vec<ParsedHolidayEvent>> {
     let url = format!("https://date.nager.at/api/v4/Holidays/{country_code}/{year}");
     let response = reqwest::blocking::get(&url)
         .map_err(|e| AppError::Invalid(format!("failed to download holiday calendar: {e}")))?;
@@ -1806,7 +1894,10 @@ fn fetch_nager_holidays(country_code: &str, year: i32, language: &str) -> AppRes
     Ok(parsed)
 }
 
-fn sync_holiday_country_blocking(state: State<DbState>, input: SyncHolidayCountryRequest) -> AppResult<CalendarSyncStatus> {
+fn sync_holiday_country_blocking(
+    state: State<DbState>,
+    input: SyncHolidayCountryRequest,
+) -> AppResult<CalendarSyncStatus> {
     let country_code = input.country_code.trim().to_uppercase();
     if country_code.len() != 2 || !country_code.chars().all(|ch| ch.is_ascii_alphabetic()) {
         return Err(AppError::Invalid("invalid holiday country code".into()));
@@ -1815,10 +1906,18 @@ fn sync_holiday_country_blocking(state: State<DbState>, input: SyncHolidayCountr
         "zh-CN" | "zh-TW" | "en" => input.language.as_str(),
         _ => "en",
     };
-    let current_year = chrono::Local::now().format("%Y").to_string().parse::<i32>().unwrap_or(2026);
+    let current_year = chrono::Local::now()
+        .format("%Y")
+        .to_string()
+        .parse::<i32>()
+        .unwrap_or(2026);
     let source_id = format!("nager:{country_code}");
     let mut holidays = fetch_nager_holidays(&country_code, current_year, language)?;
-    holidays.extend(fetch_nager_holidays(&country_code, current_year + 1, language)?);
+    holidays.extend(fetch_nager_holidays(
+        &country_code,
+        current_year + 1,
+        language,
+    )?);
 
     let c = conn(&state);
     ensure_default_holiday_config(&c)?;
@@ -1854,7 +1953,11 @@ fn sync_holiday_country_blocking(state: State<DbState>, input: SyncHolidayCountr
                 format!("{}T23:59:59", holiday.date),
                 source_id,
                 format!("{}-{}", source_id, holiday.date),
-                if holiday.holiday_type == "workday" { "#16a34a" } else { "#ef4444" },
+                if holiday.holiday_type == "workday" {
+                    "#16a34a"
+                } else {
+                    "#ef4444"
+                },
                 holiday.holiday_type,
                 now,
                 now,
@@ -1874,7 +1977,10 @@ fn sync_holiday_country_blocking(state: State<DbState>, input: SyncHolidayCountr
 }
 
 #[tauri::command]
-pub async fn sync_holiday_country(app: AppHandle, input: SyncHolidayCountryRequest) -> AppResult<CalendarSyncStatus> {
+pub async fn sync_holiday_country(
+    app: AppHandle,
+    input: SyncHolidayCountryRequest,
+) -> AppResult<CalendarSyncStatus> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<DbState>();
         sync_holiday_country_blocking(state, input)
@@ -1887,23 +1993,27 @@ pub async fn sync_holiday_country(app: AppHandle, input: SyncHolidayCountryReque
 pub fn calendar_sync_status(state: State<DbState>) -> AppResult<CalendarSyncStatus> {
     let c = conn(&state);
     ensure_default_holiday_config(&c)?;
-    let (holiday_enabled, holiday_source, holiday_country, holiday_last_sync_at, holiday_last_error): (i64, String, String, Option<String>, Option<String>) =
-        c.query_row(
-            "SELECT enabled, COALESCE(source_url, 'nager:CN'), country_code, last_sync_at, last_error
+    let (
+        holiday_enabled,
+        holiday_source,
+        holiday_country,
+        holiday_last_sync_at,
+        holiday_last_error,
+    ): (i64, String, String, Option<String>, Option<String>) = c.query_row(
+        "SELECT enabled, COALESCE(source_url, 'nager:CN'), country_code, last_sync_at, last_error
              FROM holiday_sync_configs WHERE id = ?",
-            params![HOLIDAY_CONFIG_ID],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-        )?;
+        params![HOLIDAY_CONFIG_ID],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+    )?;
     let holiday_event_count: i32 = c.query_row(
         "SELECT COUNT(*) FROM calendar_events WHERE source_type = 'holiday'",
         [],
         |r| r.get(0),
     )?;
-    let email_account_count: i32 = c.query_row(
-        "SELECT COUNT(*) FROM calendar_sync_accounts",
-        [],
-        |r| r.get(0),
-    )?;
+    let email_account_count: i32 =
+        c.query_row("SELECT COUNT(*) FROM calendar_sync_accounts", [], |r| {
+            r.get(0)
+        })?;
     let email_enabled_count: i32 = c.query_row(
         "SELECT COUNT(*) FROM calendar_sync_accounts WHERE enabled = 1",
         [],
@@ -1914,13 +2024,15 @@ pub fn calendar_sync_status(state: State<DbState>) -> AppResult<CalendarSyncStat
         [],
         |r| r.get(0),
     )?;
-    let email_last_error: Option<String> = c.query_row(
-        "SELECT last_error FROM calendar_sync_accounts
+    let email_last_error: Option<String> = c
+        .query_row(
+            "SELECT last_error FROM calendar_sync_accounts
          WHERE last_error IS NOT NULL AND last_error != ''
          ORDER BY updated_at DESC LIMIT 1",
-        [],
-        |r| r.get(0),
-    ).ok();
+            [],
+            |r| r.get(0),
+        )
+        .ok();
     Ok(CalendarSyncStatus {
         holiday_enabled: holiday_enabled != 0,
         holiday_source,
@@ -2144,7 +2256,8 @@ pub fn calendar_range(
                 unit.clone().unwrap_or_default(),
                 target,
                 unit.unwrap_or_default(),
-                r.get::<_, Option<String>>(7)?.unwrap_or_else(|| "normal".into()),
+                r.get::<_, Option<String>>(7)?
+                    .unwrap_or_else(|| "normal".into()),
             )),
             holiday_type: None,
             status: r.get(7)?,
@@ -2173,7 +2286,8 @@ pub fn calendar_range(
         let started_at: Option<String> = r.get(4)?;
         let ended_at: Option<String> = r.get(5)?;
         let duration_seconds: i32 = r.get(3)?;
-        let display_end_at = pomodoro_record_end_at(started_at.as_deref(), ended_at, duration_seconds);
+        let display_end_at =
+            pomodoro_record_end_at(started_at.as_deref(), ended_at, duration_seconds);
         let (date, time, start_raw) = local_parts(started_at);
         let (_, end_time, end_raw) = local_parts(display_end_at);
         let task_title: Option<String> = r.get(7)?;
@@ -2183,7 +2297,9 @@ pub fn calendar_range(
             (Some(source), _) if !source.trim().is_empty() => {
                 format!("会议专注：{} · {}分钟", source, duration_minutes)
             }
-            (_, Some(task)) if !task.trim().is_empty() => format!("专注：{} · {}分钟", task, duration_minutes),
+            (_, Some(task)) if !task.trim().is_empty() => {
+                format!("专注：{} · {}分钟", task, duration_minutes)
+            }
             _ => format!("专注记录 · {}分钟", duration_minutes),
         };
         let source_line = source_title
@@ -2227,14 +2343,17 @@ pub fn calendar_range(
             location: None,
             description: Some(format!(
                 "模式：{}\n时长：{}分钟{}{}{}",
-                mode_label,
-                duration_minutes,
-                source_line,
-                source_id_line,
-                task_line
+                mode_label, duration_minutes, source_line, source_id_line, task_line
             )),
             holiday_type: None,
-            status: Some(if r.get::<_, i64>(6)? != 0 { "completed" } else { "running" }.into()),
+            status: Some(
+                if r.get::<_, i64>(6)? != 0 {
+                    "completed"
+                } else {
+                    "running"
+                }
+                .into(),
+            ),
             start_at: start_raw,
             due_at: end_raw,
         })
@@ -2259,7 +2378,9 @@ pub fn calendar_range(
             "周期：{} 至 {}\n评分：{}\n\n亮点：{}\n\n阻碍：{}\n\n经验：{}\n\n下一步：{}",
             r.get::<_, String>(2)?,
             period_end,
-            r.get::<_, Option<i32>>(8)?.map(|v| v.to_string()).unwrap_or_else(|| "未评分".into()),
+            r.get::<_, Option<i32>>(8)?
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "未评分".into()),
             r.get::<_, String>(4)?,
             r.get::<_, String>(5)?,
             r.get::<_, String>(6)?,
@@ -2332,15 +2453,22 @@ pub fn update_calendar_entry_time(
         "task" => {
             c.execute(
                 "UPDATE tasks SET start_at = ?, due_at = ?, updated_at = ? WHERE id = ?",
-                params![start_at.clone(), end_at.unwrap_or(start_at), crate::db::now(), entry_id],
+                params![
+                    start_at.clone(),
+                    end_at.unwrap_or(start_at),
+                    crate::db::now(),
+                    entry_id
+                ],
             )?;
         }
         "manual" | "meeting" | "email" | "holiday" => {
-            let readonly: Option<i64> = c.query_row(
-                "SELECT readonly FROM calendar_events WHERE id = ?",
-                params![entry_id],
-                |r| r.get(0),
-            ).optional()?;
+            let readonly: Option<i64> = c
+                .query_row(
+                    "SELECT readonly FROM calendar_events WHERE id = ?",
+                    params![entry_id],
+                    |r| r.get(0),
+                )
+                .optional()?;
             if readonly.unwrap_or(1) != 0 {
                 return Err(AppError::Invalid("只读日历事件不能调整时间".into()));
             }
@@ -2371,19 +2499,35 @@ pub fn export_calendar_range_ics(
     end: String,
 ) -> AppResult<String> {
     let entries = calendar_range(state, start, end)?;
-    let mut out = String::from("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Ascend Todo//Calendar//CN\r\n");
+    let mut out =
+        String::from("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Ascend Todo//Calendar//CN\r\n");
     for entry in entries {
-        let start_at = entry.start_at.clone().or(entry.due_at.clone()).unwrap_or_else(|| format!("{}T00:00:00+08:00", entry.date));
+        let start_at = entry
+            .start_at
+            .clone()
+            .or(entry.due_at.clone())
+            .unwrap_or_else(|| format!("{}T00:00:00+08:00", entry.date));
         let dt = chrono::DateTime::parse_from_rfc3339(&start_at)
-            .map(|v| v.with_timezone(&chrono::Utc).format("%Y%m%dT%H%M%SZ").to_string())
+            .map(|v| {
+                v.with_timezone(&chrono::Utc)
+                    .format("%Y%m%dT%H%M%SZ")
+                    .to_string()
+            })
             .unwrap_or_else(|_| entry.date.replace('-', ""));
         out.push_str("BEGIN:VEVENT\r\n");
         out.push_str(&format!("UID:{}@ascend-todo\r\n", escape_ics(&entry.id)));
         out.push_str(&format!("SUMMARY:{}\r\n", escape_ics(&entry.title)));
         out.push_str(&format!("DTSTART:{}\r\n", dt));
-        if let Some(end_at) = entry.due_at.as_deref().filter(|_| entry.source_type != "task") {
+        if let Some(end_at) = entry
+            .due_at
+            .as_deref()
+            .filter(|_| entry.source_type != "task")
+        {
             if let Ok(end_dt) = chrono::DateTime::parse_from_rfc3339(end_at) {
-                out.push_str(&format!("DTEND:{}\r\n", end_dt.with_timezone(&chrono::Utc).format("%Y%m%dT%H%M%SZ")));
+                out.push_str(&format!(
+                    "DTEND:{}\r\n",
+                    end_dt.with_timezone(&chrono::Utc).format("%Y%m%dT%H%M%SZ")
+                ));
             }
         }
         if let Some(location) = entry.location {
@@ -2412,16 +2556,20 @@ pub fn create_pomodoro_from_calendar_entry(
     entry_id: String,
 ) -> AppResult<()> {
     let c = conn(&state);
-    let event: Option<(String, Option<String>, String)> = c.query_row(
-        "SELECT start_time, end_time, title FROM calendar_events WHERE id = ?",
-        params![entry_id],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-    ).optional()?;
+    let event: Option<(String, Option<String>, String)> = c
+        .query_row(
+            "SELECT start_time, end_time, title FROM calendar_events WHERE id = ?",
+            params![entry_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
     let Some((start_time, end_time, title)) = event else {
         return Err(AppError::Invalid("未找到日历事件".into()));
     };
     let parsed_start = chrono::DateTime::parse_from_rfc3339(&start_time).ok();
-    let parsed_end = end_time.as_deref().and_then(|v| chrono::DateTime::parse_from_rfc3339(v).ok());
+    let parsed_end = end_time
+        .as_deref()
+        .and_then(|v| chrono::DateTime::parse_from_rfc3339(v).ok());
     let duration = match (parsed_start.as_ref(), parsed_end.as_ref()) {
         (Some(start), Some(end)) => (*end - *start).num_seconds().max(60) as i32,
         _ => 25 * 60,

@@ -343,6 +343,14 @@ camel! {
 pub struct AuthSession {
     pub token: String,
     pub nickname: String,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub email_verified: bool,
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+    #[serde(default)]
+    pub device_id: Option<String>,
     pub server_url: Option<String>,
 }}
 

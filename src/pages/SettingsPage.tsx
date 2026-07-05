@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { settingsApi, syncApi, authApi, calendarApi } from '@/api';
+import type { CloudDevice } from '@/api/auth';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
@@ -224,7 +225,13 @@ const settingsCopy = {
       logout: '退出登录',
       login: '登录',
       register: '注册',
-      nickname: '昵称',
+      nickname: '邮箱',
+      verifyEmail: '验证邮箱',
+      devices: '已登录设备',
+      verificationCode: '邮箱验证码',
+      sendCode: '发送验证码',
+      verified: '已验证',
+      unverified: '未验证',
       password: '密码',
       syncNow: '立即同步',
       uploadLocal: '上传本机数据',
@@ -379,7 +386,13 @@ const settingsCopy = {
       logout: '登出',
       login: '登入',
       register: '註冊',
-      nickname: '暱稱',
+      nickname: '郵箱',
+      verifyEmail: '驗證郵箱',
+      devices: '已登入設備',
+      verificationCode: '郵箱驗證碼',
+      sendCode: '發送驗證碼',
+      verified: '已驗證',
+      unverified: '未驗證',
       password: '密碼',
       syncNow: '立即同步',
       uploadLocal: '上傳本機資料',
@@ -534,7 +547,13 @@ const settingsCopy = {
       logout: 'Sign out',
       login: 'Sign in',
       register: 'Sign up',
-      nickname: 'Nickname',
+      nickname: 'Email',
+      verifyEmail: 'Verify email',
+      devices: 'Signed-in devices',
+      verificationCode: 'Email code',
+      sendCode: 'Send code',
+      verified: 'Verified',
+      unverified: 'Unverified',
       password: 'Password',
       syncNow: 'Sync now',
       uploadLocal: 'Upload local data',
@@ -588,7 +607,7 @@ const settingsMessages = {
     calendarConfigExported: '日历同步配置已导出',
     calendarConfigImported: '日历同步配置已导入，请在本机重新授权邮箱账号',
     calendarDiagnosticsExported: '日历同步诊断信息已导出',
-    enterAccount: '请输入昵称和密码',
+    enterAccount: '请输入邮箱和密码',
     loginSuccess: '登录成功',
     registerSuccess: '注册成功',
     pushSuccess: '本机数据已上传',
@@ -634,7 +653,7 @@ const settingsMessages = {
     calendarConfigExported: '日曆同步設定已匯出',
     calendarConfigImported: '日曆同步設定已匯入，請在本機重新授權郵箱帳號',
     calendarDiagnosticsExported: '日曆同步診斷資訊已匯出',
-    enterAccount: '請輸入暱稱和密碼',
+    enterAccount: '請輸入郵箱和密碼',
     loginSuccess: '登入成功',
     registerSuccess: '註冊成功',
     pushSuccess: '本機資料已上傳',
@@ -680,7 +699,7 @@ const settingsMessages = {
     calendarConfigExported: 'Calendar sync config exported',
     calendarConfigImported: 'Calendar sync config imported. Re-authorize email accounts on this device.',
     calendarDiagnosticsExported: 'Calendar sync diagnostics exported',
-    enterAccount: 'Enter nickname and password',
+    enterAccount: 'Enter email and password',
     loginSuccess: 'Signed in',
     registerSuccess: 'Signed up',
     pushSuccess: 'Local data uploaded',
@@ -1078,8 +1097,10 @@ export function SettingsPage() {
   const [calendarAccountBusy, setCalendarAccountBusy] = useState<Record<string, boolean>>({});
   const [calendarConfigBusy, setCalendarConfigBusy] = useState(false);
   const [serverUrl, setServerUrl] = useState('');
-  const [nick, setNick] = useState('');
+  const [accountEmail, setAccountEmail] = useState('');
   const [pw, setPw] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [cloudDevices, setCloudDevices] = useState<CloudDevice[]>([]);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
@@ -1131,13 +1152,16 @@ export function SettingsPage() {
       try {
         const s = await syncApi.status();
         setSyncStatus(s);
-        setServerUrl(s.serverUrl || '');
+        setServerUrl(s.serverUrl || 'http://127.0.0.1:11911');
       } catch {
         /* status is optional */
       }
       try {
         const sess = await authApi.current();
-        if (sess) setSession(sess);
+        if (sess) {
+          setSession(sess);
+          authApi.listDevices().then(setCloudDevices).catch(() => setCloudDevices([]));
+        }
       } catch {
         /* auth is optional */
       }
@@ -1470,18 +1494,47 @@ export function SettingsPage() {
   };
 
   const onAuth = async () => {
-    if (!nick.trim() || !pw) {
+    if (!accountEmail.trim() || !pw) {
       toast.error(msg('enterAccount'));
       return;
     }
     setBusy(true);
     try {
       const s = authMode === 'login'
-        ? await authApi.login({ nickname: nick.trim(), password: pw, serverUrl: serverUrl || undefined })
-        : await authApi.register({ nickname: nick.trim(), password: pw, serverUrl: serverUrl || undefined });
+        ? await authApi.login({ email: accountEmail.trim(), password: pw, serverUrl: serverUrl || undefined })
+        : await authApi.register({ email: accountEmail.trim(), password: pw, serverUrl: serverUrl || undefined });
       setSession(s);
+      setCloudDevices(await authApi.listDevices().catch(() => []));
       setPw('');
       toast.success(authMode === 'login' ? msg('loginSuccess') : msg('registerSuccess'));
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSendEmailCode = async () => {
+    setBusy(true);
+    try {
+      await authApi.sendEmailVerificationCode();
+      toast.success(settings.language === 'en' ? 'Verification code sent' : settings.language === 'zh-TW' ? '驗證碼已發送' : '验证码已发送');
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onVerifyEmail = async () => {
+    if (!verificationCode.trim()) return;
+    setBusy(true);
+    try {
+      const s = await authApi.verifyEmailCode(verificationCode.trim());
+      setSession(s);
+      setCloudDevices(await authApi.listDevices().catch(() => []));
+      setVerificationCode('');
+      toast.success(settings.language === 'en' ? 'Email verified' : settings.language === 'zh-TW' ? '郵箱已驗證' : '邮箱已验证');
     } catch (e) {
       toast.error(String(e));
     } finally {
@@ -1493,6 +1546,7 @@ export function SettingsPage() {
     try {
       await authApi.logout();
       setSession(null);
+      setCloudDevices([]);
       toast.info(t('sync.loggedOut'));
     } catch (e) {
       toast.error(String(e));
@@ -2163,9 +2217,26 @@ export function SettingsPage() {
                 </Row>
                 <Row label={ui.account}>
                   {session ? (
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="chip">{ui.loggedInAs.replace('{{name}}', session.nickname)}</span>
-                      <Button size="sm" variant="danger" onClick={onLogout}>{ui.logout}</Button>
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="chip">{ui.loggedInAs.replace('{{name}}', session.email || session.nickname)}</span>
+                        <span className={`chip ${session.emailVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {session.emailVerified ? ui.verified : ui.unverified}
+                        </span>
+                        <Button size="sm" variant="danger" onClick={onLogout}>{ui.logout}</Button>
+                      </div>
+                      {!session.emailVerified && (
+                        <div className="flex flex-wrap items-end gap-2">
+                          <Input
+                            label={ui.verificationCode}
+                            value={verificationCode}
+                            onChange={(e) => setVerificationCode(e.target.value)}
+                            className="w-44"
+                          />
+                          <Button size="sm" variant="outline" onClick={onSendEmailCode} disabled={busy}>{ui.sendCode}</Button>
+                          <Button size="sm" onClick={onVerifyEmail} disabled={busy || !verificationCode.trim()}>{ui.verifyEmail}</Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -2174,17 +2245,37 @@ export function SettingsPage() {
                         <SegmentButton active={authMode === 'register'} onClick={() => setAuthMode('register')}>{ui.register}</SegmentButton>
                       </Segmented>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl">
-                        <Input label={ui.nickname} value={nick} onChange={(e) => setNick(e.target.value)} />
+                        <Input label={ui.nickname} type="email" value={accountEmail} onChange={(e) => setAccountEmail(e.target.value)} />
                         <Input label={ui.password} type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
                       </div>
                       <Button onClick={onAuth} disabled={busy}>{authMode === 'login' ? ui.login : ui.register}</Button>
                     </div>
                   )}
                 </Row>
+                {session && (
+                  <Row label={ui.devices}>
+                    <div className="grid gap-2">
+                      {cloudDevices.length === 0 ? (
+                        <span className="text-xs text-text-muted">-</span>
+                      ) : cloudDevices.map((device) => (
+                        <div key={device.id} className="rounded-md border border-border/70 bg-surface-subtle px-3 py-2 text-sm">
+                          <div className="font-medium">{device.deviceName}</div>
+                          <div className="text-xs text-text-muted">
+                            {[device.platform, device.appVersion].filter(Boolean).join(' · ') || '-'}
+                            {device.lastSyncAt ? ` · ${dayjs(device.lastSyncAt).format('YYYY-MM-DD HH:mm')}` : ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Row>
+                )}
                 <Row label={ui.syncNow}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" onClick={() => onSync('push')} disabled={busy || !session}>{ui.uploadLocal}</Button>
-                    <Button size="sm" variant="outline" onClick={() => onSync('pull')} disabled={busy || !session}>{ui.restoreCloud}</Button>
+                    <Button size="sm" onClick={() => onSync('push')} disabled={busy || !session || !session.emailVerified}>{ui.uploadLocal}</Button>
+                    <Button size="sm" variant="outline" onClick={() => onSync('pull')} disabled={busy || !session || !session.emailVerified}>{ui.restoreCloud}</Button>
+                    {session && !session.emailVerified && (
+                      <span className="text-xs text-amber-600">{ui.verifyEmail}</span>
+                    )}
                     {syncStatus?.lastPushedAt && (
                       <span className="text-xs text-text-muted">
                         {ui.lastSync.replace('{{time}}', dayjs(syncStatus.lastPushedAt).format('YYYY-MM-DD HH:mm'))}

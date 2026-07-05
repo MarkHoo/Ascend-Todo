@@ -1,6 +1,8 @@
 use chrono::{DateTime, Datelike, Duration, Local, NaiveTime, TimeZone, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
+};
 
 use crate::db::{now, DbState};
 use crate::error::{AppError, AppResult};
@@ -36,10 +38,9 @@ fn position_reminder_window(window: &tauri::WebviewWindow) -> tauri::Result<()> 
         let margin = (16.0 * scale_factor).round() as i32;
         let work_right = work_area.position.x + work_area.size.width as i32;
         let work_bottom = work_area.position.y + work_area.size.height as i32;
-        let x = (work_right - window_size.width as i32 - margin)
-            .max(work_area.position.x + margin);
-        let y = (work_bottom - window_size.height as i32 - margin)
-            .max(work_area.position.y + margin);
+        let x = (work_right - window_size.width as i32 - margin).max(work_area.position.x + margin);
+        let y =
+            (work_bottom - window_size.height as i32 - margin).max(work_area.position.y + margin);
         window.set_position(PhysicalPosition::new(x, y))?;
     }
     Ok(())
@@ -128,7 +129,12 @@ fn ensure_settings(c: &Connection, task_id: &str) -> AppResult<()> {
     let enabled = reminder_time.is_some();
     let time = reminder_time.unwrap_or_else(|| "09:00".to_string());
     let next = if enabled {
-        Some(calculate_next(&time, "daily", &[1, 2, 3, 4, 5, 6, 7], Local::now())?)
+        Some(calculate_next(
+            &time,
+            "daily",
+            &[1, 2, 3, 4, 5, 6, 7],
+            Local::now(),
+        )?)
     } else {
         None
     };
@@ -249,7 +255,11 @@ pub fn update_task_reminder_settings(
     )?;
     c.execute(
         "UPDATE tasks SET reminder_time = ?, last_notified_at = NULL, updated_at = ? WHERE id = ?",
-        params![if enabled { Some(reminder_time) } else { None }, now(), task_id],
+        params![
+            if enabled { Some(reminder_time) } else { None },
+            now(),
+            task_id
+        ],
     )?;
     drop(c);
     get_task_reminder_settings(state, task_id)
@@ -294,27 +304,34 @@ pub fn pending_reminders(state: State<DbState>, now_iso: String) -> AppResult<Ve
 pub fn mark_reminder_sent(state: State<DbState>, task_id: String) -> AppResult<()> {
     let c = conn(&state);
     ensure_settings(&c, &task_id)?;
-    let (time, mode, weekdays, enabled, paused, snooze, count_date, trigger_count):
-        (String, String, String, bool, bool, i32, Option<String>, i32) =
-        c.query_row(
-            "SELECT COALESCE(t.reminder_time, '09:00'), s.repeat_mode, s.weekdays,
+    let (time, mode, weekdays, enabled, paused, snooze, count_date, trigger_count): (
+        String,
+        String,
+        String,
+        bool,
+        bool,
+        i32,
+        Option<String>,
+        i32,
+    ) = c.query_row(
+        "SELECT COALESCE(t.reminder_time, '09:00'), s.repeat_mode, s.weekdays,
                     s.enabled, s.paused, s.snooze_minutes, s.trigger_count_date, s.trigger_count
              FROM task_reminder_settings s JOIN tasks t ON t.id = s.task_id
              WHERE s.task_id = ?",
-            params![task_id],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get::<_, i64>(3)? != 0,
-                    row.get::<_, i64>(4)? != 0,
-                    row.get(5)?,
-                    row.get(6)?,
-                    row.get(7)?,
-                ))
-            },
-        )?;
+        params![task_id],
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get::<_, i64>(3)? != 0,
+                row.get::<_, i64>(4)? != 0,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+            ))
+        },
+    )?;
     let today = Local::now().format("%Y-%m-%d").to_string();
     let count = if count_date.as_deref() == Some(&today) {
         trigger_count + 1
@@ -324,7 +341,12 @@ pub fn mark_reminder_sent(state: State<DbState>, task_id: String) -> AppResult<(
     let next = if enabled && !paused && snooze > 0 && count < 3 {
         Some((Utc::now() + Duration::minutes(snooze as i64)).to_rfc3339())
     } else if enabled && !paused {
-        Some(calculate_next(&time, &mode, &parse_weekdays(&weekdays), Local::now())?)
+        Some(calculate_next(
+            &time,
+            &mode,
+            &parse_weekdays(&weekdays),
+            Local::now(),
+        )?)
     } else {
         None
     };
@@ -381,12 +403,7 @@ pub fn silence_task_reminder_today(state: State<DbState>, task_id: String) -> Ap
         params![task_id],
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
-    let next = calculate_next(
-        &time,
-        &mode,
-        &parse_weekdays(&weekdays),
-        tomorrow,
-    )?;
+    let next = calculate_next(&time, &mode, &parse_weekdays(&weekdays), tomorrow)?;
     c.execute(
         "UPDATE task_reminder_settings
          SET silent_until = ?, next_reminder_at = ?, updated_at = ?
@@ -402,7 +419,10 @@ pub fn silence_task_reminder_today(state: State<DbState>, task_id: String) -> Ap
 }
 
 #[tauri::command]
-pub fn upcoming_reminders(state: State<DbState>, limit: Option<i32>) -> AppResult<Vec<ReminderItem>> {
+pub fn upcoming_reminders(
+    state: State<DbState>,
+    limit: Option<i32>,
+) -> AppResult<Vec<ReminderItem>> {
     let c = conn(&state);
     fill_missing_schedules(&c)?;
     let mut stmt = c.prepare(
@@ -445,34 +465,21 @@ pub async fn show_reminder_popup(app: AppHandle, item: ReminderItem) -> AppResul
         return Ok(());
     }
 
-    let window = WebviewWindowBuilder::new(
-        &app,
-        REMINDER_WINDOW_LABEL,
-        reminder_window_url(&item),
-    )
-    .title("任务提醒")
-    .inner_size(
-        REMINDER_WINDOW_WIDTH as f64,
-        REMINDER_WINDOW_HEIGHT as f64,
-    )
-    .min_inner_size(
-        REMINDER_WINDOW_WIDTH as f64,
-        REMINDER_WINDOW_HEIGHT as f64,
-    )
-    .max_inner_size(
-        REMINDER_WINDOW_WIDTH as f64,
-        REMINDER_WINDOW_HEIGHT as f64,
-    )
-    .resizable(false)
-    .maximizable(false)
-    .minimizable(false)
-    .decorations(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .shadow(true)
-    .focused(true)
-    .visible(false)
-    .build()?;
+    let window = WebviewWindowBuilder::new(&app, REMINDER_WINDOW_LABEL, reminder_window_url(&item))
+        .title("任务提醒")
+        .inner_size(REMINDER_WINDOW_WIDTH as f64, REMINDER_WINDOW_HEIGHT as f64)
+        .min_inner_size(REMINDER_WINDOW_WIDTH as f64, REMINDER_WINDOW_HEIGHT as f64)
+        .max_inner_size(REMINDER_WINDOW_WIDTH as f64, REMINDER_WINDOW_HEIGHT as f64)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .shadow(true)
+        .focused(true)
+        .visible(false)
+        .build()?;
 
     position_reminder_window(&window)?;
     window.show()?;

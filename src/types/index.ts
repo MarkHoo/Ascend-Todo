@@ -287,6 +287,10 @@ export interface AppSettings {
 export interface AuthSession {
   token: string;
   nickname: string;
+  email?: string | null;
+  emailVerified?: boolean;
+  refreshToken?: string | null;
+  deviceId?: string | null;
   serverUrl?: string | null;
 }
 

@@ -62,7 +62,15 @@ pub fn end_pomodoro(
     )?;
     if completed {
         if let Some((Some(task_id), mode, started_at, source_title)) = session {
-            insert_pomodoro_activity_log(&c, &task_id, &id, &mode, duration_seconds, &started_at, source_title.as_deref())?;
+            insert_pomodoro_activity_log(
+                &c,
+                &task_id,
+                &id,
+                &mode,
+                duration_seconds,
+                &started_at,
+                source_title.as_deref(),
+            )?;
         }
     }
     Ok(())
@@ -90,8 +98,14 @@ fn insert_pomodoro_activity_log(
     let detail = format!(
         "{} min · {}{}",
         minutes,
-        if mode == "countup" { "count up" } else { "countdown" },
-        source_title.map(|title| format!(" · {}", title)).unwrap_or_default()
+        if mode == "countup" {
+            "count up"
+        } else {
+            "countdown"
+        },
+        source_title
+            .map(|title| format!(" · {}", title))
+            .unwrap_or_default()
     );
     c.execute(
         "INSERT OR IGNORE INTO task_activity_logs
@@ -150,10 +164,7 @@ pub fn delete_pomodoro(state: State<DbState>, id: String) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub fn pomodoro_stats(
-    state: State<DbState>,
-    days: Option<i32>,
-) -> AppResult<PomodoroStats> {
+pub fn pomodoro_stats(state: State<DbState>, days: Option<i32>) -> AppResult<PomodoroStats> {
     let c = conn(&state);
     let days = days.unwrap_or(14);
 

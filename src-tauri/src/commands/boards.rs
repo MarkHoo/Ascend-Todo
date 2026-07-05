@@ -225,7 +225,11 @@ pub fn list_tasks(state: State<DbState>, list_id: String) -> AppResult<Vec<TaskW
 }
 
 /// Recursively load tasks: parent_task_id IS NULL for top-level, then children
-fn list_tasks_for_parent(c: &Connection, list_id: &str, parent_id: Option<&str>) -> AppResult<Vec<TaskWithSubtasks>> {
+fn list_tasks_for_parent(
+    c: &Connection,
+    list_id: &str,
+    parent_id: Option<&str>,
+) -> AppResult<Vec<TaskWithSubtasks>> {
     let sql = match parent_id {
         Some(_) => format!(
             "SELECT {} FROM tasks WHERE list_id = ? AND parent_task_id = ? ORDER BY position ASC, created_at ASC",
@@ -245,7 +249,10 @@ fn list_tasks_for_parent(c: &Connection, list_id: &str, parent_id: Option<&str>)
     for row in rows {
         let task = row?;
         let children = list_tasks_for_parent(c, list_id, Some(&task.id))?;
-        out.push(TaskWithSubtasks { task, subtasks: children });
+        out.push(TaskWithSubtasks {
+            task,
+            subtasks: children,
+        });
     }
     Ok(out)
 }
@@ -253,9 +260,10 @@ fn list_tasks_for_parent(c: &Connection, list_id: &str, parent_id: Option<&str>)
 #[tauri::command]
 pub fn list_all_tasks(state: State<DbState>) -> AppResult<Vec<Task>> {
     let c = conn(&state);
-    let mut stmt = c.prepare(
-        &format!("SELECT {} FROM tasks ORDER BY position ASC, created_at ASC", TASK_COLUMNS),
-    )?;
+    let mut stmt = c.prepare(&format!(
+        "SELECT {} FROM tasks ORDER BY position ASC, created_at ASC",
+        TASK_COLUMNS
+    ))?;
     let rows = stmt.query_map([], row_to_task)?;
     let mut out = Vec::new();
     for row in rows {
@@ -365,13 +373,18 @@ pub fn create_task(
 #[tauri::command]
 pub fn get_task(state: State<DbState>, task_id: String) -> AppResult<TaskWithSubtasks> {
     let c = conn(&state);
-    let task = c.query_row(
-        &format!("SELECT {} FROM tasks WHERE id = ?", TASK_COLUMNS),
-        params![task_id],
-        row_to_task,
-    ).map_err(|_| AppError::NotFound(format!("task {task_id}")))?;
+    let task = c
+        .query_row(
+            &format!("SELECT {} FROM tasks WHERE id = ?", TASK_COLUMNS),
+            params![task_id],
+            row_to_task,
+        )
+        .map_err(|_| AppError::NotFound(format!("task {task_id}")))?;
     let children = list_tasks_for_parent(&c, &task.list_id, Some(&task.id))?;
-    Ok(TaskWithSubtasks { task, subtasks: children })
+    Ok(TaskWithSubtasks {
+        task,
+        subtasks: children,
+    })
 }
 
 #[tauri::command]
@@ -390,20 +403,54 @@ pub fn update_task(
 ) -> AppResult<()> {
     let c = conn(&state);
     let now = now();
-    let (mut title_v, mut desc_v, mut due_v, mut rem_v, mut rt_v, mut color_v, mut status_v, mut priority_v, mut start_at_v) = (
-        None::<String>, None::<String>, None::<Option<String>>,
-        None::<Option<String>>, None::<Option<String>>, None::<Option<String>>,
-        None::<String>, None::<Option<String>>, None::<Option<String>>,
+    let (
+        mut title_v,
+        mut desc_v,
+        mut due_v,
+        mut rem_v,
+        mut rt_v,
+        mut color_v,
+        mut status_v,
+        mut priority_v,
+        mut start_at_v,
+    ) = (
+        None::<String>,
+        None::<String>,
+        None::<Option<String>>,
+        None::<Option<String>>,
+        None::<Option<String>>,
+        None::<Option<String>>,
+        None::<String>,
+        None::<Option<String>>,
+        None::<Option<String>>,
     );
-    if title.is_some() { title_v = title; }
-    if description.is_some() { desc_v = description; }
-    if let Some(d) = due_at { due_v = Some(d); }
-    if let Some(d) = reminder_at { rem_v = Some(d); }
-    if let Some(d) = reminder_time { rt_v = Some(d); }
-    if let Some(d) = color { color_v = Some(d); }
-    if status.is_some() { status_v = status; }
-    if let Some(d) = priority { priority_v = Some(d); }
-    if let Some(d) = start_at { start_at_v = Some(d); }
+    if title.is_some() {
+        title_v = title;
+    }
+    if description.is_some() {
+        desc_v = description;
+    }
+    if let Some(d) = due_at {
+        due_v = Some(d);
+    }
+    if let Some(d) = reminder_at {
+        rem_v = Some(d);
+    }
+    if let Some(d) = reminder_time {
+        rt_v = Some(d);
+    }
+    if let Some(d) = color {
+        color_v = Some(d);
+    }
+    if status.is_some() {
+        status_v = status;
+    }
+    if let Some(d) = priority {
+        priority_v = Some(d);
+    }
+    if let Some(d) = start_at {
+        start_at_v = Some(d);
+    }
     let completion_status = status_v.clone();
     c.execute(
         "UPDATE tasks SET
@@ -431,16 +478,26 @@ pub fn update_task(
         params![
             title_v,
             desc_v,
-            due_v.is_some() as i64, due_v.unwrap_or(None),
-            rem_v.is_some() as i64, rem_v.unwrap_or(None),
-            rt_v.is_some() as i64, rt_v.unwrap_or(None),
-            color_v.is_some() as i64, color_v.unwrap_or(None),
+            due_v.is_some() as i64,
+            due_v.unwrap_or(None),
+            rem_v.is_some() as i64,
+            rem_v.unwrap_or(None),
+            rt_v.is_some() as i64,
+            rt_v.unwrap_or(None),
+            color_v.is_some() as i64,
+            color_v.unwrap_or(None),
             status_v,
-            completion_status.clone(), completion_status.clone(),
-            completion_status.clone(), completion_status, now.clone(),
-            priority_v.is_some() as i64, priority_v.unwrap_or(None),
-            start_at_v.is_some() as i64, start_at_v.unwrap_or(None),
-            now, id,
+            completion_status.clone(),
+            completion_status.clone(),
+            completion_status.clone(),
+            completion_status,
+            now.clone(),
+            priority_v.is_some() as i64,
+            priority_v.unwrap_or(None),
+            start_at_v.is_some() as i64,
+            start_at_v.unwrap_or(None),
+            now,
+            id,
         ],
     )?;
     Ok(())
@@ -483,11 +540,10 @@ pub fn move_task(
 ) -> AppResult<()> {
     let c = conn(&state);
     let tx = c.unchecked_transaction()?;
-    let src_list: String = tx.query_row(
-        "SELECT list_id FROM tasks WHERE id = ?",
-        params![id],
-        |r| r.get(0),
-    )?;
+    let src_list: String =
+        tx.query_row("SELECT list_id FROM tasks WHERE id = ?", params![id], |r| {
+            r.get(0)
+        })?;
     if src_list == target_list_id {
         let cur_pos: i32 = tx.query_row(
             "SELECT position FROM tasks WHERE id = ?",

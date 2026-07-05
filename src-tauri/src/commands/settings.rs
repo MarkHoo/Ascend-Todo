@@ -54,13 +54,16 @@ fn parse_settings(map: std::collections::HashMap<String, String>) -> AppSettings
         s.minimize_to_tray = matches!(v.as_str(), "1" | "true");
     }
     if let Some(v) = map.get("calendar_default_timed_reminder_minutes") {
-        s.calendar_default_timed_reminder_minutes = v.parse().unwrap_or(s.calendar_default_timed_reminder_minutes);
+        s.calendar_default_timed_reminder_minutes = v
+            .parse()
+            .unwrap_or(s.calendar_default_timed_reminder_minutes);
     }
     if let Some(v) = map.get("calendar_default_all_day_reminder") {
         s.calendar_default_all_day_reminder = v.clone();
     }
     if let Some(v) = map.get("calendar_default_duration_minutes") {
-        s.calendar_default_duration_minutes = v.parse().unwrap_or(s.calendar_default_duration_minutes);
+        s.calendar_default_duration_minutes =
+            v.parse().unwrap_or(s.calendar_default_duration_minutes);
     }
     if let Some(v) = map.get("calendar_default_event_color") {
         s.calendar_default_event_color = v.clone();
@@ -75,9 +78,7 @@ fn parse_settings(map: std::collections::HashMap<String, String>) -> AppSettings
 pub fn get_settings(state: State<DbState>) -> AppResult<AppSettings> {
     let c = conn(&state);
     let mut stmt = c.prepare("SELECT key, value FROM settings")?;
-    let rows = stmt.query_map([], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-    })?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
     let mut map = std::collections::HashMap::new();
     for r in rows {
         let (k, v) = r?;
@@ -118,20 +119,50 @@ pub fn save_settings(state: State<DbState>, settings: AppSettings) -> AppResult<
         ("language", settings.language.clone()),
         ("week_start", settings.week_start.clone()),
         ("pomodoro_duration", settings.pomodoro_duration.to_string()),
-        ("pomodoro_long_break", settings.pomodoro_long_break.to_string()),
+        (
+            "pomodoro_long_break",
+            settings.pomodoro_long_break.to_string(),
+        ),
         ("auto_update", (settings.auto_update as i32).to_string()),
         ("sync_enabled", (settings.sync_enabled as i32).to_string()),
-        ("sync_server_url", settings.sync_server_url.clone().unwrap_or_default()),
+        (
+            "sync_server_url",
+            settings.sync_server_url.clone().unwrap_or_default(),
+        ),
         ("reminder_sound", settings.reminder_sound.clone()),
-        ("notification_enabled", (settings.notification_enabled as i32).to_string()),
-        ("motivational_quotes", (settings.motivational_quotes as i32).to_string()),
+        (
+            "notification_enabled",
+            (settings.notification_enabled as i32).to_string(),
+        ),
+        (
+            "motivational_quotes",
+            (settings.motivational_quotes as i32).to_string(),
+        ),
         ("auto_start", (settings.auto_start as i32).to_string()),
-        ("minimize_to_tray", (settings.minimize_to_tray as i32).to_string()),
-        ("calendar_default_timed_reminder_minutes", settings.calendar_default_timed_reminder_minutes.to_string()),
-        ("calendar_default_all_day_reminder", settings.calendar_default_all_day_reminder.clone()),
-        ("calendar_default_duration_minutes", settings.calendar_default_duration_minutes.to_string()),
-        ("calendar_default_event_color", settings.calendar_default_event_color.clone()),
-        ("calendar_event_density", settings.calendar_event_density.clone()),
+        (
+            "minimize_to_tray",
+            (settings.minimize_to_tray as i32).to_string(),
+        ),
+        (
+            "calendar_default_timed_reminder_minutes",
+            settings.calendar_default_timed_reminder_minutes.to_string(),
+        ),
+        (
+            "calendar_default_all_day_reminder",
+            settings.calendar_default_all_day_reminder.clone(),
+        ),
+        (
+            "calendar_default_duration_minutes",
+            settings.calendar_default_duration_minutes.to_string(),
+        ),
+        (
+            "calendar_default_event_color",
+            settings.calendar_default_event_color.clone(),
+        ),
+        (
+            "calendar_event_density",
+            settings.calendar_event_density.clone(),
+        ),
     ];
     let c = conn(&state);
     let tx = c.unchecked_transaction()?;
