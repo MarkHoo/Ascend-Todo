@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Camera, Check, CircleAlert, Cloud, LogOut, RefreshCw, ShieldCheck, User, X } from 'lucide-react';
+import { Camera, Check, CircleAlert, Cloud, LogOut, Pencil, RefreshCw, ShieldCheck, User, X } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { authApi, settingsApi, syncApi } from '@/api';
@@ -264,6 +264,47 @@ export function ProfilePage() {
   const [postLoginSyncMode, setPostLoginSyncMode] = useState<'localOnly' | 'both' | null>(null);
   const [postLoginSyncOption, setPostLoginSyncOption] = useState<'merge' | 'push' | 'pull' | 'keep'>('merge');
   const hydratedRef = useRef(false);
+  const visibleCloudDevices = useMemo(
+    () => cloudDevices.filter((device) => !device.revokedAt),
+    [cloudDevices],
+  );
+  const removableCloudDevices = useMemo(
+    () => visibleCloudDevices.filter((device) => device.id !== session?.deviceId),
+    [visibleCloudDevices, session?.deviceId],
+  );
+  const postLoginSyncText = useMemo(() => {
+    if (language === 'en') {
+      return {
+        localOnlyDescription: 'This device has local data and the cloud is empty. Choose how to continue.',
+        bothDescription: 'Both this device and the cloud have data. Choose how to continue.',
+        mergeDescription: 'Merge local and cloud data. Recommended for normal sign-in.',
+        pushDescription: 'Upload this device data to the cloud.',
+        pullDescription: 'Restore cloud data to this device.',
+        keepTitle: 'Skip for now',
+        keepDescription: 'Keep local data unchanged for now. You can sync manually later.',
+      };
+    }
+    if (language === 'zh-TW') {
+      return {
+        localOnlyDescription: '這台裝置已有本機資料，雲端目前是空的。請選擇接下來的處理方式。',
+        bothDescription: '這台裝置和雲端都有資料。請選擇接下來的處理方式。',
+        mergeDescription: '合併本機與雲端資料，適合日常登入使用。',
+        pushDescription: '將這台裝置的資料上傳到雲端。',
+        pullDescription: '使用雲端資料還原這台裝置。',
+        keepTitle: '暫時跳過',
+        keepDescription: '暫時保持本機資料不變，之後仍可手動同步。',
+      };
+    }
+    return {
+      localOnlyDescription: '这台设备已有本机数据，云端目前是空的。请选择接下来的处理方式。',
+      bothDescription: '这台设备和云端都有数据。请选择接下来的处理方式。',
+      mergeDescription: '合并本机与云端数据，适合日常登录使用。',
+      pushDescription: '将这台设备的数据上传到云端。',
+      pullDescription: '使用云端数据还原这台设备。',
+      keepTitle: '暂时跳过',
+      keepDescription: '暂时保持本机数据不变，之后仍可手动同步。',
+    };
+  }, [language]);
 
   const nicknameTooLong = language === 'en'
     ? 'Nickname can be up to 16 characters'
@@ -301,7 +342,8 @@ export function ProfilePage() {
         if (status) setSyncStatus(status);
         if (currentSession) {
           setSession(currentSession);
-          setCloudDevices(await authApi.listDevices().catch(() => []));
+          const devices = await authApi.listDevices().catch(() => []);
+          setCloudDevices(devices.filter((device) => !device.revokedAt));
         }
       } catch {
         /* Cloud account is optional. */
@@ -505,7 +547,7 @@ export function ProfilePage() {
 
   const refreshCloudDevices = async () => {
     const devices = await authApi.listDevices().catch(() => []);
-    setCloudDevices(devices);
+    setCloudDevices(devices.filter((device) => !device.revokedAt));
     await handleCurrentDeviceWipeRequest(devices);
   };
 
@@ -515,7 +557,7 @@ export function ProfilePage() {
       authApi.listDevices().catch(() => []),
     ]);
     if (status) setSyncStatus(status);
-    setCloudDevices(devices);
+    setCloudDevices(devices.filter((device) => !device.revokedAt));
     await handleCurrentDeviceWipeRequest(devices);
   };
 
@@ -555,7 +597,7 @@ export function ProfilePage() {
     const cloudHasData = Boolean(status?.remoteVersion && status.remoteVersion > 0);
 
     if (status) setSyncStatus(status);
-    if (!settings.syncEnabled || !nextSession?.emailVerified) return;
+    if (!nextSession?.emailVerified) return;
 
     if (!localHasData && cloudHasData) {
       await saveSafetyBackup('auto-pull-cloud-data');
@@ -617,6 +659,9 @@ export function ProfilePage() {
         ? await authApi.login({ email: cloudEmail.trim(), password: cloudPassword })
         : await authApi.register({ email: cloudEmail.trim(), password: cloudPassword });
       setSession(nextSession);
+      if (nextSession.emailVerified && !settings.syncEnabled) {
+        await saveSettingsPatch({ syncEnabled: true });
+      }
       setCloudPassword('');
       await refreshCloudStatus();
       window.setTimeout(() => {
@@ -672,6 +717,9 @@ export function ProfilePage() {
     try {
       const nextSession = await authApi.verifyEmailCode(code);
       setSession(nextSession);
+      if (nextSession.emailVerified && !settings.syncEnabled) {
+        await saveSettingsPatch({ syncEnabled: true });
+      }
       setVerificationCode('');
       setVerificationHint('');
       setVerifyDialogOpen(false);
@@ -753,6 +801,7 @@ export function ProfilePage() {
     setCloudBusy(true);
     try {
       await authApi.revokeDevice(device.id);
+      setCloudDevices((devices) => devices.filter((item) => item.id !== device.id));
       await refreshCloudStatus();
       toast.success(cloudText.deviceRemoved);
     } catch (error) {
@@ -782,6 +831,7 @@ export function ProfilePage() {
     setCloudBusy(true);
     try {
       await authApi.revokeOtherDevices();
+      setCloudDevices((devices) => devices.filter((device) => device.id === session?.deviceId));
       await refreshCloudStatus();
       toast.success(cloudText.othersRemoved);
     } catch (error) {
@@ -848,13 +898,14 @@ export function ProfilePage() {
               ) : (
                 <button
                   type="button"
-                  className="max-w-full truncate rounded-md px-2 py-1 text-lg font-semibold transition-colors hover:bg-surface-2"
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-1 text-lg font-semibold transition-colors hover:bg-surface-2"
                   onClick={() => {
                     setNicknameDraft(nickname);
                     setEditingNickname(true);
                   }}
                 >
-                  {nickname || t('profile.nickname')}
+                  <span className="truncate">{nickname || t('profile.nickname')}</span>
+                  <Pencil size={14} className="shrink-0 text-text-muted" />
                 </button>
               )}
             </div>
@@ -888,13 +939,14 @@ export function ProfilePage() {
               ) : (
                 <button
                   type="button"
-                  className="max-w-[260px] truncate rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-surface-2 hover:text-text"
+                  className="inline-flex max-w-[260px] items-center gap-1.5 rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-surface-2 hover:text-text"
                   onClick={() => {
                     setSignatureDraft(signature);
                     setEditingSignature(true);
                   }}
                 >
-                  {signature || copy.noSignature}
+                  <span className="truncate">{signature || copy.noSignature}</span>
+                  <Pencil size={12} className="shrink-0" />
                 </button>
               )}
             </div>
@@ -993,15 +1045,15 @@ export function ProfilePage() {
                         <Button size="sm" variant="outline" onClick={refreshCloudStatus} disabled={cloudBusy} title={cloudText.refresh}>
                           <RefreshCw size={14} />
                         </Button>
-                        <Button size="sm" variant="danger" onClick={onRevokeOtherCloudDevices} disabled={cloudBusy || cloudDevices.length <= 1}>
+                        <Button size="sm" variant="danger" onClick={onRevokeOtherCloudDevices} disabled={cloudBusy || removableCloudDevices.length === 0}>
                           {cloudText.removeOthers}
                         </Button>
                       </div>
                     </div>
                     <div className="grid gap-2">
-                      {cloudDevices.length === 0 ? (
+                      {visibleCloudDevices.length === 0 ? (
                         <div className="text-xs text-text-muted">{cloudText.emptyDevices}</div>
-                      ) : cloudDevices.map((device) => {
+                      ) : visibleCloudDevices.map((device) => {
                         const isCurrentDevice = device.id === session.deviceId;
                         return (
                         <div key={device.id} className="rounded-md border border-border bg-surface px-3 py-2 text-sm shadow-sm">
@@ -1079,8 +1131,8 @@ export function ProfilePage() {
           title={cloudText.syncActions}
           description={
             postLoginSyncMode === 'localOnly'
-              ? 'This device has local data and the cloud is empty. Choose how to continue.'
-              : 'Both this device and the cloud have data. Choose how to continue.'
+              ? postLoginSyncText.localOnlyDescription
+              : postLoginSyncText.bothDescription
           }
           onClose={() => setPostLoginSyncDialogOpen(false)}
         >
@@ -1089,28 +1141,28 @@ export function ProfilePage() {
               <LogoutOption
                 active={postLoginSyncOption === 'merge'}
                 title={cloudText.smartMerge}
-                description="Merge local and cloud data. Recommended for normal sign-in."
+                description={postLoginSyncText.mergeDescription}
                 onClick={() => setPostLoginSyncOption('merge')}
               />
             )}
             <LogoutOption
               active={postLoginSyncOption === 'push'}
               title={cloudText.uploadLocal}
-              description="Upload this device data to the cloud."
+              description={postLoginSyncText.pushDescription}
               onClick={() => setPostLoginSyncOption('push')}
             />
             {postLoginSyncMode === 'both' && (
               <LogoutOption
                 active={postLoginSyncOption === 'pull'}
                 title={cloudText.restoreCloud}
-                description="Restore cloud data to this device."
+                description={postLoginSyncText.pullDescription}
                 onClick={() => setPostLoginSyncOption('pull')}
               />
             )}
             <LogoutOption
               active={postLoginSyncOption === 'keep'}
-              title={language === 'en' ? 'Skip for now' : language === 'zh-TW' ? '暫時略過' : '暂时跳过'}
-              description="Keep local data unchanged for now. You can sync manually later."
+              title={postLoginSyncText.keepTitle}
+              description={postLoginSyncText.keepDescription}
               onClick={() => setPostLoginSyncOption('keep')}
             />
             <div className="flex justify-end gap-2 pt-2">

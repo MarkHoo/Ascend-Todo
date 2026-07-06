@@ -186,6 +186,9 @@ fn persist_session(
         "auth_email_verified",
         if body.user.email_verified { "1" } else { "0" },
     )?;
+    if body.user.email_verified {
+        set_setting(&c, "sync_enabled", "1")?;
+    }
     Ok(AuthSession {
         token: body.access_token,
         refresh_token: Some(body.refresh_token),
