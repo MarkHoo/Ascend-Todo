@@ -1,9 +1,9 @@
-export function formatLocalTime(value?: string | null) {
+export function formatLocalTime(value?: string | null, language = 'zh-CN') {
   if (!value) return '-';
   const normalized = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value) ? value : `${value}Z`;
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(language, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

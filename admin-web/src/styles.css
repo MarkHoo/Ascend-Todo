@@ -32,6 +32,12 @@ body {
   justify-content: space-between;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .content {
   padding: 20px;
 }
@@ -56,4 +62,3 @@ body {
 .login-card {
   width: 380px;
 }
-

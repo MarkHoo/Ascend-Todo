@@ -1,6 +1,6 @@
 [package]
 name = "ascend-todo"
-version = "2.8.0"
+version = "2.9.0"
 description = "Ascend Todo - Master your time, elevate your life."
 authors = ["Mark"]
 edition = "2021"
@@ -42,6 +42,7 @@ imap = "2.4"
 native-tls = "0.2"
 mailparse = "0.15"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+sys-locale = "0.3"
 
 [features]
 default = ["custom-protocol"]

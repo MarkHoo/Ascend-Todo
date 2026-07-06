@@ -1,28 +1,30 @@
 import { Table, Tag } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '@/api/admin';
+import { useAdminI18n } from '@/i18n';
 import type { Device } from '@/types';
 import { compactId, formatLocalTime } from '@/utils/format';
 
 export function DevicesPage() {
+  const { language, text } = useAdminI18n();
   const { data, isLoading } = useQuery({ queryKey: ['admin-devices'], queryFn: adminApi.devices });
   return (
     <div className="page">
-      <h1>设备管理</h1>
+      <h1>{text.devices}</h1>
       <Table<Device>
         rowKey="id"
         loading={isLoading}
         dataSource={data || []}
         columns={[
-          { title: '设备名', dataIndex: 'deviceName' },
-          { title: '用户昵称', render: (_, row) => row.userNickname || '-' },
-          { title: '用户 ID', render: (_, row) => compactId(row.userId) },
-          { title: '平台', dataIndex: 'platform' },
-          { title: '版本', render: (_, row) => row.appVersion || '-' },
-          { title: '最近登录', render: (_, row) => formatLocalTime(row.lastLoginAt) },
-          { title: '最近同步', render: (_, row) => formatLocalTime(row.lastSyncAt) },
-          { title: '状态', render: (_, row) => row.revokedAt ? <Tag color="red">已移除</Tag> : <Tag color="green">正常</Tag> },
-          { title: '清理请求', render: (_, row) => row.wipeRequestedAt ? <Tag color="orange">已请求</Tag> : '-' },
+          { title: text.deviceName, dataIndex: 'deviceName' },
+          { title: text.nickname, render: (_, row) => row.userNickname || '-' },
+          { title: text.userId, render: (_, row) => compactId(row.userId) },
+          { title: text.platform, dataIndex: 'platform' },
+          { title: text.version, render: (_, row) => row.appVersion || '-' },
+          { title: text.lastLogin, render: (_, row) => formatLocalTime(row.lastLoginAt, language) },
+          { title: text.lastSync, render: (_, row) => formatLocalTime(row.lastSyncAt, language) },
+          { title: text.status, render: (_, row) => row.revokedAt ? <Tag color="red">{text.removed}</Tag> : <Tag color="green">{text.normal}</Tag> },
+          { title: text.cleanupRequest, render: (_, row) => row.wipeRequestedAt ? <Tag color="orange">{text.requested}</Tag> : '-' },
         ]}
       />
     </div>

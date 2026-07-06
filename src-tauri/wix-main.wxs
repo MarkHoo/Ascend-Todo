@@ -379,6 +379,20 @@
         </InstallExecuteSequence>
         {{/if}}
 
+        <!-- Clear current user's local application data on real uninstall, so reinstall starts clean. -->
+        <CustomAction
+            Id="RemoveAscendTodoUserData"
+            Directory="TARGETDIR"
+            Execute="deferred"
+            Impersonate="yes"
+            Return="ignore"
+            ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle hidden -Command &quot;Remove-Item -LiteralPath (Join-Path $env:APPDATA 'com.ascend.todo') -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath (Join-Path $env:LOCALAPPDATA 'com.ascend.todo') -Recurse -Force -ErrorAction SilentlyContinue&quot;" />
+        <InstallExecuteSequence>
+            <Custom Action="RemoveAscendTodoUserData" Before="RemoveFiles">
+                (REMOVE = "ALL") AND NOT UPGRADINGPRODUCTCODE
+            </Custom>
+        </InstallExecuteSequence>
+
         <InstallExecuteSequence>
           <Custom Action="LaunchApplication" After="InstallFinalize">AUTOLAUNCHAPP AND NOT Installed</Custom>
         </InstallExecuteSequence>

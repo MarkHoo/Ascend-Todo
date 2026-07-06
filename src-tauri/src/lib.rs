@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod error;
+mod example_seed;
 mod models;
 mod sync_engine;
 

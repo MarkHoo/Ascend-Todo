@@ -1,20 +1,18 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
 import App from './App';
+import { AdminI18nProvider } from './i18n';
 import './styles.css';
 
 const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider locale={zhCN}>
+    <AdminI18nProvider>
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>
-    </ConfigProvider>
+    </AdminI18nProvider>
   </React.StrictMode>,
 );
-
