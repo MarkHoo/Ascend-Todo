@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { usePomodoroStore } from '@/store/usePomodoroStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { setDayjsLocale } from '@/utils/date';
 import { settingsApi } from '@/api';
 import { AppRouter } from './router';
@@ -21,6 +22,9 @@ const UPDATE_INTERVAL_MS = 20 * 60 * 1000;
 const CALENDAR_EMAIL_FOREGROUND_SYNC_MS = 10 * 60 * 1000;
 const CALENDAR_EMAIL_BACKGROUND_SYNC_MS = 30 * 60 * 1000;
 const CALENDAR_EMAIL_RESUME_SYNC_MS = 10 * 60 * 1000;
+const CLOUD_DATA_FOREGROUND_SYNC_MS = 5 * 60 * 1000;
+const CLOUD_DATA_BACKGROUND_SYNC_MS = 15 * 60 * 1000;
+const CLOUD_DATA_RESUME_SYNC_MS = 60 * 1000;
 const STARTUP_BACKGROUND_TASK_DELAY_MS = 12_000;
 const STARTUP_SYNC_DELAY_MS = 60_000;
 const CALENDAR_EMAIL_BACKOFF_MS = [60_000, 3 * 60_000, 5 * 60_000, 10 * 60_000];
@@ -28,6 +32,8 @@ const CALENDAR_EMAIL_BACKOFF_MS = [60_000, 3 * 60_000, 5 * 60_000, 10 * 60_000];
 let calendarEmailSyncInFlight = false;
 let calendarEmailLastSyncAt = 0;
 let calendarEmailFailureCount = 0;
+let cloudDataSyncInFlight = false;
+let cloudDataLastSyncAt = 0;
 
 function runWhenIdle(task: () => void, timeout = 2_000) {
   const idleCallback = (window as Window & {
@@ -389,6 +395,66 @@ function useCalendarEmailAutoSync() {
   }, []);
 }
 
+function useCloudDataAutoSync() {
+  const syncEnabled = useSettingsStore((s) => s.settings.syncEnabled);
+  const session = useAuthStore((s) => s.session);
+
+  useEffect(() => {
+    if (!syncEnabled || !session?.emailVerified) return;
+    let disposed = false;
+    let timer: number | undefined;
+
+    const currentDelay = () =>
+      document.visibilityState === 'visible'
+        ? CLOUD_DATA_FOREGROUND_SYNC_MS
+        : CLOUD_DATA_BACKGROUND_SYNC_MS;
+
+    const runSync = async (force = false) => {
+      if (disposed || cloudDataSyncInFlight) return;
+      if (!force && Date.now() - cloudDataLastSyncAt < CLOUD_DATA_RESUME_SYNC_MS) return;
+      cloudDataSyncInFlight = true;
+      try {
+        const { syncApi } = await import('@/api');
+        await syncApi.merge();
+        cloudDataLastSyncAt = Date.now();
+      } catch (error) {
+        console.error('Cloud data auto sync failed', error);
+      } finally {
+        cloudDataSyncInFlight = false;
+      }
+    };
+
+    const scheduleNext = (delay: number) => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(async () => {
+        await new Promise<void>((resolve) => runWhenIdle(() => {
+          runSync(false).finally(resolve);
+        }));
+        scheduleNext(currentDelay());
+      }, delay);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && Date.now() - cloudDataLastSyncAt >= CLOUD_DATA_RESUME_SYNC_MS) {
+        runWhenIdle(() => runSync(false));
+      }
+      scheduleNext(currentDelay());
+    };
+
+    const startupTimer = window.setTimeout(() => {
+      runWhenIdle(() => runSync(true));
+      scheduleNext(currentDelay());
+    }, STARTUP_SYNC_DELAY_MS);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      disposed = true;
+      window.clearTimeout(startupTimer);
+      if (timer) window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [session?.emailVerified, session?.token, syncEnabled]);
+}
+
 function usePomodoroRuntime() {
   const {
     running,
@@ -431,6 +497,7 @@ export default function App() {
   useAutoUpdater();
   useCalendarHolidayAutoSync();
   useCalendarEmailAutoSync();
+  useCloudDataAutoSync();
   usePomodoroRuntime();
   return <AppRouter />;
 }

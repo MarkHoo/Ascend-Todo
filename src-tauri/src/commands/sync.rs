@@ -173,35 +173,84 @@ fn store_remote_version(c: &Connection, version: Option<i64>) -> AppResult<()> {
     Ok(())
 }
 
+fn fetch_remote_version(state: &DbState, base: &str, token: &str) -> AppResult<Option<i64>> {
+    let client = reqwest::blocking::Client::new();
+    let mut response = client
+        .get(format!("{base}/api/sync/status"))
+        .bearer_auth(token)
+        .send()
+        .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        if let Some(next_token) = refresh_auth_token(state)? {
+            response = client
+                .get(format!("{base}/api/sync/status"))
+                .bearer_auth(next_token)
+                .send()
+                .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
+        }
+    }
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+    let cloud_status: CloudSyncStatusResponse = response
+        .json()
+        .map_err(|_| AppError::Invalid("SYNC_BAD_RESPONSE".into()))?;
+    {
+        let c = conn(state);
+        store_remote_version(&c, cloud_status.remote_version)?;
+    }
+    Ok(cloud_status.remote_version)
+}
+
 #[tauri::command]
 pub fn sync_status(state: State<DbState>) -> AppResult<SyncStatus> {
-    let c = conn(&state);
     let (last_pushed, last_pulled, server_url, token): (
         Option<String>,
         Option<String>,
         Option<String>,
         Option<String>,
-    ) = c.query_row(
-        "SELECT last_pushed_at, last_pulled_at, server_url, auth_token FROM sync_meta WHERE id = 1",
-        [],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-    )?;
-    let enabled: bool = c
-        .query_row(
-            "SELECT value FROM settings WHERE key = 'sync_enabled'",
+    );
+    let enabled: bool;
+    let cached_remote_version: Option<i64>;
+    {
+        let c = conn(&state);
+        (last_pushed, last_pulled, server_url, token) = c.query_row(
+            "SELECT last_pushed_at, last_pulled_at, server_url, auth_token FROM sync_meta WHERE id = 1",
             [],
-            |r| r.get::<_, String>(0),
-        )
-        .map(|v| matches!(v.as_str(), "1" | "true"))
-        .unwrap_or(false);
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )?;
+        enabled = c
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'sync_enabled'",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .map(|v| matches!(v.as_str(), "1" | "true"))
+            .unwrap_or(false);
+        cached_remote_version = stored_remote_version(&c);
+    }
+    let logged_in = token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
+    let remote_version = if enabled && logged_in {
+        let base = api_base(server_url.clone());
+        token
+            .as_deref()
+            .and_then(|auth_token| {
+                fetch_remote_version(&state, &base, auth_token)
+                    .ok()
+                    .flatten()
+            })
+            .or(cached_remote_version)
+    } else {
+        cached_remote_version
+    };
     Ok(SyncStatus {
         enabled,
-        logged_in: token.map(|t| !t.is_empty()).unwrap_or(false),
+        logged_in,
         last_pushed_at: last_pushed,
         last_pulled_at: last_pulled,
         pending_changes: 0,
         server_url,
-        remote_version: stored_remote_version(&c),
+        remote_version,
     })
 }
 

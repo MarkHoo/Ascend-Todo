@@ -260,6 +260,9 @@ export function ProfilePage() {
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [logoutOption, setLogoutOption] = useState<'sync' | 'keep' | 'clear'>('sync');
+  const [postLoginSyncDialogOpen, setPostLoginSyncDialogOpen] = useState(false);
+  const [postLoginSyncMode, setPostLoginSyncMode] = useState<'localOnly' | 'both' | null>(null);
+  const [postLoginSyncOption, setPostLoginSyncOption] = useState<'merge' | 'push' | 'pull' | 'keep'>('merge');
   const hydratedRef = useRef(false);
 
   const nicknameTooLong = language === 'en'
@@ -271,6 +274,14 @@ export function ProfilePage() {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    if (!session) return;
+    const timer = window.setInterval(() => {
+      void refreshCloudDevices();
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [session?.deviceId]);
 
   useEffect(() => {
     if (verificationCooldown <= 0) return;
@@ -527,8 +538,8 @@ export function ProfilePage() {
     );
     if (!confirmed) return;
     await saveSafetyBackup('remote-wipe-request');
-    await authApi.markDeviceWiped(current.id).catch(() => undefined);
     await syncApi.clearLocalData();
+    await authApi.markDeviceWiped(current.id).catch(() => undefined);
     setSession(null);
     setCloudDevices([]);
     setSyncStatus(await syncApi.status().catch(() => null));
@@ -549,42 +560,49 @@ export function ProfilePage() {
     if (!localHasData && cloudHasData) {
       await saveSafetyBackup('auto-pull-cloud-data');
       await syncApi.pull();
+      await refreshCloudStatus();
       toast.success(cloudText.pullSuccess);
       return;
     }
 
     if (localHasData && !cloudHasData) {
-      if (window.confirm(language === 'en'
-        ? 'This device has local data, and the cloud is empty. Upload local data to the cloud now?'
-        : language === 'zh-TW'
-          ? '這台裝置有本機資料，雲端目前是空的。現在上傳本機資料到雲端嗎？'
-          : '这台设备有本机数据，云端目前是空的。现在上传本机数据到云端吗？')) {
-        await syncApi.push();
-        toast.success(cloudText.pushSuccess);
-      }
+      setPostLoginSyncMode('localOnly');
+      setPostLoginSyncOption('push');
+      setPostLoginSyncDialogOpen(true);
       return;
     }
 
     if (localHasData && cloudHasData) {
-      const choice = window.prompt(
-        language === 'en'
-          ? 'Both local and cloud data exist. Enter 1 to merge, 2 to upload local over cloud, 3 to restore cloud over local, or leave blank to keep local only for now.'
-          : language === 'zh-TW'
-            ? '本機和雲端都有資料。輸入 1 合併，2 用本機覆蓋雲端，3 用雲端覆蓋本機，留空暫時只保留本機。'
-            : '本机和云端都有数据。输入 1 合并，2 用本机覆盖云端，3 用云端覆盖本机，留空暂时只保留本机。',
-      )?.trim();
-      if (!choice) return;
-      await saveSafetyBackup(`sync-choice-${choice}`);
-      if (choice === '1') {
+      setPostLoginSyncMode('both');
+      setPostLoginSyncOption('merge');
+      setPostLoginSyncDialogOpen(true);
+    }
+  };
+
+  const onConfirmPostLoginSync = async () => {
+    setCloudBusy(true);
+    try {
+      if (postLoginSyncOption === 'keep') {
+        setPostLoginSyncDialogOpen(false);
+        return;
+      }
+      await saveSafetyBackup(`login-sync-${postLoginSyncOption}`);
+      if (postLoginSyncOption === 'merge') {
         await syncApi.merge();
         toast.success(cloudText.mergeSuccess);
-      } else if (choice === '2' && window.confirm(language === 'en' ? 'Confirm overwriting cloud data with this device?' : language === 'zh-TW' ? '確認用這台裝置覆蓋雲端資料？' : '确认用这台设备覆盖云端数据？')) {
+      } else if (postLoginSyncOption === 'push') {
         await syncApi.push();
         toast.success(cloudText.pushSuccess);
-      } else if (choice === '3' && window.confirm(language === 'en' ? 'Confirm overwriting local data with cloud data?' : language === 'zh-TW' ? '確認用雲端資料覆蓋本機資料？' : '确认用云端数据覆盖本机数据？')) {
+      } else if (postLoginSyncOption === 'pull') {
         await syncApi.pull();
         toast.success(cloudText.pullSuccess);
       }
+      setPostLoginSyncDialogOpen(false);
+      await refreshCloudStatus();
+    } catch (error) {
+      toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error)));
+    } finally {
+      setCloudBusy(false);
     }
   };
 
@@ -602,7 +620,9 @@ export function ProfilePage() {
       setCloudPassword('');
       await refreshCloudStatus();
       window.setTimeout(() => {
-        void handlePostLoginSyncChoice(nextSession).catch((error) => toast.error(String(error)));
+        void handlePostLoginSyncChoice(nextSession).catch((error) => {
+          toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error)));
+        });
       }, 0);
       toast.success(authMode === 'login' ? cloudText.loginSuccess : cloudText.registerSuccess);
     } catch (error) {
@@ -718,7 +738,7 @@ export function ProfilePage() {
     setCloudBusy(true);
     try {
       await authApi.renameDevice(device.id, nextName.trim());
-      await refreshCloudDevices();
+      await refreshCloudStatus();
       toast.success(cloudText.deviceRenamed);
     } catch (error) {
       toast.error(String(error));
@@ -733,7 +753,7 @@ export function ProfilePage() {
     setCloudBusy(true);
     try {
       await authApi.revokeDevice(device.id);
-      await refreshCloudDevices();
+      await refreshCloudStatus();
       toast.success(cloudText.deviceRemoved);
     } catch (error) {
       toast.error(String(error));
@@ -748,7 +768,7 @@ export function ProfilePage() {
     setCloudBusy(true);
     try {
       await authApi.requestDeviceWipe(device.id);
-      await refreshCloudDevices();
+      await refreshCloudStatus();
       toast.success(cloudText.wipeRequested);
     } catch (error) {
       toast.error(String(error));
@@ -762,7 +782,7 @@ export function ProfilePage() {
     setCloudBusy(true);
     try {
       await authApi.revokeOtherDevices();
-      await refreshCloudDevices();
+      await refreshCloudStatus();
       toast.success(cloudText.othersRemoved);
     } catch (error) {
       toast.error(String(error));
@@ -981,12 +1001,14 @@ export function ProfilePage() {
                     <div className="grid gap-2">
                       {cloudDevices.length === 0 ? (
                         <div className="text-xs text-text-muted">{cloudText.emptyDevices}</div>
-                      ) : cloudDevices.map((device) => (
+                      ) : cloudDevices.map((device) => {
+                        const isCurrentDevice = device.id === session.deviceId;
+                        return (
                         <div key={device.id} className="rounded-md border border-border bg-surface px-3 py-2 text-sm shadow-sm">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="min-w-0 font-medium">
                               <span className="truncate">{device.deviceName}</span>
-                              {device.id === session.deviceId && (
+                              {isCurrentDevice && (
                                 <span className="ml-2 text-xs text-primary">{cloudText.currentDevice}</span>
                               )}
                             </div>
@@ -994,17 +1016,21 @@ export function ProfilePage() {
                               <Button size="sm" variant="outline" onClick={() => onRenameCloudDevice(device)} disabled={cloudBusy}>
                                 {cloudText.rename}
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onRequestCloudDeviceWipe(device)}
-                                disabled={cloudBusy || device.id === session.deviceId || Boolean(device.wipeRequestedAt)}
-                              >
-                                {cloudText.requestWipe}
-                              </Button>
-                              <Button size="sm" variant="danger" onClick={() => onRevokeCloudDevice(device)} disabled={cloudBusy || device.id === session.deviceId}>
-                                {cloudText.remove}
-                              </Button>
+                              {!isCurrentDevice && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => onRequestCloudDeviceWipe(device)}
+                                    disabled={cloudBusy || Boolean(device.wipeRequestedAt) || Boolean(device.revokedAt)}
+                                  >
+                                    {cloudText.requestWipe}
+                                  </Button>
+                                  <Button size="sm" variant="danger" onClick={() => onRevokeCloudDevice(device)} disabled={cloudBusy || Boolean(device.revokedAt)}>
+                                    {cloudText.remove}
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </div>
                           <div className="mt-1 text-xs text-text-muted">
@@ -1014,7 +1040,8 @@ export function ProfilePage() {
                             {device.wipeRequestedAt ? ` / ${cloudText.requestWipe}` : ''}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1047,6 +1074,56 @@ export function ProfilePage() {
           )}
         </main>
       </div>
+      {postLoginSyncDialogOpen && (
+        <ProfileModal
+          title={cloudText.syncActions}
+          description={
+            postLoginSyncMode === 'localOnly'
+              ? 'This device has local data and the cloud is empty. Choose how to continue.'
+              : 'Both this device and the cloud have data. Choose how to continue.'
+          }
+          onClose={() => setPostLoginSyncDialogOpen(false)}
+        >
+          <div className="space-y-3">
+            {postLoginSyncMode === 'both' && (
+              <LogoutOption
+                active={postLoginSyncOption === 'merge'}
+                title={cloudText.smartMerge}
+                description="Merge local and cloud data. Recommended for normal sign-in."
+                onClick={() => setPostLoginSyncOption('merge')}
+              />
+            )}
+            <LogoutOption
+              active={postLoginSyncOption === 'push'}
+              title={cloudText.uploadLocal}
+              description="Upload this device data to the cloud."
+              onClick={() => setPostLoginSyncOption('push')}
+            />
+            {postLoginSyncMode === 'both' && (
+              <LogoutOption
+                active={postLoginSyncOption === 'pull'}
+                title={cloudText.restoreCloud}
+                description="Restore cloud data to this device."
+                onClick={() => setPostLoginSyncOption('pull')}
+              />
+            )}
+            <LogoutOption
+              active={postLoginSyncOption === 'keep'}
+              title={language === 'en' ? 'Skip for now' : language === 'zh-TW' ? '暫時略過' : '暂时跳过'}
+              description="Keep local data unchanged for now. You can sync manually later."
+              onClick={() => setPostLoginSyncOption('keep')}
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setPostLoginSyncDialogOpen(false)} disabled={cloudBusy}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={onConfirmPostLoginSync} disabled={cloudBusy}>
+                {cloudBusy ? copy.savingShort : cloudText.syncActions}
+              </Button>
+            </div>
+          </div>
+        </ProfileModal>
+      )}
       {verifyDialogOpen && (
         <ProfileModal
           title={cloudText.verifyEmail}
