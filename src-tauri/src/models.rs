@@ -540,6 +540,18 @@ pub struct CreateManualCalendarEventRequest {
 }}
 
 camel! {
+pub struct UpdateManualCalendarEventRequest {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub start_at: String,
+    pub end_at: Option<String>,
+    pub all_day: bool,
+    pub location: Option<String>,
+    pub color: Option<String>,
+}}
+
+camel! {
 pub struct CalendarSyncStatus {
     pub holiday_enabled: bool,
     pub holiday_source: String,

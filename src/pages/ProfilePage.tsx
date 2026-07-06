@@ -256,6 +256,12 @@ export function ProfilePage() {
   const [cloudBusy, setCloudBusy] = useState(false);
   const hydratedRef = useRef(false);
 
+  const nicknameTooLong = language === 'en'
+    ? 'Nickname can be up to 16 characters'
+    : language === 'zh-TW'
+      ? '暱稱最多 16 個字'
+      : '昵称最多 16 个字';
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -388,13 +394,23 @@ export function ProfilePage() {
     }
     setSaving(true);
     try {
+      const nextNickname = patch.nickname ?? (nickname.trim() || undefined);
+      const nextSignature = patch.signature !== undefined ? patch.signature : signature.trim() || null;
       await saveProfile({
-        nickname: patch.nickname ?? (nickname.trim() || undefined),
+        nickname: nextNickname,
         avatar: avatar || null,
         phone: phone.trim() || null,
         email: email.trim() || null,
-        signature: patch.signature !== undefined ? patch.signature : signature.trim() || null,
+        signature: nextSignature,
       });
+      if (patch.nickname !== undefined) {
+        setNickname(patch.nickname);
+        setNicknameDraft(patch.nickname);
+      }
+      if (patch.signature !== undefined) {
+        setSignature(patch.signature || '');
+        setSignatureDraft(patch.signature || '');
+      }
       setLastSavedText(copy.justSaved);
       toast.success(copy.saved);
     } catch (e) {
@@ -410,7 +426,10 @@ export function ProfilePage() {
       toast.error(nicknameRequired);
       return;
     }
-    setNickname(next);
+    if (Array.from(next).length > 16) {
+      toast.error(nicknameTooLong);
+      return;
+    }
     await saveInlineProfile({ nickname: next });
     setEditingNickname(false);
   };
@@ -422,7 +441,6 @@ export function ProfilePage() {
 
   const saveSignature = async () => {
     const next = signatureDraft.trim();
-    setSignature(next);
     await saveInlineProfile({ signature: next || null });
     setEditingSignature(false);
   };
@@ -759,15 +777,15 @@ export function ProfilePage() {
                 {copy.avatarTooltip}
               </span>
             </button>
-            <div className="mt-4 w-full">
+            <div className="mt-4 w-full max-w-[320px]">
               {editingNickname ? (
                 <div className="flex items-center gap-1.5">
                   <input
-                    className="input h-9 flex-1 text-center text-base font-semibold"
+                    className="input h-9 min-w-0 flex-1 text-center text-base font-semibold"
                     value={nicknameDraft}
-                    maxLength={40}
+                    maxLength={16}
                     autoFocus
-                    onChange={(event) => setNicknameDraft(event.target.value)}
+                    onChange={(event) => setNicknameDraft(Array.from(event.target.value).slice(0, 16).join(''))}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') saveNickname();
                       if (event.key === 'Escape') cancelNickname();
@@ -793,11 +811,11 @@ export function ProfilePage() {
                 </button>
               )}
             </div>
-            <div className="mt-1 w-full">
+            <div className="mt-1 w-full max-w-[360px]">
               {editingSignature ? (
                 <div className="relative flex items-start gap-1.5">
                   <textarea
-                    className="input min-h-[72px] flex-1 resize-none text-sm"
+                    className="input min-h-[72px] min-w-0 flex-1 resize-none text-sm"
                     value={signatureDraft}
                     maxLength={30}
                     autoFocus

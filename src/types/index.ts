@@ -387,6 +387,10 @@ export interface CreateManualCalendarEventRequest {
   color?: string | null;
 }
 
+export interface UpdateManualCalendarEventRequest extends CreateManualCalendarEventRequest {
+  id: string;
+}
+
 export interface CalendarSyncStatus {
   holidayEnabled: boolean;
   holidaySource: string;

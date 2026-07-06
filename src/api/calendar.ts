@@ -7,6 +7,7 @@ import type {
   CalendarSyncStatus,
   CreateCalendarEmailAccountRequest,
   CreateManualCalendarEventRequest,
+  UpdateManualCalendarEventRequest,
   CalendarEmailCredentialStatus,
   SaveCalendarEmailCredentialRequest,
   AuthorizeCalendarEmailOAuthRequest,
@@ -32,6 +33,8 @@ export const calendarApi = {
     invoke<CalendarSyncStatus>('delete_calendar_holiday_source', { id }),
   createManualEvent: (input: CreateManualCalendarEventRequest) =>
     invoke<CalendarEntry>('create_manual_calendar_event', { input }),
+  updateManualEvent: (input: UpdateManualCalendarEventRequest) =>
+    invoke<void>('update_manual_calendar_event', { input }),
   updateEntryTime: (params: { entryId: string; sourceType: string; startAt: string; endAt?: string | null }) =>
     invoke<void>('update_calendar_entry_time', params),
   exportRange: (start: string, end: string) =>

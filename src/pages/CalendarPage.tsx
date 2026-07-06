@@ -1088,10 +1088,42 @@ export function CalendarPage() {
     toast.success(text.timeUpdated);
   };
 
+  const saveManualEntry = async (entry: CalendarEntry, patch: {
+    title: string;
+    description?: string | null;
+    location?: string | null;
+    startAt: string;
+    endAt?: string | null;
+    color?: string | null;
+  }) => {
+    if (!patch.title.trim()) {
+      toast.error(text.createTaskError);
+      return;
+    }
+    if (patch.endAt && !dayjs(patch.endAt).isAfter(dayjs(patch.startAt))) {
+      toast.error(text.invalidTimeRange);
+      return;
+    }
+    await calendarApi.updateManualEvent({
+      id: entry.id,
+      title: patch.title.trim(),
+      description: patch.description?.trim() || null,
+      startAt: patch.startAt,
+      endAt: patch.endAt || null,
+      allDay: false,
+      location: patch.location?.trim() || null,
+      color: patch.color || entry.color || settings.calendarDefaultEventColor,
+    });
+    await load();
+    setSelectedEntry(null);
+    toast.success(text.timeUpdated);
+  };
+
   const handleCalendarDrop = async (event: React.DragEvent, date: string, hour = 9, minute = 0) => {
     event.preventDefault();
     const snappedMinute = snapCalendarMinute(minute);
-    const taskId = event.dataTransfer.getData('text/ascend-task-id');
+    const taskId = event.dataTransfer.getData('text/ascend-task-id')
+      || event.dataTransfer.getData('text/plain').replace(/^ascend-task:/, '');
     const entryRaw = event.dataTransfer.getData('text/ascend-calendar-entry');
     try {
       if (taskId) {
@@ -1200,6 +1232,7 @@ export function CalendarPage() {
                     onDragStart={(event) => {
                       event.dataTransfer.effectAllowed = 'move';
                       event.dataTransfer.setData('text/ascend-task-id', task.id);
+                      event.dataTransfer.setData('text/plain', `ascend-task:${task.id}`);
                     }}
                     className="group rounded-md border border-border bg-surface px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing shadow-sm ring-1 ring-black/5 transition-colors hover:border-primary/50 hover:bg-surface-2"
                     title={text.dragDropHint}
@@ -1358,6 +1391,7 @@ export function CalendarPage() {
           onCreateTask={() => createTaskFromEntry(selectedEntry)}
           onOpenGoal={() => openGoalFromEntry(selectedEntry)}
           onSaveTime={(startAt, endAt) => saveEntryTime(selectedEntry, startAt, endAt)}
+          onSaveManual={(patch) => saveManualEntry(selectedEntry, patch)}
           onCreatePomodoro={async () => {
             await calendarApi.createPomodoroFromEntry(selectedEntry.id);
             await load();
@@ -1519,7 +1553,10 @@ function MonthView({
               key={key}
               onClick={() => onSelectDate(key)}
               onDoubleClick={() => onCreate(key)}
-              onDragOver={(event) => event.preventDefault()}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+              }}
               onDrop={(event) => onDropItem(event, key, 9)}
               className={`${density === 'compact' ? 'min-h-[104px]' : 'min-h-[118px]'} border-r border-b border-border p-2 text-left transition-colors ${
                 active ? 'bg-primary-soft/50 ring-1 ring-inset ring-primary/50' : today ? 'bg-primary-soft/20' : 'hover:bg-surface-2'
@@ -1611,7 +1648,10 @@ function WeekView({
             <div
               key={`all-${key}`}
               className={`border-r border-border px-1.5 py-1 space-y-1 ${density === 'compact' ? 'min-h-[30px]' : 'min-h-[34px]'} ${d.isSame(now, 'day') ? 'bg-primary-soft/10' : ''}`}
-              onDragOver={(event) => event.preventDefault()}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+              }}
               onDrop={(event) => onDropItem(event, key, 9)}
             >
               {allDay.slice(0, density === 'compact' ? 1 : 2).map((e) => <EventPill key={e.id} entry={e} onClick={() => onOpenEntry(e)} />)}
@@ -1719,7 +1759,10 @@ function DayView({
         <div className="text-[11px] text-text-muted px-2 py-2 text-right border-r border-border">{text.allDay}</div>
         <div
           className={`${density === 'compact' ? 'min-h-[34px]' : 'min-h-[38px]'} p-2 space-y-1`}
-          onDragOver={(event) => event.preventDefault()}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+          }}
           onDrop={(event) => onDropItem(event, date.format('YYYY-MM-DD'), 9)}
         >
           {allDayEntries.length === 0 ? (
@@ -1834,6 +1877,7 @@ function TimelineDropCell({
       }}
       onDragOver={(event) => {
         event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
         setHoverMinute(minuteFromEvent(event));
       }}
       onDragLeave={() => setHoverMinute(null)}
@@ -1979,6 +2023,7 @@ function EntryDetailModal({
   onCreateTask,
   onOpenGoal,
   onSaveTime,
+  onSaveManual,
   onCreatePomodoro,
 }: {
   entry: CalendarEntry;
@@ -1987,6 +2032,14 @@ function EntryDetailModal({
   onCreateTask: () => void;
   onOpenGoal: () => void;
   onSaveTime: (startAt: string, endAt?: string | null) => void;
+  onSaveManual: (patch: {
+    title: string;
+    description?: string | null;
+    location?: string | null;
+    startAt: string;
+    endAt?: string | null;
+    color?: string | null;
+  }) => void;
   onCreatePomodoro: () => void;
 }) {
   const meta = sourceMeta[entry.sourceType] || sourceMeta.manual;
@@ -2002,6 +2055,11 @@ function EntryDetailModal({
       : sourceLabel;
   const [startAt, setStartAt] = useState<string | null>(entry.startAt || entry.dueAt || dayjs(entry.date).hour(entry.time ? Number(entry.time.slice(0, 2)) : 9).minute(entry.time ? Number(entry.time.slice(3, 5)) : 0).toISOString());
   const [endAt, setEndAt] = useState<string | null>(entry.sourceType === 'task' ? null : entry.dueAt || null);
+  const [manualTitle, setManualTitle] = useState(entry.title);
+  const [manualDescription, setManualDescription] = useState(entry.description || '');
+  const [manualLocation, setManualLocation] = useState(entry.location || '');
+  const [manualColor, setManualColor] = useState(entry.color || entryColor(entry));
+  const isManualEditable = entry.sourceType === 'manual' && !entry.readonly;
   return (
     <Modal open onClose={onClose} title={text.detailTitle} size="lg">
       <div className="space-y-4">
@@ -2047,6 +2105,34 @@ function EntryDetailModal({
             <MarkdownPreview value={entry.description} />
           </div>
         )}
+        {isManualEditable && (
+          <div className="rounded-lg border border-border p-3">
+            <div className="text-sm font-medium mb-2">{(text as any).editSchedule || text.adjustTime}</div>
+            <div className="space-y-3">
+              <Input label={text.taskTitle} value={manualTitle} onChange={(event) => setManualTitle(event.target.value)} />
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_120px] gap-3">
+                <Input label={text.location} value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} />
+                <label className="block">
+                  <span className="label">{(text as any).color || 'Color'}</span>
+                  <input
+                    type="color"
+                    className="h-10 w-full rounded-md border border-border bg-surface px-2"
+                    value={manualColor}
+                    onChange={(event) => setManualColor(event.target.value)}
+                  />
+                </label>
+              </div>
+              <label className="block">
+                <span className="label">{text.description}</span>
+                <textarea
+                  className="input min-h-[96px] w-full resize-y text-sm"
+                  value={manualDescription}
+                  onChange={(event) => setManualDescription(event.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+        )}
         {canEditTime && (
           <div className="rounded-lg border border-border p-3">
             <div className="text-sm font-medium mb-2">{text.adjustTime}</div>
@@ -2073,7 +2159,20 @@ function EntryDetailModal({
         {(entry.sourceType === 'task' || entry.sourceType === 'goal' || canCreateTask || entry.linkedTaskId) && (
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
             {canEditTime && startAt && (
-              <Button size="sm" variant="outline" onClick={() => onSaveTime(startAt, endAt)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => isManualEditable
+                  ? onSaveManual({
+                    title: manualTitle,
+                    description: manualDescription,
+                    location: manualLocation,
+                    startAt,
+                    endAt,
+                    color: manualColor,
+                  })
+                  : onSaveTime(startAt, endAt)}
+              >
                 <Clock3 size={14} />
                 {text.saveTime}
               </Button>

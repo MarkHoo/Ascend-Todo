@@ -26,6 +26,9 @@ export const useProfileStore = create<State>((set, get) => ({
   },
   saveProfile: async (patch) => {
     await profileApi.save(patch);
+    set((state) => ({
+      profile: state.profile ? { ...state.profile, ...patch } : state.profile,
+    }));
     await get().fetchProfile();
   },
 }));

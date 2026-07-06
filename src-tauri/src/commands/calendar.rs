@@ -13,7 +13,7 @@ use crate::models::{
     CalendarEmailSyncResult, CalendarEntry, CalendarHolidaySource, CalendarSyncStatus,
     CreateCalendarEmailAccountRequest, CreateManualCalendarEventRequest,
     ImportCalendarIcsSourceRequest, ImportHolidayJsonSourceRequest,
-    SaveCalendarEmailCredentialRequest, SyncHolidayCountryRequest,
+    SaveCalendarEmailCredentialRequest, SyncHolidayCountryRequest, UpdateManualCalendarEventRequest,
 };
 
 fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
@@ -642,6 +642,50 @@ pub fn create_manual_calendar_event(
         start_at: start_raw,
         due_at: end_raw,
     })
+}
+
+#[tauri::command]
+pub fn update_manual_calendar_event(
+    state: State<DbState>,
+    input: UpdateManualCalendarEventRequest,
+) -> AppResult<()> {
+    let title = input.title.trim();
+    if title.is_empty() {
+        return Err(AppError::Invalid("Please enter a schedule title".into()));
+    }
+    let c = conn(&state);
+    let existing: Option<(String, i64)> = c
+        .query_row(
+            "SELECT source_type, readonly FROM calendar_events WHERE id = ?",
+            params![input.id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    let Some((source_type, readonly)) = existing else {
+        return Err(AppError::Invalid("Calendar event not found".into()));
+    };
+    if source_type != "manual" || readonly != 0 {
+        return Err(AppError::Invalid("Only local schedules can be edited".into()));
+    }
+    let end_at = input.end_at.unwrap_or_else(|| input.start_at.clone());
+    c.execute(
+        "UPDATE calendar_events
+            SET title = ?, description = ?, start_time = ?, end_time = ?, all_day = ?,
+                location = ?, color = ?, updated_at = ?
+          WHERE id = ?",
+        params![
+            title,
+            input.description,
+            input.start_at,
+            end_at,
+            input.all_day as i64,
+            input.location,
+            input.color,
+            crate::db::now(),
+            input.id,
+        ],
+    )?;
+    Ok(())
 }
 
 fn row_to_calendar_email_account(r: &rusqlite::Row<'_>) -> rusqlite::Result<CalendarEmailAccount> {

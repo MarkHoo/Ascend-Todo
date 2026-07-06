@@ -233,6 +233,7 @@ pub fn run() {
             commands::calendar::sync_calendar_ics_url_source,
             commands::calendar::delete_calendar_holiday_source,
             commands::calendar::create_manual_calendar_event,
+            commands::calendar::update_manual_calendar_event,
             commands::calendar::update_calendar_entry_time,
             commands::calendar::export_calendar_range,
             commands::calendar::export_calendar_range_ics,
