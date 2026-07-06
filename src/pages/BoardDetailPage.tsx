@@ -210,7 +210,7 @@ function TaskActivityTimeline({ logs }: { logs: TaskActivityLog[] }) {
                   {minutes ? <span className="chip">{minutes}{minLabel}</span> : null}
                 </div>
                 {log.kind === 'pomodoro' && minutes ? (
-                  <div className="mt-1 text-xs text-text-muted">{minutes}{minLabel} · {modeText}</div>
+                  <div className="mt-1 text-xs text-text-muted">{minutes}{minLabel} / {modeText}</div>
                 ) : log.detail ? (
                   <div className="mt-1 text-xs text-text-muted">{log.detail}</div>
                 ) : null}

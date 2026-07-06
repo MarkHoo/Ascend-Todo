@@ -25,7 +25,7 @@ export function GoalDetailPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { currentGoal, fetchGoal, createMilestone, toggleMilestone, deleteMilestone,
-    createKeyResult, checkInKeyResult, toggleKeyResult, deleteKeyResult, updateGoal,
+    createKeyResult, updateKeyResult, checkInKeyResult, toggleKeyResult, deleteKeyResult, updateGoal,
     deleteGoal, archiveGoal, saveReview, linkTaskToKR, unlinkTaskFromKR } = useGoalStore();
 
   const [showAddKR, setShowAddKR] = useState(false);
@@ -46,6 +46,7 @@ export function GoalDetailPage() {
   const [titleDraft, setTitleDraft] = useState('');
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [showTaskLink, setShowTaskLink] = useState<string | null>(null); // krId
+  const [editingKRCheckDate, setEditingKRCheckDate] = useState<{ kr: KeyResult; value: string | null } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; onConfirm: () => void }>({ open: false, onConfirm: () => {} });
 
   useEffect(() => {
@@ -131,6 +132,13 @@ export function GoalDetailPage() {
   const onUnlinkTask = async (krId: string, taskId: string) => {
     await unlinkTaskFromKR(krId, taskId);
     toast.success('✓');
+  };
+
+  const onSaveKRCheckDate = async () => {
+    if (!editingKRCheckDate) return;
+    await updateKeyResult(editingKRCheckDate.kr.id, { checkDate: editingKRCheckDate.value });
+    setEditingKRCheckDate(null);
+    toast.success(t('board.save'));
   };
 
   // Progress color based on time elapsed
@@ -252,6 +260,7 @@ export function GoalDetailPage() {
               onDelete={() => {
                 setDeleteConfirm({ open: true, onConfirm: () => deleteKeyResult(kr.id) });
               }}
+              onEditCheckDate={() => setEditingKRCheckDate({ kr, value: kr.checkDate || null })}
               onLinkTask={() => setShowTaskLink(kr.id)}
               onUnlinkTask={(taskId) => onUnlinkTask(kr.id, taskId)}
             />
@@ -385,6 +394,31 @@ export function GoalDetailPage() {
         </div>
       </Modal>
 
+      <Modal
+        open={!!editingKRCheckDate}
+        onClose={() => setEditingKRCheckDate(null)}
+        title={t('goal.checkDate')}
+        footer={<><Button variant="ghost" onClick={() => setEditingKRCheckDate(null)}>{t('common.cancel')}</Button>
+        <Button onClick={onSaveKRCheckDate}>{t('board.save')}</Button></>}
+      >
+        <div className="space-y-3">
+          <div className="text-sm font-medium">{editingKRCheckDate?.kr.title}</div>
+          <DateTimePicker
+            value={editingKRCheckDate?.value || null}
+            onChange={(value) => editingKRCheckDate && setEditingKRCheckDate({ ...editingKRCheckDate, value })}
+            withTime
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => editingKRCheckDate && setEditingKRCheckDate({ ...editingKRCheckDate, value: null })}
+          >
+            {t('common.clear') || 'Clear'}
+          </Button>
+        </div>
+      </Modal>
+
       {/* Task Link Modal */}
       <Modal open={!!showTaskLink} onClose={() => setShowTaskLink(null)} title={t('goal.linkTask')}
         size="lg"
@@ -414,9 +448,10 @@ export function GoalDetailPage() {
   );
 }
 
-function KRCard({ kr, goal, progressColor, onCheckIn, onToggle, onDelete, onLinkTask, onUnlinkTask }: {
+function KRCard({ kr, goal, progressColor, onCheckIn, onToggle, onDelete, onEditCheckDate, onLinkTask, onUnlinkTask }: {
   kr: KeyResult; goal: GoalWithDetails; progressColor: string;
   onCheckIn: () => void; onToggle: () => void; onDelete: () => void;
+  onEditCheckDate: () => void;
   onLinkTask: () => void; onUnlinkTask: (taskId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -450,12 +485,15 @@ function KRCard({ kr, goal, progressColor, onCheckIn, onToggle, onDelete, onLink
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">{kr.title}</span>
             <span className="text-xs text-text-muted">{kr.weight}%</span>
-            {kr.checkDate && (
-              <span className="text-xs text-text-muted inline-flex items-center gap-1">
-                <CalIcon size={11} />
-                {dayjs(kr.checkDate).format('YYYY-MM-DD HH:mm')}
-              </span>
-            )}
+            <button
+              type="button"
+              onClick={onEditCheckDate}
+              className="text-xs text-text-muted inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-surface-2 hover:text-primary"
+              title={t('goal.checkDate')}
+            >
+              <CalIcon size={11} />
+              {kr.checkDate ? dayjs(kr.checkDate).format('YYYY-MM-DD HH:mm') : t('goal.checkDate')}
+            </button>
             {kr.type === 'task' && (
               <span className="chip text-xs">{t('goal.task')}</span>
             )}

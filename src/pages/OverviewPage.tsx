@@ -1032,6 +1032,41 @@ function TodaySchedule({ entries }: { entries: CalendarEntry[] }) {
     .slice(0, 6);
   const title = copy.overview === 'Overview' ? "Today's schedule" : copy.overview === '總覽' ? '今日安排' : '今日安排';
   const empty = copy.overview === 'Overview' ? 'No schedule for today' : copy.overview === '總覽' ? '今日暫無安排' : '今日暂无安排';
+  const sourceLabels: Record<CalendarEntry['sourceType'], string> = copy.overview === 'Overview'
+    ? {
+      task: 'Task',
+      manual: 'Schedule',
+      meeting: 'Meeting',
+      email: 'Meeting',
+      holiday: 'Holiday',
+      pomodoro_plan: 'Pomodoro plan',
+      pomodoro_record: 'Pomodoro',
+      goal: 'Goal',
+      review: 'Review',
+    }
+    : copy.overview === '總覽'
+      ? {
+        task: '任務',
+        manual: '日程',
+        meeting: '來源會議',
+        email: '來源會議',
+        holiday: '節假日',
+        pomodoro_plan: '番茄計畫',
+        pomodoro_record: '番茄記錄',
+        goal: '目標',
+        review: '復盤',
+      }
+      : {
+        task: '任务',
+        manual: '日程',
+        meeting: '来源会议',
+        email: '来源会议',
+        holiday: '节假日',
+        pomodoro_plan: '番茄计划',
+        pomodoro_record: '番茄记录',
+        goal: '目标',
+        review: '复盘',
+      };
   return (
     <section className="card p-5">
       <div className="flex items-center justify-between gap-3">
@@ -1058,8 +1093,13 @@ function TodaySchedule({ entries }: { entries: CalendarEntry[] }) {
                   <div className="mt-1 truncate text-xs text-text-muted">
                     {[entry.time ? `${entry.time}${entry.endTime ? ` - ${entry.endTime}` : ''}` : copy.all || 'All day', entry.boardName, entry.location].filter(Boolean).join(' · ')}
                   </div>
+                  {(entry.sourceType === 'meeting' || entry.sourceType === 'email') && (
+                    <div className="mt-1 truncate text-[11px] text-text-muted">
+                      {copy.overview === 'Overview' ? 'Source ID' : copy.overview === '總覽' ? '來源 ID' : '来源 ID'}: {entry.id}
+                    </div>
+                  )}
                 </div>
-                <span className="chip shrink-0">{entry.sourceType}</span>
+                <span className="chip shrink-0">{sourceLabels[entry.sourceType]}</span>
               </div>
             </button>
           ))}

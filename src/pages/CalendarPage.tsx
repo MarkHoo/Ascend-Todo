@@ -14,6 +14,7 @@ import {
   Italic,
   Eye,
   Edit3,
+  GripVertical,
   Inbox,
   Link as LinkIcon,
   List as ListIcon,
@@ -779,10 +780,52 @@ function useCalendarText() {
     ? { ...calendarCopyOverrides['zh-CN'], ...calendarCopyOverrides['zh-TW'] }
     : calendarCopyOverrides[language];
   const quickSettings = language === 'en'
-    ? { calendarSettings: 'Calendar settings', createCalendarItem: 'New schedule/task', previewMarkdown: 'Preview', editMarkdown: 'Edit' }
+    ? {
+      calendarSettings: 'Calendar settings',
+      createCalendarItem: 'New schedule/task',
+      previewMarkdown: 'Preview',
+      editMarkdown: 'Edit',
+      relation: 'Relation',
+      sourceEntryId: 'Source ID',
+      sourceMeeting: 'Source meeting',
+      sourceSchedule: 'Source schedule',
+      createdTaskWillLink: 'The new task keeps the source title, time, location, and source ID in its description.',
+      dragHandle: 'Drag',
+      dragDropHint: 'Drag this card to a day or time slot to schedule it.',
+      readOnlyHint: 'This item comes from a synced or generated source. You can open the related item or create follow-up work.',
+      editableHint: 'You can drag this item on the calendar or adjust the time below.',
+    }
     : language === 'zh-TW'
-      ? { calendarSettings: '日曆設定', createCalendarItem: '新增日程/任務', previewMarkdown: '預覽', editMarkdown: '編輯' }
-      : { calendarSettings: '日历设置', createCalendarItem: '新建日程/任务', previewMarkdown: '预览', editMarkdown: '编辑' };
+      ? {
+        calendarSettings: '日曆設定',
+        createCalendarItem: '新增日程/任務',
+        previewMarkdown: '預覽',
+        editMarkdown: '編輯',
+        relation: '關聯',
+        sourceEntryId: '來源 ID',
+        sourceMeeting: '來源會議',
+        sourceSchedule: '來源日程',
+        createdTaskWillLink: '新任務會在說明中保留來源標題、時間、地點與來源 ID。',
+        dragHandle: '拖動',
+        dragDropHint: '將此卡片拖到日期或時間格即可安排。',
+        readOnlyHint: '此事項來自同步或系統生成來源，可打開關聯項或建立跟進工作。',
+        editableHint: '此事項可在日曆上拖動，也可在下方調整時間。',
+      }
+      : {
+        calendarSettings: '日历设置',
+        createCalendarItem: '新建日程/任务',
+        previewMarkdown: '预览',
+        editMarkdown: '编辑',
+        relation: '关联',
+        sourceEntryId: '来源 ID',
+        sourceMeeting: '来源会议',
+        sourceSchedule: '来源日程',
+        createdTaskWillLink: '新任务会在说明中保留来源标题、时间、地点和来源 ID。',
+        dragHandle: '拖动',
+        dragDropHint: '将这张卡片拖到日期或时间格即可安排。',
+        readOnlyHint: '此事项来自同步或系统生成来源，可以打开关联项或创建跟进工作。',
+        editableHint: '此事项可在日历上拖动，也可在下方调整时间。',
+      };
   return { ...calendarCopy[language], ...override, ...quickSettings };
 }
 
@@ -966,11 +1009,13 @@ export function CalendarPage() {
     const minute = entry.time ? Number(entry.time.slice(3, 5)) : 0;
     const timeLabel = entry.time ? `${entry.date} ${entry.time}${entry.endTime ? ` - ${entry.endTime}` : ''}` : entry.date;
     const description = [
+      `<!-- ascend-calendar-source:${JSON.stringify({ id: entry.id, type: entry.sourceType, title: entry.title })} -->`,
       `### ${text.meetingNotes}`,
       `- ${text.originalTitle}: ${entry.title}`,
       `- ${text.originalTime}: ${timeLabel}`,
       entry.location ? `- ${text.originalLocation}: ${entry.location}` : null,
       `- ${text.originalSource}: ${text.sources[entry.sourceType] || text.calendar}`,
+      `- ${text.sourceEntryId}: ${entry.id}`,
       entry.description,
       `### ${text.actionItems}`,
       `- ${text.actionItemPlaceholder}`,
@@ -1152,11 +1197,22 @@ export function CalendarPage() {
                   <div
                     key={task.id}
                     draggable
-                    onDragStart={(event) => event.dataTransfer.setData('text/ascend-task-id', task.id)}
-                    className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing hover:bg-surface-2"
-                    title={text.dragToCalendar}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/ascend-task-id', task.id);
+                    }}
+                    className="group rounded-md border border-border bg-surface px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing shadow-sm ring-1 ring-black/5 transition-colors hover:border-primary/50 hover:bg-surface-2"
+                    title={text.dragDropHint}
                   >
-                    <div className="truncate font-medium">{task.title}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-6 w-6 shrink-0 rounded-md bg-primary/10 text-primary inline-flex items-center justify-center">
+                        <GripVertical size={13} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{task.title}</div>
+                        <div className="truncate text-[11px] text-text-muted">{text.dragToCalendar}</div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1938,6 +1994,12 @@ function EntryDetailModal({
   const canCreateTask = entry.sourceType === 'meeting' || entry.sourceType === 'email' || entry.sourceType === 'manual';
   const canEditTime = canDragCalendarEntry(entry);
   const canCreatePomodoro = entry.sourceType === 'meeting' || entry.sourceType === 'email' || entry.sourceType === 'manual';
+  const sourceLabel = text.sources[entry.sourceType] || meta.label;
+  const relationTitle = entry.sourceType === 'meeting' || entry.sourceType === 'email'
+    ? text.sourceMeeting
+    : entry.sourceType === 'manual'
+      ? text.sourceSchedule
+      : sourceLabel;
   const [startAt, setStartAt] = useState<string | null>(entry.startAt || entry.dueAt || dayjs(entry.date).hour(entry.time ? Number(entry.time.slice(0, 2)) : 9).minute(entry.time ? Number(entry.time.slice(3, 5)) : 0).toISOString());
   const [endAt, setEndAt] = useState<string | null>(entry.sourceType === 'task' ? null : entry.dueAt || null);
   return (
@@ -1959,10 +2021,25 @@ function EntryDetailModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <InfoRow label={text.date} value={entry.date} icon={<CalendarDays size={15} />} />
           <InfoRow label={text.time} value={entry.time ? `${entry.time}${entry.endTime ? ` - ${entry.endTime}` : ''}` : text.allDayOrUnset} icon={<Clock3 size={15} />} />
+          <InfoRow label={text.source} value={sourceLabel} icon={meta.icon} />
           {entry.boardName && <InfoRow label={text.board} value={`${entry.boardName} / ${entry.listName || ''}`} icon={<Inbox size={15} />} />}
           {entry.location && <InfoRow label={text.location} value={entry.location} icon={<Flag size={15} />} />}
           {entry.status && <InfoRow label={text.status} value={formatEntryStatus(entry.status, text)} icon={<Sparkles size={15} />} />}
           {entry.hasSubtasks && <InfoRow label={text.subtasks} value={`${entry.subtaskDone}/${entry.subtaskCount}`} icon={<ListChecks size={15} />} />}
+        </div>
+        <div className="rounded-lg border border-border bg-surface p-3 text-sm">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="font-medium flex items-center gap-2">
+              {meta.icon}
+              {text.relation}
+            </div>
+            <span className="chip">{relationTitle}</span>
+          </div>
+          <div className="space-y-1.5 text-text-muted">
+            <div className="break-all">{text.sourceEntryId}: {entry.id}</div>
+            <div>{canEditTime ? text.editableHint : text.readOnlyHint}</div>
+            {canCreateTask && <div>{text.createdTaskWillLink}</div>}
+          </div>
         </div>
         {entry.description && (
           <div>
