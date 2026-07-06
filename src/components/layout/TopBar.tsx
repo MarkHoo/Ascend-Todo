@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { toast } from '@/components/common/Toast';
 import { formatRelativeDate } from '@/utils/format';
+import { friendlySyncError } from '@/utils/syncError';
 import type { SyncStatus } from '@/types';
 
 export function TopBar() {
@@ -46,7 +47,7 @@ export function TopBar() {
       }
       await refreshStatus();
     } catch (e) {
-      toast.error(t('sync.failed', { msg: String(e) }));
+      toast.error(t('sync.failed', { msg: friendlySyncError(e) }));
     } finally {
       setBusy(false);
     }

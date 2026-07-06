@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useProfileStore } from '@/store/useProfileStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { dayjs } from '@/utils/date';
+import { friendlySyncError } from '@/utils/syncError';
 import type { Snapshot, SyncStatus } from '@/types';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -705,7 +706,7 @@ export function ProfilePage() {
       }
       await refreshCloudStatus();
     } catch (error) {
-      toast.error(cloudText.syncFailed.replace('{{msg}}', String(error)));
+      toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error)));
     } finally {
       setCloudBusy(false);
     }

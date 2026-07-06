@@ -15,7 +15,7 @@ export function LoginPage() {
         deviceName: 'Admin Web',
         deviceFingerprint: `admin-web-${navigator.userAgent}`,
         platform: navigator.platform,
-        appVersion: '2.6.1',
+        appVersion: '2.6.2',
       });
       setToken(result.accessToken);
       navigate('/');
@@ -26,15 +26,15 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <Card className="login-card" title="管理员登录">
+      <Card className="login-card" title="\u7ba1\u7406\u5458\u767b\u5f55">
         <Form layout="vertical" onFinish={onFinish}>
-          <Form.Item name="email" label="邮箱" rules={[{ required: true }, { type: 'email' }]}>
+          <Form.Item name="email" label="\u90ae\u7bb1" rules={[{ required: true }, { type: 'email' }]}>
             <Input prefix={<MailOutlined />} placeholder="admin@example.com" />
           </Form.Item>
-          <Form.Item name="password" label="密码" rules={[{ required: true }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" />
+          <Form.Item name="password" label="\u5bc6\u7801" rules={[{ required: true }]}>
+            <Input.Password prefix={<LockOutlined />} placeholder="\u8bf7\u8f93\u5165\u5bc6\u7801" />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block>登录</Button>
+          <Button type="primary" htmlType="submit" block>\u767b\u5f55</Button>
         </Form>
       </Card>
     </div>

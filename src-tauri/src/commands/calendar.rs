@@ -13,7 +13,8 @@ use crate::models::{
     CalendarEmailSyncResult, CalendarEntry, CalendarHolidaySource, CalendarSyncStatus,
     CreateCalendarEmailAccountRequest, CreateManualCalendarEventRequest,
     ImportCalendarIcsSourceRequest, ImportHolidayJsonSourceRequest,
-    SaveCalendarEmailCredentialRequest, SyncHolidayCountryRequest, UpdateManualCalendarEventRequest,
+    SaveCalendarEmailCredentialRequest, SyncHolidayCountryRequest,
+    UpdateManualCalendarEventRequest,
 };
 
 fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
@@ -665,7 +666,9 @@ pub fn update_manual_calendar_event(
         return Err(AppError::Invalid("Calendar event not found".into()));
     };
     if source_type != "manual" || readonly != 0 {
-        return Err(AppError::Invalid("Only local schedules can be edited".into()));
+        return Err(AppError::Invalid(
+            "Only local schedules can be edited".into(),
+        ));
     }
     let end_at = input.end_at.unwrap_or_else(|| input.start_at.clone());
     c.execute(

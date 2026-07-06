@@ -35,6 +35,30 @@ fn auth_meta(c: &Connection) -> AppResult<(String, String)> {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct RefreshRequest {
+    refresh_token: String,
+    device_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ServerUser {
+    email: String,
+    email_verified: bool,
+    nickname: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ServerAuthResponse {
+    access_token: String,
+    refresh_token: String,
+    device_id: String,
+    user: ServerUser,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct PushSnapshotRequest<'a> {
     snapshot: &'a Snapshot,
     client_version: String,
@@ -71,6 +95,73 @@ fn set_setting(c: &Connection, key: &str, value: &str) -> AppResult<()> {
     Ok(())
 }
 
+fn refresh_auth_token(state: &DbState) -> AppResult<Option<String>> {
+    let (base, refresh_token, device_id) = {
+        let c = conn(state);
+        let base: Option<String> = c
+            .query_row("SELECT server_url FROM sync_meta WHERE id = 1", [], |r| {
+                r.get(0)
+            })
+            .ok()
+            .flatten();
+        (
+            api_base(base),
+            get_setting(&c, "cloud_refresh_token"),
+            get_setting(&c, "cloud_device_id"),
+        )
+    };
+    let (Some(refresh_token), Some(device_id)) = (refresh_token, device_id) else {
+        return Ok(None);
+    };
+    let response = reqwest::blocking::Client::new()
+        .post(format!("{base}/api/auth/refresh"))
+        .json(&RefreshRequest {
+            refresh_token,
+            device_id,
+        })
+        .send()
+        .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+    let body: ServerAuthResponse = response
+        .json()
+        .map_err(|_| AppError::Invalid("SYNC_BAD_RESPONSE".into()))?;
+    let nickname = body
+        .user
+        .nickname
+        .clone()
+        .unwrap_or_else(|| body.user.email.clone());
+    {
+        let c = conn(state);
+        c.execute(
+            "UPDATE sync_meta SET auth_token = ?, server_url = ? WHERE id = 1",
+            params![&body.access_token, base],
+        )?;
+        set_setting(&c, "cloud_refresh_token", &body.refresh_token)?;
+        set_setting(&c, "cloud_device_id", &body.device_id)?;
+        set_setting(&c, "auth_email", &body.user.email)?;
+        set_setting(&c, "auth_nickname", &nickname)?;
+        set_setting(
+            &c,
+            "auth_email_verified",
+            if body.user.email_verified { "1" } else { "0" },
+        )?;
+    }
+    Ok(Some(body.access_token))
+}
+
+fn sync_request_failed(status: reqwest::StatusCode, body: String, action: &str) -> AppError {
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        AppError::Invalid("SYNC_AUTH_EXPIRED".into())
+    } else if status == reqwest::StatusCode::FORBIDDEN || body.contains("email is not verified") {
+        AppError::Invalid("SYNC_EMAIL_NOT_VERIFIED".into())
+    } else if status == reqwest::StatusCode::CONFLICT {
+        AppError::Invalid("SYNC_REMOTE_CHANGED".into())
+    } else {
+        AppError::Invalid(format!("SYNC_REQUEST_FAILED:{action}"))
+    }
+}
 fn stored_remote_version(c: &Connection) -> Option<i64> {
     get_setting(c, "cloud_remote_version").and_then(|v| v.parse::<i64>().ok())
 }
@@ -122,32 +213,37 @@ pub fn sync_push(state: State<DbState>) -> AppResult<SyncStatus> {
         let (base, token) = auth_meta(&c)?;
         (snap, base, token, stored_remote_version(&c))
     };
-    let response = reqwest::blocking::Client::new()
+    let client = reqwest::blocking::Client::new();
+    let payload = PushSnapshotRequest {
+        snapshot: &snap,
+        client_version: env!("CARGO_PKG_VERSION").to_string(),
+        local_version: Some(chrono::Utc::now().timestamp_millis()),
+        base_remote_version,
+    };
+    let mut response = client
         .post(format!("{base}/api/sync/push-snapshot"))
-        .bearer_auth(token)
-        .json(&PushSnapshotRequest {
-            snapshot: &snap,
-            client_version: env!("CARGO_PKG_VERSION").to_string(),
-            local_version: Some(chrono::Utc::now().timestamp_millis()),
-            base_remote_version,
-        })
+        .bearer_auth(&token)
+        .json(&payload)
         .send()
-        .map_err(|e| AppError::Invalid(format!("cloud push failed: {e}")))?;
-    if !response.status().is_success() {
-        if response.status() == reqwest::StatusCode::CONFLICT {
-            return Err(AppError::Invalid(
-                "云端数据已变化，请先使用智能合并后再上传。".into(),
-            ));
+        .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        if let Some(next_token) = refresh_auth_token(&state)? {
+            response = client
+                .post(format!("{base}/api/sync/push-snapshot"))
+                .bearer_auth(next_token)
+                .json(&payload)
+                .send()
+                .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
         }
-        return Err(AppError::Invalid(
-            response
-                .text()
-                .unwrap_or_else(|_| "cloud push failed".into()),
-        ));
+    }
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        return Err(sync_request_failed(status, body, "push"));
     }
     let cloud_status: CloudSyncStatusResponse = response
         .json()
-        .map_err(|e| AppError::Invalid(format!("invalid cloud push response: {e}")))?;
+        .map_err(|_| AppError::Invalid("SYNC_BAD_RESPONSE".into()))?;
     {
         let c = conn(&state);
         c.execute(
@@ -158,28 +254,35 @@ pub fn sync_push(state: State<DbState>) -> AppResult<SyncStatus> {
     }
     sync_status(state)
 }
-
 #[tauri::command]
 pub fn sync_pull(state: State<DbState>) -> AppResult<SyncStatus> {
     let (base, token) = {
         let c = conn(&state);
         auth_meta(&c)?
     };
-    let response = reqwest::blocking::Client::new()
+    let client = reqwest::blocking::Client::new();
+    let mut response = client
         .get(format!("{base}/api/sync/pull-snapshot"))
-        .bearer_auth(token)
+        .bearer_auth(&token)
         .send()
-        .map_err(|e| AppError::Invalid(format!("cloud pull failed: {e}")))?;
+        .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        if let Some(next_token) = refresh_auth_token(&state)? {
+            response = client
+                .get(format!("{base}/api/sync/pull-snapshot"))
+                .bearer_auth(next_token)
+                .send()
+                .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
+        }
+    }
     if !response.status().is_success() {
-        return Err(AppError::Invalid(
-            response
-                .text()
-                .unwrap_or_else(|_| "cloud pull failed".into()),
-        ));
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        return Err(sync_request_failed(status, body, "pull"));
     }
     let body: PullSnapshotResponse = response
         .json()
-        .map_err(|e| AppError::Invalid(format!("invalid cloud snapshot: {e}")))?;
+        .map_err(|_| AppError::Invalid("SYNC_BAD_RESPONSE".into()))?;
     {
         let c = conn(&state);
         if let Some(s) = body.snapshot {
@@ -193,7 +296,6 @@ pub fn sync_pull(state: State<DbState>) -> AppResult<SyncStatus> {
     }
     sync_status(state)
 }
-
 #[tauri::command]
 pub fn sync_merge(state: State<DbState>) -> AppResult<SyncStatus> {
     let (base, token, local_snapshot) = {
@@ -201,21 +303,29 @@ pub fn sync_merge(state: State<DbState>) -> AppResult<SyncStatus> {
         let (base, token) = auth_meta(&c)?;
         (base, token, sync_engine::build_snapshot(&c)?)
     };
-    let response = reqwest::blocking::Client::new()
+    let client = reqwest::blocking::Client::new();
+    let mut response = client
         .get(format!("{base}/api/sync/pull-snapshot"))
         .bearer_auth(&token)
         .send()
-        .map_err(|e| AppError::Invalid(format!("cloud merge pull failed: {e}")))?;
+        .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        if let Some(next_token) = refresh_auth_token(&state)? {
+            response = client
+                .get(format!("{base}/api/sync/pull-snapshot"))
+                .bearer_auth(next_token)
+                .send()
+                .map_err(|_| AppError::Invalid("SYNC_NETWORK_FAILED".into()))?;
+        }
+    }
     if !response.status().is_success() {
-        return Err(AppError::Invalid(
-            response
-                .text()
-                .unwrap_or_else(|_| "cloud merge pull failed".into()),
-        ));
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        return Err(sync_request_failed(status, body, "merge"));
     }
     let body: PullSnapshotResponse = response
         .json()
-        .map_err(|e| AppError::Invalid(format!("invalid cloud snapshot: {e}")))?;
+        .map_err(|_| AppError::Invalid("SYNC_BAD_RESPONSE".into()))?;
     let Some(remote_snapshot) = body.snapshot else {
         return sync_push(state);
     };
@@ -231,7 +341,6 @@ pub fn sync_merge(state: State<DbState>) -> AppResult<SyncStatus> {
     }
     sync_push(state)
 }
-
 fn merge_snapshots(remote: &Snapshot, local: &Snapshot) -> AppResult<Snapshot> {
     let mut remote_value = serde_json::to_value(remote)?;
     let local_value = serde_json::to_value(local)?;
