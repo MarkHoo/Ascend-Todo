@@ -860,33 +860,14 @@ export function ProfilePage() {
               <CircleAlert size={16} />
               {copy.accountRelation}
             </div>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-              <div className="text-sm text-text-muted leading-6">
-                {session ? (
-                  <>
-                    {copy.loggedInPrefix}<span className="text-text font-medium">{session.nickname}</span>{copy.loggedInSuffix}
-                  </>
-                ) : (
-                  copy.loggedOut
-                )}
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <Input
-                  label={t('profile.phone')}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  error={phoneError}
-                  hint={copy.localFieldHint}
-                />
-                <Input
-                  label={t('profile.email')}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  type="email"
-                  error={emailError}
-                  hint={copy.localFieldHint}
-                />
-              </div>
+            <div className="max-w-3xl text-sm text-text-muted leading-6">
+              {session ? (
+                <>
+                  {copy.loggedInPrefix}<span className="text-text font-medium">{session.nickname}</span>{copy.loggedInSuffix}
+                </>
+              ) : (
+                copy.loggedOut
+              )}
             </div>
           </section>
 

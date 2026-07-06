@@ -2260,10 +2260,14 @@ function EntryDetailModal({
             <div>
               {isManualEditable && (
                 <Button
-                  size="sm"
-                  variant={isEditingManual ? 'primary' : 'outline'}
+                  size="md"
+                  variant="primary"
+                  className={`gap-1.5 shadow-md shadow-primary/20 ring-2 ring-primary/15 hover:shadow-lg ${
+                    isEditingManual ? 'bg-emerald-600 hover:bg-emerald-700' : ''
+                  }`}
                   onClick={() => isEditingManual ? saveManualEdit() : setIsEditingManual(true)}
                 >
+                  {isEditingManual ? <CheckCircle2 size={16} /> : <Edit3 size={16} />}
                   {isEditingManual ? (text as any).saveChanges : text.editMarkdown}
                 </Button>
               )}
