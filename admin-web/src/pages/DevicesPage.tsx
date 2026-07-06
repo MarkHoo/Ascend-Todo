@@ -2,6 +2,7 @@ import { Table, Tag } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '@/api/admin';
 import type { Device } from '@/types';
+import { compactId, formatLocalTime } from '@/utils/format';
 
 export function DevicesPage() {
   const { data, isLoading } = useQuery({ queryKey: ['admin-devices'], queryFn: adminApi.devices });
@@ -13,16 +14,17 @@ export function DevicesPage() {
         loading={isLoading}
         dataSource={data || []}
         columns={[
-          { title: '设备名', dataIndex: 'device_name' },
-          { title: '用户 ID', dataIndex: 'user_id' },
+          { title: '设备名', dataIndex: 'deviceName' },
+          { title: '用户昵称', render: (_, row) => row.userNickname || '-' },
+          { title: '用户 ID', render: (_, row) => compactId(row.userId) },
           { title: '平台', dataIndex: 'platform' },
-          { title: '版本', dataIndex: 'app_version' },
-          { title: '最近同步', dataIndex: 'last_sync_at' },
-          { title: '状态', render: (_, row) => row.revoked_at ? <Tag color="red">已移除</Tag> : <Tag color="green">正常</Tag> },
-          { title: '清理请求', render: (_, row) => row.wipe_requested_at ? <Tag color="orange">已请求</Tag> : '-' },
+          { title: '版本', render: (_, row) => row.appVersion || '-' },
+          { title: '最近登录', render: (_, row) => formatLocalTime(row.lastLoginAt) },
+          { title: '最近同步', render: (_, row) => formatLocalTime(row.lastSyncAt) },
+          { title: '状态', render: (_, row) => row.revokedAt ? <Tag color="red">已移除</Tag> : <Tag color="green">正常</Tag> },
+          { title: '清理请求', render: (_, row) => row.wipeRequestedAt ? <Tag color="orange">已请求</Tag> : '-' },
         ]}
       />
     </div>
   );
 }
-

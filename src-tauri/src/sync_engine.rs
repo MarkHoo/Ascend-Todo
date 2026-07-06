@@ -392,6 +392,10 @@ pub fn build_snapshot(c: &Connection) -> AppResult<Snapshot> {
             },
         )
         .ok();
+    let user_profile = user_profile.map(|mut profile| {
+        profile.avatar = None;
+        profile
+    });
 
     let mut settings = std::collections::HashMap::new();
     {
@@ -682,8 +686,8 @@ pub fn apply_snapshot(c: &Connection, s: &Snapshot) -> AppResult<()> {
     }
     if let Some(p) = &s.user_profile {
         tx.execute(
-            "UPDATE user_profile SET nickname = ?, avatar = ?, phone = ?, email = ?, signature = ?, updated_at = ? WHERE id = 'me'",
-            params![p.nickname, p.avatar, p.phone, p.email, p.signature, p.updated_at],
+            "UPDATE user_profile SET nickname = ?, phone = ?, email = ?, signature = ?, updated_at = ? WHERE id = 'me'",
+            params![p.nickname, p.phone, p.email, p.signature, p.updated_at],
         )?;
     }
     for (k, v) in &s.settings {

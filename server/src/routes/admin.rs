@@ -9,23 +9,78 @@ use utoipa::ToSchema;
 
 use crate::{
     error::{AppError, AppResult},
-    models::{
-        auth::AuthResponse,
-        device::Device,
-        sync::SyncLog,
-        user::{LoginRequest, User},
-    },
+    models::{auth::AuthResponse, user::LoginRequest},
     services::auth_service,
     state::AppState,
 };
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct OverviewResponse {
     pub total_users: i64,
     pub verified_users: i64,
     pub total_devices: i64,
     pub sync_success_today: i64,
     pub sync_failed_today: i64,
+    pub client_versions: Vec<ClientVersionStat>,
+}
+
+#[derive(Serialize, sqlx::FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientVersionStat {
+    pub version: String,
+    pub users: i64,
+    pub devices: i64,
+}
+
+#[derive(Serialize, sqlx::FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminUser {
+    pub id: String,
+    pub email: String,
+    pub email_verified_at: Option<chrono::NaiveDateTime>,
+    pub nickname: Option<String>,
+    pub status: String,
+    pub role: String,
+    pub current_client_version: Option<String>,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+    pub last_login_at: Option<chrono::NaiveDateTime>,
+}
+
+#[derive(Serialize, sqlx::FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminDevice {
+    pub id: String,
+    pub user_id: String,
+    pub user_nickname: Option<String>,
+    pub device_name: String,
+    pub device_fingerprint: String,
+    pub platform: Option<String>,
+    pub app_version: Option<String>,
+    pub last_login_at: Option<chrono::NaiveDateTime>,
+    pub last_sync_at: Option<chrono::NaiveDateTime>,
+    pub revoked_at: Option<chrono::NaiveDateTime>,
+    pub wipe_requested_at: Option<chrono::NaiveDateTime>,
+    pub wiped_at: Option<chrono::NaiveDateTime>,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Serialize, sqlx::FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminSyncLog {
+    pub id: String,
+    pub user_id: String,
+    pub user_nickname: Option<String>,
+    pub device_id: Option<String>,
+    pub action: String,
+    pub status: String,
+    pub local_version: Option<i64>,
+    pub remote_version: Option<i64>,
+    pub error_message: Option<String>,
+    pub payload_size: Option<i64>,
+    pub created_at: chrono::NaiveDateTime,
 }
 
 #[utoipa::path(
@@ -80,12 +135,24 @@ pub async fn overview(
         "SELECT COUNT(*) FROM sync_logs WHERE status = 'failed' AND DATE(created_at) = UTC_DATE()",
     )
     .await?;
+    let client_versions = sqlx::query_as::<_, ClientVersionStat>(
+        "SELECT
+            COALESCE(NULLIF(app_version, ''), 'unknown') AS version,
+            COUNT(DISTINCT user_id) AS users,
+            COUNT(*) AS devices
+         FROM user_devices
+         GROUP BY COALESCE(NULLIF(app_version, ''), 'unknown')
+         ORDER BY devices DESC, version DESC",
+    )
+    .fetch_all(&state.db)
+    .await?;
     Ok(Json(OverviewResponse {
         total_users,
         verified_users,
         total_devices,
         sync_success_today,
         sync_failed_today,
+        client_versions,
     }))
 }
 
@@ -94,15 +161,29 @@ pub async fn overview(
     path = "/api/admin/users",
     tag = "Admin",
     security(("bearerAuth" = [])),
-    responses((status = 200, description = "Recent users", body = Vec<User>))
+    responses((status = 200, description = "Recent users", body = Vec<AdminUser>))
 )]
 pub async fn users(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> AppResult<Json<Vec<User>>> {
+) -> AppResult<Json<Vec<AdminUser>>> {
     let ctx = auth_service::authenticate(&headers, &state).await?;
     auth_service::ensure_admin(&ctx)?;
-    let rows = sqlx::query_as::<_, User>("SELECT id, email, email_verified_at, nickname, status, role, created_at, updated_at, last_login_at FROM users ORDER BY created_at DESC LIMIT 200")
+    let rows = sqlx::query_as::<_, AdminUser>(
+        "SELECT
+            u.id, u.email, u.email_verified_at, u.nickname, u.status, u.role,
+            (
+                SELECT d.app_version
+                FROM user_devices d
+                WHERE d.user_id = u.id AND d.app_version IS NOT NULL AND d.app_version <> ''
+                ORDER BY COALESCE(d.last_login_at, d.updated_at) DESC
+                LIMIT 1
+            ) AS current_client_version,
+            u.created_at, u.updated_at, u.last_login_at
+         FROM users u
+         ORDER BY u.created_at DESC
+         LIMIT 200",
+    )
         .fetch_all(&state.db)
         .await?;
     Ok(Json(rows))
@@ -114,16 +195,29 @@ pub async fn users(
     tag = "Admin",
     security(("bearerAuth" = [])),
     params(("id" = String, Path, description = "User id")),
-    responses((status = 200, description = "User detail", body = User))
+    responses((status = 200, description = "User detail", body = AdminUser))
 )]
 pub async fn user_detail(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<String>,
-) -> AppResult<Json<User>> {
+) -> AppResult<Json<AdminUser>> {
     let ctx = auth_service::authenticate(&headers, &state).await?;
     auth_service::ensure_admin(&ctx)?;
-    let row = sqlx::query_as::<_, User>("SELECT id, email, email_verified_at, nickname, status, role, created_at, updated_at, last_login_at FROM users WHERE id = ?")
+    let row = sqlx::query_as::<_, AdminUser>(
+        "SELECT
+            u.id, u.email, u.email_verified_at, u.nickname, u.status, u.role,
+            (
+                SELECT d.app_version
+                FROM user_devices d
+                WHERE d.user_id = u.id AND d.app_version IS NOT NULL AND d.app_version <> ''
+                ORDER BY COALESCE(d.last_login_at, d.updated_at) DESC
+                LIMIT 1
+            ) AS current_client_version,
+            u.created_at, u.updated_at, u.last_login_at
+         FROM users u
+         WHERE u.id = ?",
+    )
         .bind(id)
         .fetch_one(&state.db)
         .await?;
@@ -135,16 +229,23 @@ pub async fn user_detail(
     path = "/api/admin/devices",
     tag = "Admin",
     security(("bearerAuth" = [])),
-    responses((status = 200, description = "Recent devices", body = Vec<Device>))
+    responses((status = 200, description = "Recent devices", body = Vec<AdminDevice>))
 )]
 pub async fn devices(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> AppResult<Json<Vec<Device>>> {
+) -> AppResult<Json<Vec<AdminDevice>>> {
     let ctx = auth_service::authenticate(&headers, &state).await?;
     auth_service::ensure_admin(&ctx)?;
-    let rows = sqlx::query_as::<_, Device>(
-        "SELECT * FROM user_devices ORDER BY updated_at DESC LIMIT 300",
+    let rows = sqlx::query_as::<_, AdminDevice>(
+        "SELECT
+            d.id, d.user_id, u.nickname AS user_nickname, d.device_name, d.device_fingerprint,
+            d.platform, d.app_version, d.last_login_at, d.last_sync_at, d.revoked_at,
+            d.wipe_requested_at, d.wiped_at, d.created_at, d.updated_at
+         FROM user_devices d
+         JOIN users u ON u.id = d.user_id
+         ORDER BY d.updated_at DESC
+         LIMIT 300",
     )
     .fetch_all(&state.db)
     .await?;
@@ -156,18 +257,25 @@ pub async fn devices(
     path = "/api/admin/sync-logs",
     tag = "Admin",
     security(("bearerAuth" = [])),
-    responses((status = 200, description = "Recent sync logs", body = Vec<SyncLog>))
+    responses((status = 200, description = "Recent sync logs", body = Vec<AdminSyncLog>))
 )]
 pub async fn sync_logs(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> AppResult<Json<Vec<SyncLog>>> {
+) -> AppResult<Json<Vec<AdminSyncLog>>> {
     let ctx = auth_service::authenticate(&headers, &state).await?;
     auth_service::ensure_admin(&ctx)?;
-    let rows =
-        sqlx::query_as::<_, SyncLog>("SELECT * FROM sync_logs ORDER BY created_at DESC LIMIT 300")
-            .fetch_all(&state.db)
-            .await?;
+    let rows = sqlx::query_as::<_, AdminSyncLog>(
+        "SELECT
+            l.id, l.user_id, u.nickname AS user_nickname, l.device_id, l.action, l.status,
+            l.local_version, l.remote_version, l.error_message, l.payload_size, l.created_at
+         FROM sync_logs l
+         JOIN users u ON u.id = l.user_id
+         ORDER BY l.created_at DESC
+         LIMIT 300",
+    )
+    .fetch_all(&state.db)
+    .await?;
     Ok(Json(rows))
 }
 

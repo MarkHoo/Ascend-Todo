@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Camera, Check, CircleAlert, Cloud, LogOut, RefreshCw, Save, ShieldCheck, User, X } from 'lucide-react';
+import { Camera, Check, CircleAlert, Cloud, LogOut, RefreshCw, ShieldCheck, User, X } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { authApi, settingsApi, syncApi } from '@/api';
@@ -254,6 +254,9 @@ export function ProfilePage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [cloudBusy, setCloudBusy] = useState(false);
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const [logoutOption, setLogoutOption] = useState<'sync' | 'keep' | 'clear'>('sync');
   const hydratedRef = useRef(false);
 
   const nicknameTooLong = language === 'en'
@@ -601,6 +604,13 @@ export function ProfilePage() {
   const onSendEmailCode = async () => {
     setCloudBusy(true);
     try {
+      const refreshed = await authApi.refresh().catch(() => null);
+      if (refreshed) setSession(refreshed);
+      const activeSession = refreshed || session;
+      if (!activeSession) {
+        toast.error(language === 'en' ? 'Please sign in again before sending a code' : language === 'zh-TW' ? '請重新登入後再傳送驗證碼' : '请重新登录后再发送验证码');
+        return;
+      }
       await authApi.sendEmailVerificationCode();
       toast.success(cloudText.codeSent);
     } catch (error) {
@@ -611,12 +621,17 @@ export function ProfilePage() {
   };
 
   const onVerifyEmail = async () => {
-    if (!verificationCode.trim()) return;
+    const code = verificationCode.trim();
+    if (code.length !== 6) {
+      toast.error(language === 'en' ? 'Enter the 6-digit email code' : language === 'zh-TW' ? '請輸入 6 位信箱驗證碼' : '请输入 6 位邮箱验证码');
+      return;
+    }
     setCloudBusy(true);
     try {
-      const nextSession = await authApi.verifyEmailCode(verificationCode.trim());
+      const nextSession = await authApi.verifyEmailCode(code);
       setSession(nextSession);
       setVerificationCode('');
+      setVerifyDialogOpen(false);
       await refreshCloudStatus();
       toast.success(cloudText.emailVerified);
     } catch (error) {
@@ -627,28 +642,11 @@ export function ProfilePage() {
   };
 
   const onLogout = async () => {
-    const logoutChoice = window.prompt(
-      language === 'en'
-        ? 'Log out options: 1 sync then log out, 2 log out and keep local data, 3 log out and clear this device data. Leave blank to cancel.'
-        : language === 'zh-TW'
-          ? '退出選項：1 同步後退出，2 退出並保留本機資料，3 退出並清理這台裝置資料。留空取消。'
-          : '退出选项：1 同步后退出，2 退出并保留本机数据，3 退出并清理这台设备数据。留空取消。',
-    )?.trim();
-    if (!logoutChoice) return;
     setCloudBusy(true);
     try {
-      if (logoutChoice === '1') {
+      if (logoutOption === 'sync') {
         await syncApi.merge();
-      } else if (logoutChoice === '3') {
-        const confirmText = language === 'en' ? 'CLEAR' : '清理';
-        const typed = window.prompt(
-          language === 'en'
-            ? 'This will clear all local data on this device after backup. Type CLEAR to continue.'
-            : language === 'zh-TW'
-              ? '這會在備份後清理這台裝置的所有本機資料。輸入「清理」繼續。'
-              : '这会在备份后清理这台设备的所有本机数据。输入“清理”继续。',
-        );
-        if (typed !== confirmText) return;
+      } else if (logoutOption === 'clear') {
         await saveSafetyBackup('logout-clear-local-data');
         await syncApi.clearLocalData();
       }
@@ -656,6 +654,7 @@ export function ProfilePage() {
       setSession(null);
       setCloudDevices([]);
       setSyncStatus(await syncApi.status().catch(() => null));
+      setLogoutDialogOpen(false);
       toast.info(cloudText.loggedOut);
     } catch (error) {
       toast.error(String(error));
@@ -896,32 +895,21 @@ export function ProfilePage() {
                     <span className={`chip ${session.emailVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {session.emailVerified ? cloudText.verified : cloudText.unverified}
                     </span>
-                    <Button size="sm" variant="outline" onClick={onLogout} disabled={cloudBusy}>
+                    <Button size="sm" variant="outline" onClick={() => setLogoutDialogOpen(true)} disabled={cloudBusy}>
                       <LogOut size={14} />
                       {cloudText.logout}
                     </Button>
                   </div>
 
                   {!session.emailVerified && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3">
-                      <div className="mb-2 flex items-center gap-2 text-sm font-medium text-amber-700">
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
+                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-amber-700">
                         <ShieldCheck size={15} />
-                        {cloudText.verifyRequired}
+                        <span>{cloudText.verifyRequired}</span>
                       </div>
-                      <div className="flex flex-wrap items-end gap-2">
-                        <Input
-                          label={cloudText.verificationCode}
-                          value={verificationCode}
-                          onChange={(event) => setVerificationCode(event.target.value)}
-                          className="w-44"
-                        />
-                        <Button size="sm" variant="outline" onClick={onSendEmailCode} disabled={cloudBusy}>
-                          {cloudText.sendCode}
-                        </Button>
-                        <Button size="sm" onClick={onVerifyEmail} disabled={cloudBusy || !verificationCode.trim()}>
-                          {cloudText.verifyEmail}
-                        </Button>
-                      </div>
+                      <Button size="sm" onClick={() => setVerifyDialogOpen(true)} disabled={cloudBusy}>
+                        {cloudText.verifyEmail}
+                      </Button>
                     </div>
                   )}
 
@@ -1024,15 +1012,84 @@ export function ProfilePage() {
             </div>
           </section>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onReset} disabled={!dirty || saving}>{copy.cancelChanges}</Button>
-            <Button onClick={onSave} disabled={!dirty || saving}>
-              <Save size={15} />
-              {saving ? copy.savingShort : t('common.save')}
-            </Button>
-          </div>
+          {dirty && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
+              {copy.dirty}
+            </div>
+          )}
         </main>
       </div>
+      {verifyDialogOpen && (
+        <ProfileModal
+          title={cloudText.verifyEmail}
+          description={language === 'en' ? 'Send a verification code to your account email, then enter the 6-digit code here.' : language === 'zh-TW' ? '將驗證碼傳送到帳號信箱，然後在這裡輸入 6 位驗證碼。' : '将验证码发送到账户邮箱，然后在这里输入 6 位验证码。'}
+          onClose={() => setVerifyDialogOpen(false)}
+        >
+          <div className="space-y-4">
+            <Button variant="outline" onClick={onSendEmailCode} disabled={cloudBusy}>
+              {cloudText.sendCode}
+            </Button>
+            <div>
+              <Input
+                label={cloudText.verificationCode}
+                value={verificationCode}
+                inputMode="numeric"
+                maxLength={6}
+                onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+              <div className="mt-1 text-xs text-text-muted">
+                {verificationCode.length < 6
+                  ? (language === 'en' ? `${6 - verificationCode.length} digits remaining` : language === 'zh-TW' ? `還需輸入 ${6 - verificationCode.length} 位` : `还需输入 ${6 - verificationCode.length} 位`)
+                  : (language === 'en' ? 'Ready to verify' : language === 'zh-TW' ? '可以驗證' : '可以验证')}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setVerifyDialogOpen(false)} disabled={cloudBusy}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={onVerifyEmail} disabled={cloudBusy || verificationCode.length !== 6}>
+                {cloudText.verifyEmail}
+              </Button>
+            </div>
+          </div>
+        </ProfileModal>
+      )}
+      {logoutDialogOpen && (
+        <ProfileModal
+          title={cloudText.logout}
+          description={language === 'en' ? 'Choose how this device should handle local data before signing out.' : language === 'zh-TW' ? '選擇這台裝置在登出前如何處理本機資料。' : '选择这台设备在退出登录前如何处理本机数据。'}
+          onClose={() => setLogoutDialogOpen(false)}
+        >
+          <div className="space-y-3">
+            <LogoutOption
+              active={logoutOption === 'sync'}
+              title={language === 'en' ? 'Sync, then sign out' : language === 'zh-TW' ? '同步後登出' : '同步后退出'}
+              description={language === 'en' ? 'Merge local and cloud data first. Recommended for your own device.' : language === 'zh-TW' ? '先合併本機與雲端資料。適合自己的裝置。' : '先合并本机与云端数据。适合自己的设备。'}
+              onClick={() => setLogoutOption('sync')}
+            />
+            <LogoutOption
+              active={logoutOption === 'keep'}
+              title={language === 'en' ? 'Sign out and keep local data' : language === 'zh-TW' ? '登出並保留本機資料' : '退出并保留本机数据'}
+              description={language === 'en' ? 'Only remove this account session. Existing local data remains.' : language === 'zh-TW' ? '只移除帳號登入狀態，既有本機資料保留。' : '只移除账号登录状态，已有本机数据保留。'}
+              onClick={() => setLogoutOption('keep')}
+            />
+            <LogoutOption
+              active={logoutOption === 'clear'}
+              title={language === 'en' ? 'Sign out and clear this device' : language === 'zh-TW' ? '登出並清理這台裝置' : '退出并清理这台设备'}
+              description={language === 'en' ? 'Create a safety backup, then clear local data on this device.' : language === 'zh-TW' ? '先建立安全備份，再清理這台裝置的本機資料。' : '先创建安全备份，再清理这台设备的本机数据。'}
+              onClick={() => setLogoutOption('clear')}
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setLogoutDialogOpen(false)} disabled={cloudBusy}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant={logoutOption === 'clear' ? 'danger' : 'primary'} onClick={onLogout} disabled={cloudBusy}>
+                {cloudBusy ? copy.savingShort : cloudText.logout}
+              </Button>
+            </div>
+          </div>
+        </ProfileModal>
+      )}
     </div>
   );
 }
@@ -1058,6 +1115,78 @@ function IconAction({
       className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text-muted transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
+    </button>
+  );
+}
+
+function ProfileModal({
+  title,
+  description,
+  onClose,
+  children,
+}: {
+  title: string;
+  description: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-2xl">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <div className="text-base font-semibold">{title}</div>
+            <div className="mt-1 text-sm leading-6 text-text-muted">{description}</div>
+          </div>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-2 hover:text-text"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LogoutOption({
+  active,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-lg border p-3 text-left transition-all ${
+        active
+          ? 'border-primary bg-primary/10 shadow-sm'
+          : 'border-border bg-surface-subtle hover:border-primary/60 hover:bg-surface'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+            active ? 'border-primary bg-primary text-white' : 'border-border bg-surface'
+          }`}
+        >
+          {active && <Check size={13} />}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold">{title}</span>
+          <span className="mt-1 block text-xs leading-5 text-text-muted">{description}</span>
+        </span>
+      </div>
     </button>
   );
 }

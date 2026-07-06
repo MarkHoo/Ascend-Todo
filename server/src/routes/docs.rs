@@ -13,7 +13,10 @@ use crate::{
         user::{LoginRequest, RegisterRequest, User, UserProfile},
     },
     routes::{
-        admin::{OverviewResponse, SystemHealthResponse},
+        admin::{
+            AdminDevice, AdminSyncLog, AdminUser, ClientVersionStat, OverviewResponse,
+            SystemHealthResponse,
+        },
         auth::LogoutResponse,
         devices::SimpleResponse as DeviceSimpleResponse,
         email::SimpleResponse as EmailSimpleResponse,
@@ -55,6 +58,10 @@ use crate::{
     ),
     components(schemas(
         AuthResponse,
+        AdminDevice,
+        AdminSyncLog,
+        AdminUser,
+        ClientVersionStat,
         Device,
         DeviceSimpleResponse,
         EmailSimpleResponse,
