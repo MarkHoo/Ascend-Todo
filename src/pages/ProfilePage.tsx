@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Camera, Check, CircleAlert, Cloud, IdCard, LogOut, RefreshCw, Save, ShieldCheck, User, X } from 'lucide-react';
+import { Camera, Check, CircleAlert, Cloud, LogOut, RefreshCw, Save, ShieldCheck, User, X } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { authApi, settingsApi, syncApi } from '@/api';
@@ -854,48 +854,43 @@ export function ProfilePage() {
           </div>
         </section>
 
-        <main className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <section className="card p-5">
-            <div className="text-sm font-semibold flex items-center gap-2 mb-4">
-              <IdCard size={16} />
-              {copy.localIdentity}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Input
-                label={t('profile.phone')}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                error={phoneError}
-                hint={copy.localFieldHint}
-              />
-              <Input
-                label={t('profile.email')}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                error={emailError}
-                hint={copy.localFieldHint}
-              />
-            </div>
-          </section>
-
+        <main className="grid grid-cols-1 gap-4">
           <section className="card p-5">
             <div className="text-sm font-semibold flex items-center gap-2 mb-3">
               <CircleAlert size={16} />
               {copy.accountRelation}
             </div>
-            <div className="text-sm text-text-muted leading-6">
-              {session ? (
-                <>
-                  {copy.loggedInPrefix}<span className="text-text font-medium">{session.nickname}</span>{copy.loggedInSuffix}
-                </>
-              ) : (
-                copy.loggedOut
-              )}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+              <div className="text-sm text-text-muted leading-6">
+                {session ? (
+                  <>
+                    {copy.loggedInPrefix}<span className="text-text font-medium">{session.nickname}</span>{copy.loggedInSuffix}
+                  </>
+                ) : (
+                  copy.loggedOut
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                <Input
+                  label={t('profile.phone')}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  error={phoneError}
+                  hint={copy.localFieldHint}
+                />
+                <Input
+                  label={t('profile.email')}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  type="email"
+                  error={emailError}
+                  hint={copy.localFieldHint}
+                />
+              </div>
             </div>
           </section>
 
-          <section className="card p-5 lg:col-span-2">
+          <section className="card p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="text-sm font-semibold flex items-center gap-2">

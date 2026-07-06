@@ -794,6 +794,7 @@ function useCalendarText() {
       dragDropHint: 'Drag this card to a day or time slot to schedule it.',
       readOnlyHint: 'This item comes from a synced or generated source. You can open the related item or create follow-up work.',
       editableHint: 'You can drag this item on the calendar or adjust the time below.',
+      saveChanges: 'Save',
     }
     : language === 'zh-TW'
       ? {
@@ -810,6 +811,7 @@ function useCalendarText() {
         dragDropHint: '將此卡片拖到日期或時間格即可安排。',
         readOnlyHint: '此事項來自同步或系統生成來源，可打開關聯項或建立跟進工作。',
         editableHint: '此事項可在日曆上拖動，也可在下方調整時間。',
+        saveChanges: '儲存',
       }
       : {
         calendarSettings: '日历设置',
@@ -825,6 +827,7 @@ function useCalendarText() {
         dragDropHint: '将这张卡片拖到日期或时间格即可安排。',
         readOnlyHint: '此事项来自同步或系统生成来源，可以打开关联项或创建跟进工作。',
         editableHint: '此事项可在日历上拖动，也可在下方调整时间。',
+        saveChanges: '保存',
       };
   return { ...calendarCopy[language], ...override, ...quickSettings };
 }
@@ -852,6 +855,7 @@ export function CalendarPage() {
   const [query, setQuery] = useState('');
   const [syncStatus, setSyncStatus] = useState<CalendarSyncStatus | null>(null);
   const [emailSyncing, setEmailSyncing] = useState(false);
+  const [draggingTask, setDraggingTask] = useState<{ id: string; title: string; x: number; y: number } | null>(null);
   const emailSyncingRef = useRef(false);
   const [enabledSources, setEnabledSources] = useState<Record<SourceType, boolean>>({
     task: true,
@@ -979,6 +983,45 @@ export function CalendarPage() {
     boards.forEach((board) => board.lists.forEach((list) => visit(list.tasks)));
     return out.slice(0, 12);
   }, [boards]);
+
+  useEffect(() => {
+    if (!draggingTask) return;
+    const onMove = (event: PointerEvent) => {
+      setDraggingTask((current) => current ? { ...current, x: event.clientX, y: event.clientY } : current);
+    };
+    const onUp = async (event: PointerEvent) => {
+      const current = draggingTask;
+      setDraggingTask(null);
+      const target = document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<HTMLElement>('[data-calendar-drop-date]');
+      if (!current || !target) return;
+      const date = target.dataset.calendarDropDate;
+      if (!date) return;
+      const hour = Number(target.dataset.calendarDropHour || '9');
+      let minute = Number(target.dataset.calendarDropMinute || '0');
+      if (target.dataset.calendarDropTimeline === 'true') {
+        const rect = target.getBoundingClientRect();
+        const ratio = Math.min(0.999, Math.max(0, (event.clientY - rect.top) / rect.height));
+        minute = snapCalendarMinute(ratio * 60);
+      }
+      try {
+        await scheduleTaskAt(current.id, date, hour, minute);
+      } catch (error) {
+        toast.error(String(error));
+      }
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once: true });
+    window.addEventListener('pointercancel', onUp, { once: true });
+    document.body.style.userSelect = 'none';
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      document.body.style.userSelect = '';
+    };
+  }, [draggingTask]);
 
   const moveCursor = (direction: -1 | 1) => {
     const unit = view === 'month' ? 'month' : view === 'day' ? 'day' : 'week';
@@ -1228,8 +1271,16 @@ export function CalendarPage() {
                 ) : unscheduledTasks.map((task) => (
                   <div
                     key={task.id}
-                    draggable
+                    role="button"
+                    tabIndex={0}
+                    draggable={false}
+                    onPointerDown={(event) => {
+                      if (event.button !== 0) return;
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      setDraggingTask({ id: task.id, title: task.title, x: event.clientX, y: event.clientY });
+                    }}
                     onDragStart={(event) => {
+                      event.preventDefault();
                       event.dataTransfer.effectAllowed = 'move';
                       event.dataTransfer.setData('text/ascend-task-id', task.id);
                       event.dataTransfer.setData('text/plain', `ascend-task:${task.id}`);
@@ -1364,6 +1415,19 @@ export function CalendarPage() {
           </main>
         </div>
       </div>
+
+      {draggingTask && (
+        <div
+          className="pointer-events-none fixed z-[1000] max-w-[240px] rounded-lg border border-primary/40 bg-surface px-3 py-2 text-xs shadow-xl ring-2 ring-primary/20"
+          style={{ left: draggingTask.x + 12, top: draggingTask.y + 12 }}
+        >
+          <div className="flex items-center gap-2">
+            <GripVertical size={14} className="text-primary" />
+            <span className="truncate font-medium">{draggingTask.title}</span>
+          </div>
+          <div className="mt-1 text-[11px] text-text-muted">{text.dragToCalendar}</div>
+        </div>
+      )}
 
       {createDraft && (
         <CreateTaskOnDate
@@ -1551,6 +1615,9 @@ function MonthView({
           return (
             <div
               key={key}
+              data-calendar-drop-date={key}
+              data-calendar-drop-hour="9"
+              data-calendar-drop-minute="0"
               onClick={() => onSelectDate(key)}
               onDoubleClick={() => onCreate(key)}
               onDragOver={(event) => {
@@ -1647,6 +1714,9 @@ function WeekView({
           return (
             <div
               key={`all-${key}`}
+              data-calendar-drop-date={key}
+              data-calendar-drop-hour="9"
+              data-calendar-drop-minute="0"
               className={`border-r border-border px-1.5 py-1 space-y-1 ${density === 'compact' ? 'min-h-[30px]' : 'min-h-[34px]'} ${d.isSame(now, 'day') ? 'bg-primary-soft/10' : ''}`}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -1758,6 +1828,9 @@ function DayView({
       <div className="grid grid-cols-[72px_1fr] border-b border-border bg-surface/80">
         <div className="text-[11px] text-text-muted px-2 py-2 text-right border-r border-border">{text.allDay}</div>
         <div
+          data-calendar-drop-date={date.format('YYYY-MM-DD')}
+          data-calendar-drop-hour="9"
+          data-calendar-drop-minute="0"
           className={`${density === 'compact' ? 'min-h-[34px]' : 'min-h-[38px]'} p-2 space-y-1`}
           onDragOver={(event) => {
             event.preventDefault();
@@ -1870,6 +1943,10 @@ function TimelineDropCell({
   };
   return (
     <div
+      data-calendar-drop-date={dateKey}
+      data-calendar-drop-hour={hour}
+      data-calendar-drop-minute={hoverMinute ?? 0}
+      data-calendar-drop-timeline="true"
       onClick={() => onSelectDate(dateKey)}
       onDoubleClick={(event) => {
         const minute = minuteFromEvent(event);
@@ -2060,6 +2137,18 @@ function EntryDetailModal({
   const [manualLocation, setManualLocation] = useState(entry.location || '');
   const [manualColor, setManualColor] = useState(entry.color || entryColor(entry));
   const isManualEditable = entry.sourceType === 'manual' && !entry.readonly;
+  const [isEditingManual, setIsEditingManual] = useState(false);
+  const saveManualEdit = () => {
+    if (!startAt) return;
+    onSaveManual({
+      title: manualTitle,
+      description: manualDescription,
+      location: manualLocation,
+      startAt,
+      endAt,
+      color: manualColor,
+    });
+  };
   return (
     <Modal open onClose={onClose} title={text.detailTitle} size="lg">
       <div className="space-y-4">
@@ -2068,7 +2157,11 @@ function EntryDetailModal({
             {meta.icon}
           </div>
           <div className="min-w-0">
-            <div className="text-xl font-semibold">{entry.title}</div>
+            {isEditingManual ? (
+              <Input label={text.taskTitle} value={manualTitle} onChange={(event) => setManualTitle(event.target.value)} />
+            ) : (
+              <div className="text-xl font-semibold">{entry.title}</div>
+            )}
             <div className="text-sm text-text-muted mt-1 flex items-center gap-2 flex-wrap">
               <span>{text.sources[entry.sourceType]}</span>
               {entry.readonly && <span className="chip">{text.readonlyEvent}</span>}
@@ -2076,15 +2169,40 @@ function EntryDetailModal({
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          <InfoRow label={text.date} value={entry.date} icon={<CalendarDays size={15} />} />
-          <InfoRow label={text.time} value={entry.time ? `${entry.time}${entry.endTime ? ` - ${entry.endTime}` : ''}` : text.allDayOrUnset} icon={<Clock3 size={15} />} />
-          <InfoRow label={text.source} value={sourceLabel} icon={meta.icon} />
-          {entry.boardName && <InfoRow label={text.board} value={`${entry.boardName} / ${entry.listName || ''}`} icon={<Inbox size={15} />} />}
-          {entry.location && <InfoRow label={text.location} value={entry.location} icon={<Flag size={15} />} />}
-          {entry.status && <InfoRow label={text.status} value={formatEntryStatus(entry.status, text)} icon={<Sparkles size={15} />} />}
-          {entry.hasSubtasks && <InfoRow label={text.subtasks} value={`${entry.subtaskDone}/${entry.subtaskCount}`} icon={<ListChecks size={15} />} />}
-        </div>
+        {isEditingManual ? (
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            <NativeDateTimeInput
+              label={text.startTime}
+              value={formatForDateTimeInput(startAt)}
+              onChange={(value) => setStartAt(dateTimeInputToIso(value))}
+            />
+            <NativeDateTimeInput
+              label={text.endTime}
+              value={formatForDateTimeInput(endAt)}
+              onChange={(value) => setEndAt(dateTimeInputToIso(value))}
+            />
+            <Input label={text.location} value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} />
+            <label className="block">
+              <span className="label">{(text as any).color || 'Color'}</span>
+              <input
+                type="color"
+                className="h-10 w-full rounded-md border border-border bg-surface px-2"
+                value={manualColor}
+                onChange={(event) => setManualColor(event.target.value)}
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <InfoRow label={text.date} value={entry.date} icon={<CalendarDays size={15} />} />
+            <InfoRow label={text.time} value={entry.time ? `${entry.time}${entry.endTime ? ` - ${entry.endTime}` : ''}` : text.allDayOrUnset} icon={<Clock3 size={15} />} />
+            <InfoRow label={text.source} value={sourceLabel} icon={meta.icon} />
+            {entry.boardName && <InfoRow label={text.board} value={`${entry.boardName} / ${entry.listName || ''}`} icon={<Inbox size={15} />} />}
+            {entry.location && <InfoRow label={text.location} value={entry.location} icon={<Flag size={15} />} />}
+            {entry.status && <InfoRow label={text.status} value={formatEntryStatus(entry.status, text)} icon={<Sparkles size={15} />} />}
+            {entry.hasSubtasks && <InfoRow label={text.subtasks} value={`${entry.subtaskDone}/${entry.subtaskCount}`} icon={<ListChecks size={15} />} />}
+          </div>
+        )}
         <div className="rounded-lg border border-border bg-surface p-3 text-sm">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className="font-medium flex items-center gap-2">
@@ -2099,41 +2217,22 @@ function EntryDetailModal({
             {canCreateTask && <div>{text.createdTaskWillLink}</div>}
           </div>
         </div>
-        {entry.description && (
+        {isEditingManual ? (
+          <MarkdownEditor
+            label={text.description}
+            value={manualDescription}
+            onChange={setManualDescription}
+            placeholder={text.taskDescPlaceholder}
+            previewLabel={text.previewMarkdown}
+            editLabel={text.editMarkdown}
+          />
+        ) : entry.description && (
           <div>
             <div className="text-sm font-medium mb-1">{text.description}</div>
             <MarkdownPreview value={entry.description} />
           </div>
         )}
-        {isManualEditable && (
-          <div className="rounded-lg border border-border p-3">
-            <div className="text-sm font-medium mb-2">{(text as any).editSchedule || text.adjustTime}</div>
-            <div className="space-y-3">
-              <Input label={text.taskTitle} value={manualTitle} onChange={(event) => setManualTitle(event.target.value)} />
-              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_120px] gap-3">
-                <Input label={text.location} value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} />
-                <label className="block">
-                  <span className="label">{(text as any).color || 'Color'}</span>
-                  <input
-                    type="color"
-                    className="h-10 w-full rounded-md border border-border bg-surface px-2"
-                    value={manualColor}
-                    onChange={(event) => setManualColor(event.target.value)}
-                  />
-                </label>
-              </div>
-              <label className="block">
-                <span className="label">{text.description}</span>
-                <textarea
-                  className="input min-h-[96px] w-full resize-y text-sm"
-                  value={manualDescription}
-                  onChange={(event) => setManualDescription(event.target.value)}
-                />
-              </label>
-            </div>
-          </div>
-        )}
-        {canEditTime && (
+        {canEditTime && !isManualEditable && (
           <div className="rounded-lg border border-border p-3">
             <div className="text-sm font-medium mb-2">{text.adjustTime}</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2156,22 +2255,25 @@ function EntryDetailModal({
             </div>
           </div>
         )}
-        {(entry.sourceType === 'task' || entry.sourceType === 'goal' || canCreateTask || entry.linkedTaskId) && (
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-            {canEditTime && startAt && (
+        {(entry.sourceType === 'task' || entry.sourceType === 'goal' || canCreateTask || entry.linkedTaskId || isManualEditable) && (
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
+            <div>
+              {isManualEditable && (
+                <Button
+                  size="sm"
+                  variant={isEditingManual ? 'primary' : 'outline'}
+                  onClick={() => isEditingManual ? saveManualEdit() : setIsEditingManual(true)}
+                >
+                  {isEditingManual ? (text as any).saveChanges : text.editMarkdown}
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2">
+            {canEditTime && !isManualEditable && startAt && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => isManualEditable
-                  ? onSaveManual({
-                    title: manualTitle,
-                    description: manualDescription,
-                    location: manualLocation,
-                    startAt,
-                    endAt,
-                    color: manualColor,
-                  })
-                  : onSaveTime(startAt, endAt)}
+                onClick={() => onSaveTime(startAt, endAt)}
               >
                 <Clock3 size={14} />
                 {text.saveTime}
@@ -2201,6 +2303,7 @@ function EntryDetailModal({
                 {text.createPomodoroPlan}
               </Button>
             )}
+            </div>
           </div>
         )}
       </div>
