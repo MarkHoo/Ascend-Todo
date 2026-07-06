@@ -254,6 +254,8 @@ export function ProfilePage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [cloudBusy, setCloudBusy] = useState(false);
+  const [verificationCooldown, setVerificationCooldown] = useState(0);
+  const [verificationHint, setVerificationHint] = useState('');
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [logoutOption, setLogoutOption] = useState<'sync' | 'keep' | 'clear'>('sync');
@@ -268,6 +270,14 @@ export function ProfilePage() {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    if (verificationCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setVerificationCooldown((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [verificationCooldown]);
 
   useEffect(() => {
     (async () => {
@@ -602,19 +612,30 @@ export function ProfilePage() {
   };
 
   const onSendEmailCode = async () => {
+    if (verificationCooldown > 0) return;
     setCloudBusy(true);
+    setVerificationHint('');
     try {
       const refreshed = await authApi.refresh().catch(() => null);
       if (refreshed) setSession(refreshed);
       const activeSession = refreshed || session;
       if (!activeSession) {
-        toast.error(language === 'en' ? 'Please sign in again before sending a code' : language === 'zh-TW' ? '請重新登入後再傳送驗證碼' : '请重新登录后再发送验证码');
+        setVerificationHint(language === 'en' ? 'Please sign in again before sending a code.' : language === 'zh-TW' ? '請重新登入後再傳送驗證碼。' : '请重新登录后再发送验证码。');
         return;
       }
       await authApi.sendEmailVerificationCode();
-      toast.success(cloudText.codeSent);
+      setVerificationCooldown(60);
+      setVerificationHint(language === 'en' ? 'Code sent. Please check your inbox.' : language === 'zh-TW' ? '驗證碼已傳送，請查看信箱。' : '验证码已发送，请查看邮箱。');
     } catch (error) {
-      toast.error(String(error));
+      const message = String(error);
+      if (message.includes('sent recently')) {
+        setVerificationCooldown(60);
+        setVerificationHint(language === 'en' ? 'A code was sent recently. Please try again later.' : language === 'zh-TW' ? '剛剛已傳送驗證碼，請稍後再試。' : '刚刚已经发送过验证码，请稍后再试。');
+      } else if (message.includes('UNAUTHORIZED') || message.includes('unauthorized')) {
+        setVerificationHint(language === 'en' ? 'Your sign-in has expired. Please sign in again.' : language === 'zh-TW' ? '登入狀態已過期，請重新登入。' : '登录状态已过期，请重新登录。');
+      } else {
+        setVerificationHint(language === 'en' ? 'Code could not be sent. Please check your network and try again.' : language === 'zh-TW' ? '驗證碼暫時無法傳送，請檢查網路後重試。' : '验证码暂时无法发送，请检查网络后重试。');
+      }
     } finally {
       setCloudBusy(false);
     }
@@ -631,11 +652,17 @@ export function ProfilePage() {
       const nextSession = await authApi.verifyEmailCode(code);
       setSession(nextSession);
       setVerificationCode('');
+      setVerificationHint('');
       setVerifyDialogOpen(false);
       await refreshCloudStatus();
       toast.success(cloudText.emailVerified);
     } catch (error) {
-      toast.error(String(error));
+      const message = String(error);
+      setVerificationHint(
+        message.includes('invalid or expired')
+          ? (language === 'en' ? 'The code is invalid or expired. Please request a new one.' : language === 'zh-TW' ? '驗證碼無效或已過期，請重新取得。' : '验证码无效或已过期，请重新获取。')
+          : (language === 'en' ? 'Verification failed. Please check the code and try again.' : language === 'zh-TW' ? '驗證失敗，請檢查驗證碼後重試。' : '验证失败，请检查验证码后重试。')
+      );
     } finally {
       setCloudBusy(false);
     }
@@ -1026,23 +1053,36 @@ export function ProfilePage() {
           onClose={() => setVerifyDialogOpen(false)}
         >
           <div className="space-y-4">
-            <Button variant="outline" onClick={onSendEmailCode} disabled={cloudBusy}>
-              {cloudText.sendCode}
-            </Button>
             <div>
-              <Input
-                label={cloudText.verificationCode}
-                value={verificationCode}
-                inputMode="numeric"
-                maxLength={6}
-                onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              />
+              <label className="label">{cloudText.verificationCode}</label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={verificationCode}
+                  inputMode="numeric"
+                  maxLength={6}
+                  className="h-10 text-center tracking-[0.28em]"
+                  onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                />
+                <Button
+                  variant="outline"
+                  className="h-10 min-w-[112px] whitespace-nowrap"
+                  onClick={onSendEmailCode}
+                  disabled={cloudBusy || verificationCooldown > 0}
+                >
+                  {verificationCooldown > 0 ? `${verificationCooldown}s` : cloudText.sendCode}
+                </Button>
+              </div>
               <div className="mt-1 text-xs text-text-muted">
                 {verificationCode.length < 6
                   ? (language === 'en' ? `${6 - verificationCode.length} digits remaining` : language === 'zh-TW' ? `還需輸入 ${6 - verificationCode.length} 位` : `还需输入 ${6 - verificationCode.length} 位`)
                   : (language === 'en' ? 'Ready to verify' : language === 'zh-TW' ? '可以驗證' : '可以验证')}
               </div>
             </div>
+            {verificationHint && (
+              <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-text-muted">
+                {verificationHint}
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setVerifyDialogOpen(false)} disabled={cloudBusy}>
                 {t('common.cancel')}

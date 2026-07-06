@@ -171,7 +171,12 @@ pub async fn users(
     auth_service::ensure_admin(&ctx)?;
     let rows = sqlx::query_as::<_, AdminUser>(
         "SELECT
-            u.id, u.email, u.email_verified_at, u.nickname, u.status, u.role,
+            u.id, u.email, u.email_verified_at,
+            COALESCE(
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.snapshot_json, '$.userProfile.nickname')), 'null'),
+                NULLIF(u.nickname, '')
+            ) AS nickname,
+            u.status, u.role,
             (
                 SELECT d.app_version
                 FROM user_devices d
@@ -181,6 +186,7 @@ pub async fn users(
             ) AS current_client_version,
             u.created_at, u.updated_at, u.last_login_at
          FROM users u
+         LEFT JOIN sync_snapshots s ON s.user_id = u.id
          ORDER BY u.created_at DESC
          LIMIT 200",
     )
@@ -206,7 +212,12 @@ pub async fn user_detail(
     auth_service::ensure_admin(&ctx)?;
     let row = sqlx::query_as::<_, AdminUser>(
         "SELECT
-            u.id, u.email, u.email_verified_at, u.nickname, u.status, u.role,
+            u.id, u.email, u.email_verified_at,
+            COALESCE(
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.snapshot_json, '$.userProfile.nickname')), 'null'),
+                NULLIF(u.nickname, '')
+            ) AS nickname,
+            u.status, u.role,
             (
                 SELECT d.app_version
                 FROM user_devices d
@@ -216,6 +227,7 @@ pub async fn user_detail(
             ) AS current_client_version,
             u.created_at, u.updated_at, u.last_login_at
          FROM users u
+         LEFT JOIN sync_snapshots s ON s.user_id = u.id
          WHERE u.id = ?",
     )
         .bind(id)
@@ -239,11 +251,17 @@ pub async fn devices(
     auth_service::ensure_admin(&ctx)?;
     let rows = sqlx::query_as::<_, AdminDevice>(
         "SELECT
-            d.id, d.user_id, u.nickname AS user_nickname, d.device_name, d.device_fingerprint,
+            d.id, d.user_id,
+            COALESCE(
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.snapshot_json, '$.userProfile.nickname')), 'null'),
+                NULLIF(u.nickname, '')
+            ) AS user_nickname,
+            d.device_name, d.device_fingerprint,
             d.platform, d.app_version, d.last_login_at, d.last_sync_at, d.revoked_at,
             d.wipe_requested_at, d.wiped_at, d.created_at, d.updated_at
          FROM user_devices d
          JOIN users u ON u.id = d.user_id
+         LEFT JOIN sync_snapshots s ON s.user_id = d.user_id
          ORDER BY d.updated_at DESC
          LIMIT 300",
     )
@@ -267,10 +285,16 @@ pub async fn sync_logs(
     auth_service::ensure_admin(&ctx)?;
     let rows = sqlx::query_as::<_, AdminSyncLog>(
         "SELECT
-            l.id, l.user_id, u.nickname AS user_nickname, l.device_id, l.action, l.status,
+            l.id, l.user_id,
+            COALESCE(
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.snapshot_json, '$.userProfile.nickname')), 'null'),
+                NULLIF(u.nickname, '')
+            ) AS user_nickname,
+            l.device_id, l.action, l.status,
             l.local_version, l.remote_version, l.error_message, l.payload_size, l.created_at
          FROM sync_logs l
          JOIN users u ON u.id = l.user_id
+         LEFT JOIN sync_snapshots s ON s.user_id = l.user_id
          ORDER BY l.created_at DESC
          LIMIT 300",
     )

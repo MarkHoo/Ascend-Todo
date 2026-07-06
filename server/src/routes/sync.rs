@@ -114,6 +114,7 @@ pub async fn push_snapshot(
             .execute(&state.db)
             .await?;
     }
+    update_user_profile_summary(&state, &ctx.user_id, &input.snapshot, now).await?;
     write_sync_log(
         &state,
         &ctx.user_id,
@@ -197,6 +198,29 @@ pub async fn logs(
     .fetch_all(&state.db)
     .await?;
     Ok(Json(rows))
+}
+
+async fn update_user_profile_summary(
+    state: &AppState,
+    user_id: &str,
+    snapshot: &serde_json::Value,
+    now: chrono::NaiveDateTime,
+) -> AppResult<()> {
+    let Some(profile) = snapshot.get("userProfile").and_then(|value| value.as_object()) else {
+        return Ok(());
+    };
+    let nickname = profile
+        .get("nickname")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    sqlx::query("UPDATE users SET nickname = ?, updated_at = ? WHERE id = ?")
+        .bind(nickname)
+        .bind(now)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
+    Ok(())
 }
 
 async fn write_sync_log(
