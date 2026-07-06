@@ -19,6 +19,69 @@ pub struct SimpleResponse {
     pub ok: bool,
 }
 
+fn request_ip(headers: &HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()))
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+async fn ensure_send_rate_limit(
+    state: &AppState,
+    user_id: &str,
+    email: &str,
+    ip: &str,
+) -> AppResult<()> {
+    let recent_email_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM email_verification_codes
+         WHERE user_id = ? AND email = ? AND created_at > ?",
+    )
+    .bind(user_id)
+    .bind(email)
+    .bind(time::now() - Duration::minutes(1))
+    .fetch_one(&state.db)
+    .await?;
+    if recent_email_count > 0 {
+        return Err(AppError::BadRequest(
+            "verification code was sent recently, please wait before trying again".into(),
+        ));
+    }
+
+    let hourly_email_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM email_verification_codes
+         WHERE email = ? AND created_at > ?",
+    )
+    .bind(email)
+    .bind(time::now() - Duration::hours(1))
+    .fetch_one(&state.db)
+    .await?;
+    if hourly_email_count >= 5 {
+        return Err(AppError::BadRequest(
+            "too many verification requests for this email, please try later".into(),
+        ));
+    }
+
+    let hourly_ip_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM email_verification_codes
+         WHERE send_ip = ? AND created_at > ?",
+    )
+    .bind(ip)
+    .bind(time::now() - Duration::hours(1))
+    .fetch_one(&state.db)
+    .await?;
+    if hourly_ip_count >= 20 {
+        return Err(AppError::BadRequest(
+            "too many verification requests from this network, please try later".into(),
+        ));
+    }
+    Ok(())
+}
+
 #[utoipa::path(
     post,
     path = "/api/email/send-verification-code",
@@ -46,10 +109,12 @@ pub async fn send_verification_code(
         .fetch_one(&state.db)
         .await?;
     let email: String = row.get("email");
+    let ip = request_ip(&headers);
+    ensure_send_rate_limit(&state, &ctx.user_id, &email, &ip).await?;
     let code = crypto::generate_code();
     sqlx::query(
-        "INSERT INTO email_verification_codes (id, user_id, email, code_hash, purpose, expires_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO email_verification_codes (id, user_id, email, code_hash, purpose, expires_at, send_ip, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(Uuid::new_v4().to_string())
     .bind(&ctx.user_id)
@@ -57,6 +122,7 @@ pub async fn send_verification_code(
     .bind(crypto::sha256_hex(&code))
     .bind(purpose)
     .bind(time::now() + Duration::minutes(state.config.email_code_minutes))
+    .bind(ip)
     .bind(time::now())
     .execute(&state.db)
     .await?;

@@ -1,9 +1,9 @@
 {
   "name": "ascend-todo",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.4.0",
   "type": "module",
-  "description": "光阶Todo - 拾光而上，有序人生",
+  "description": "Ascend Todo - plan, focus, and sync your work",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

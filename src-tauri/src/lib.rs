@@ -285,12 +285,14 @@ pub fn run() {
             commands::auth::revoke_cloud_device,
             commands::auth::revoke_other_cloud_devices,
             commands::auth::request_cloud_device_wipe,
+            commands::auth::mark_cloud_device_wiped,
             // sync
             commands::sync::sync_status,
             commands::sync::sync_push,
             commands::sync::sync_pull,
             commands::sync::sync_merge,
             commands::sync::sync_snapshot,
+            commands::sync::sync_clear_local_data,
             commands::sync::export_data_backup,
             commands::sync::import_data_backup,
             // reminders

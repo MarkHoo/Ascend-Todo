@@ -157,3 +157,28 @@ pub async fn request_wipe(
         .await?;
     Ok(Json(SimpleResponse { ok: true }))
 }
+
+#[utoipa::path(
+    post,
+    path = "/api/devices/{id}/mark-wiped",
+    tag = "Devices",
+    security(("bearerAuth" = [])),
+    params(("id" = String, Path, description = "Device id")),
+    responses((status = 200, description = "Device marked as wiped", body = SimpleResponse))
+)]
+pub async fn mark_wiped(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> AppResult<Json<SimpleResponse>> {
+    let ctx = auth_service::authenticate(&headers, &state).await?;
+    let now = time::now();
+    sqlx::query("UPDATE user_devices SET wiped_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+        .bind(now)
+        .bind(now)
+        .bind(id)
+        .bind(ctx.user_id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(SimpleResponse { ok: true }))
+}

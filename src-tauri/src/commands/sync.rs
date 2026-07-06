@@ -1,6 +1,7 @@
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 use tauri::State;
 
 use crate::db::{now, DbState};
@@ -328,6 +329,44 @@ fn is_newer(candidate: &Map<String, Value>, current: &Map<String, Value>) -> boo
 pub fn sync_snapshot(state: State<DbState>) -> AppResult<Snapshot> {
     let c = conn(&state);
     sync_engine::build_snapshot(&c)
+}
+
+#[tauri::command]
+pub fn sync_clear_local_data(state: State<DbState>) -> AppResult<SyncStatus> {
+    let empty = Snapshot {
+        boards: Vec::new(),
+        lists: Vec::new(),
+        tasks: Vec::new(),
+        goals: Vec::new(),
+        key_results: Vec::new(),
+        progress_logs: Vec::new(),
+        goal_task_links: Vec::new(),
+        milestones: Vec::new(),
+        pomodoro_sessions: Vec::new(),
+        check_ins: Vec::new(),
+        review_reports: Vec::new(),
+        calendar_events: Vec::new(),
+        calendar_holiday_sources: Vec::new(),
+        calendar_email_accounts: Vec::new(),
+        holiday_sync_configs: Vec::new(),
+        user_profile: None,
+        settings: HashMap::new(),
+        generated_at: chrono::Utc::now().to_rfc3339(),
+    };
+    {
+        let c = conn(&state);
+        sync_engine::apply_snapshot(&c, &empty)?;
+        c.execute(
+            "UPDATE sync_meta SET last_pushed_at = NULL, last_pulled_at = NULL, auth_token = NULL WHERE id = 1",
+            [],
+        )?;
+        c.execute(
+            "INSERT OR REPLACE INTO user_profile (id, nickname, avatar, phone, email, signature, updated_at)
+             VALUES ('me', NULL, NULL, NULL, NULL, NULL, ?)",
+            [now()],
+        )?;
+    }
+    sync_status(state)
 }
 
 #[tauri::command]

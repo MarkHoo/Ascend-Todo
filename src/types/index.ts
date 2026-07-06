@@ -304,6 +304,27 @@ export interface SyncStatus {
   remoteVersion?: number | null;
 }
 
+export interface Snapshot {
+  boards: Board[];
+  lists: List[];
+  tasks: Task[];
+  goals: Goal[];
+  keyResults: KeyResult[];
+  progressLogs: ProgressLog[];
+  goalTaskLinks: unknown[];
+  milestones: Milestone[];
+  pomodoroSessions: PomodoroSession[];
+  checkIns: CheckIn[];
+  reviewReports: ReviewReport[];
+  calendarEvents: unknown[];
+  calendarHolidaySources: unknown[];
+  calendarEmailAccounts: unknown[];
+  holidaySyncConfigs: unknown[];
+  userProfile?: UserProfile | null;
+  settings: Record<string, string>;
+  generatedAt: string;
+}
+
 export interface CalendarEntry {
   id: string;
   title: string;

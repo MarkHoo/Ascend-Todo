@@ -40,6 +40,7 @@ use crate::{
         crate::routes::devices::revoke_device,
         crate::routes::devices::revoke_others,
         crate::routes::devices::request_wipe,
+        crate::routes::devices::mark_wiped,
         crate::routes::sync::status,
         crate::routes::sync::push_snapshot,
         crate::routes::sync::pull_snapshot,

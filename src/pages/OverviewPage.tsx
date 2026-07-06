@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   Archive,
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import {
   checkInsApi,
+  calendarApi,
   goalsApi,
   keyResultsApi,
   pomodoroApi,
@@ -46,6 +47,7 @@ import type {
   ReviewReport,
   Task,
   AppSettings,
+  CalendarEntry,
 } from '@/types';
 import {
   availableYears,
@@ -488,6 +490,7 @@ export function OverviewPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<GoalWithDetails[]>([]);
   const [sessions, setSessions] = useState<PomodoroSession[]>([]);
+  const [todayEntries, setTodayEntries] = useState<CalendarEntry[]>([]);
   const [checkInSummary, setCheckInSummary] = useState<CheckInSummary | null>(null);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [dateMap, setDateMap] = useState<Map<string, number>>(new Map());
@@ -514,13 +517,15 @@ export function OverviewPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [allTasks, goalTree, allSessions, checks, allCheckIns, activityPomodoros] = await Promise.all([
+      const today = dayjs().format('YYYY-MM-DD');
+      const [allTasks, goalTree, allSessions, checks, allCheckIns, activityPomodoros, calendarToday] = await Promise.all([
         tasksApi.listAll(),
         goalsApi.list(),
         pomodoroApi.list(100000),
         checkInsApi.summary(),
         checkInsApi.list(),
         pomodoroApi.stats(730),
+        calendarApi.range(today, today).catch(() => [] as CalendarEntry[]),
       ]);
       const flatGoals = flattenGoals(goalTree).filter((goal) => !goal.deletedAt && goal.status !== 'draft');
       const krIds = flatGoals.flatMap((goal) => goal.keyResults.map((kr) => kr.id));
@@ -543,6 +548,7 @@ export function OverviewPage() {
       setTasks(allTasks);
       setGoals(flatGoals);
       setSessions(allSessions);
+      setTodayEntries(calendarToday);
       setCheckInSummary(checks);
       setCheckIns(allCheckIns);
       setGoalLogs(nextLogs);
@@ -754,7 +760,10 @@ export function OverviewPage() {
       />
 
       {view === 'overview' ? (
-        <OverviewAnalysis analysis={analysis} periodType={periodType} />
+        <>
+          <TodaySchedule entries={todayEntries} />
+          <OverviewAnalysis analysis={analysis} periodType={periodType} />
+        </>
       ) : (
         <ReviewAnalysis
           analysis={analysis}
@@ -1011,6 +1020,52 @@ function OverviewAnalysis({
 
       <AutomaticInsights insights={analysis.insights} />
     </div>
+  );
+}
+
+function TodaySchedule({ entries }: { entries: CalendarEntry[] }) {
+  const navigate = useNavigate();
+  const copy = useOverviewText();
+  const visible = entries
+    .slice()
+    .sort((a, b) => `${a.time || '99:99'}${a.title}`.localeCompare(`${b.time || '99:99'}${b.title}`))
+    .slice(0, 6);
+  const title = copy.overview === 'Overview' ? "Today's schedule" : copy.overview === '總覽' ? '今日安排' : '今日安排';
+  const empty = copy.overview === 'Overview' ? 'No schedule for today' : copy.overview === '總覽' ? '今日暫無安排' : '今日暂无安排';
+  return (
+    <section className="card p-5">
+      <div className="flex items-center justify-between gap-3">
+        <SectionTitle icon={<CalendarDays size={16} />} title={title} subtitle={copy.scheduleExecutionDesc} />
+        <Button variant="outline" size="sm" onClick={() => navigate('/calendar')}>
+          {copy.overview === 'Overview' ? 'Open calendar' : copy.overview === '總覽' ? '打開日曆' : '打开日历'}
+        </Button>
+      </div>
+      {visible.length === 0 ? (
+        <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-text-muted">
+          {empty}
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-2">
+          {visible.map((entry) => (
+            <button
+              key={`${entry.sourceType}:${entry.id}`}
+              className="rounded-lg border border-border bg-surface px-3 py-2.5 text-left shadow-sm transition-colors hover:bg-surface-2"
+              onClick={() => navigate(entry.sourceType === 'goal' ? `/goals/${entry.id.startsWith('kr-check:') ? entry.id.split(':')[1] : entry.id}` : '/calendar')}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{entry.title}</div>
+                  <div className="mt-1 truncate text-xs text-text-muted">
+                    {[entry.time ? `${entry.time}${entry.endTime ? ` - ${entry.endTime}` : ''}` : copy.all || 'All day', entry.boardName, entry.location].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+                <span className="chip shrink-0">{entry.sourceType}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

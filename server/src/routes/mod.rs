@@ -34,6 +34,7 @@ pub fn api() -> Router<AppState> {
             patch(devices::rename_device).delete(devices::revoke_device),
         )
         .route("/devices/{id}/request-wipe", post(devices::request_wipe))
+        .route("/devices/{id}/mark-wiped", post(devices::mark_wiped))
         .route("/sync/status", get(sync::status))
         .route("/sync/push-snapshot", post(sync::push_snapshot))
         .route("/sync/pull-snapshot", get(sync::pull_snapshot))

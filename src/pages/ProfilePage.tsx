@@ -13,7 +13,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useProfileStore } from '@/store/useProfileStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { dayjs } from '@/utils/date';
-import type { SyncStatus } from '@/types';
+import type { Snapshot, SyncStatus } from '@/types';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const AVATAR_IMAGE_SIZE = 512;
@@ -461,7 +461,9 @@ export function ProfilePage() {
   };
 
   const refreshCloudDevices = async () => {
-    setCloudDevices(await authApi.listDevices().catch(() => []));
+    const devices = await authApi.listDevices().catch(() => []);
+    setCloudDevices(devices);
+    await handleCurrentDeviceWipeRequest(devices);
   };
 
   const refreshCloudStatus = async () => {
@@ -471,6 +473,87 @@ export function ProfilePage() {
     ]);
     if (status) setSyncStatus(status);
     setCloudDevices(devices);
+    await handleCurrentDeviceWipeRequest(devices);
+  };
+
+  const saveSafetyBackup = async (reason: string) => {
+    const backup = await syncApi.exportBackup();
+    localStorage.setItem('ascend:lastSafetyBackup', backup);
+    localStorage.setItem('ascend:lastSafetyBackupReason', reason);
+    localStorage.setItem('ascend:lastSafetyBackupAt', new Date().toISOString());
+  };
+
+  const handleCurrentDeviceWipeRequest = async (devices: CloudDevice[]) => {
+    const current = devices.find((device) => device.id === session?.deviceId);
+    if (!current?.wipeRequestedAt) return;
+    const confirmed = window.confirm(
+      language === 'en'
+        ? 'This device has been marked for local cleanup from another signed-in device. Clear local data now?'
+        : language === 'zh-TW'
+          ? '這台裝置已被其他登入裝置標記為需要清理本機資料。現在清理本機資料嗎？'
+          : '这台设备已被其他登录设备标记为需要清理本机数据。现在清理本机数据吗？',
+    );
+    if (!confirmed) return;
+    await saveSafetyBackup('remote-wipe-request');
+    await authApi.markDeviceWiped(current.id).catch(() => undefined);
+    await syncApi.clearLocalData();
+    setSession(null);
+    setCloudDevices([]);
+    setSyncStatus(await syncApi.status().catch(() => null));
+    toast.info(language === 'en' ? 'Local data cleared' : language === 'zh-TW' ? '本機資料已清理' : '本机数据已清理');
+  };
+
+  const handlePostLoginSyncChoice = async (nextSession = session) => {
+    const [snapshot, status] = await Promise.all([
+      syncApi.snapshot().catch(() => null),
+      syncApi.status().catch(() => null),
+    ]);
+    const localHasData = snapshot ? snapshotHasUserData(snapshot) : false;
+    const cloudHasData = Boolean(status?.remoteVersion && status.remoteVersion > 0);
+
+    if (status) setSyncStatus(status);
+    if (!settings.syncEnabled || !nextSession?.emailVerified) return;
+
+    if (!localHasData && cloudHasData) {
+      await saveSafetyBackup('auto-pull-cloud-data');
+      await syncApi.pull();
+      toast.success(cloudText.pullSuccess);
+      return;
+    }
+
+    if (localHasData && !cloudHasData) {
+      if (window.confirm(language === 'en'
+        ? 'This device has local data, and the cloud is empty. Upload local data to the cloud now?'
+        : language === 'zh-TW'
+          ? '這台裝置有本機資料，雲端目前是空的。現在上傳本機資料到雲端嗎？'
+          : '这台设备有本机数据，云端目前是空的。现在上传本机数据到云端吗？')) {
+        await syncApi.push();
+        toast.success(cloudText.pushSuccess);
+      }
+      return;
+    }
+
+    if (localHasData && cloudHasData) {
+      const choice = window.prompt(
+        language === 'en'
+          ? 'Both local and cloud data exist. Enter 1 to merge, 2 to upload local over cloud, 3 to restore cloud over local, or leave blank to keep local only for now.'
+          : language === 'zh-TW'
+            ? '本機和雲端都有資料。輸入 1 合併，2 用本機覆蓋雲端，3 用雲端覆蓋本機，留空暫時只保留本機。'
+            : '本机和云端都有数据。输入 1 合并，2 用本机覆盖云端，3 用云端覆盖本机，留空暂时只保留本机。',
+      )?.trim();
+      if (!choice) return;
+      await saveSafetyBackup(`sync-choice-${choice}`);
+      if (choice === '1') {
+        await syncApi.merge();
+        toast.success(cloudText.mergeSuccess);
+      } else if (choice === '2' && window.confirm(language === 'en' ? 'Confirm overwriting cloud data with this device?' : language === 'zh-TW' ? '確認用這台裝置覆蓋雲端資料？' : '确认用这台设备覆盖云端数据？')) {
+        await syncApi.push();
+        toast.success(cloudText.pushSuccess);
+      } else if (choice === '3' && window.confirm(language === 'en' ? 'Confirm overwriting local data with cloud data?' : language === 'zh-TW' ? '確認用雲端資料覆蓋本機資料？' : '确认用云端数据覆盖本机数据？')) {
+        await syncApi.pull();
+        toast.success(cloudText.pullSuccess);
+      }
+    }
   };
 
   const onCloudAuth = async () => {
@@ -486,6 +569,9 @@ export function ProfilePage() {
       setSession(nextSession);
       setCloudPassword('');
       await refreshCloudStatus();
+      window.setTimeout(() => {
+        void handlePostLoginSyncChoice(nextSession).catch((error) => toast.error(String(error)));
+      }, 0);
       toast.success(authMode === 'login' ? cloudText.loginSuccess : cloudText.registerSuccess);
     } catch (error) {
       toast.error(String(error));
@@ -523,8 +609,31 @@ export function ProfilePage() {
   };
 
   const onLogout = async () => {
+    const logoutChoice = window.prompt(
+      language === 'en'
+        ? 'Log out options: 1 sync then log out, 2 log out and keep local data, 3 log out and clear this device data. Leave blank to cancel.'
+        : language === 'zh-TW'
+          ? '退出選項：1 同步後退出，2 退出並保留本機資料，3 退出並清理這台裝置資料。留空取消。'
+          : '退出选项：1 同步后退出，2 退出并保留本机数据，3 退出并清理这台设备数据。留空取消。',
+    )?.trim();
+    if (!logoutChoice) return;
     setCloudBusy(true);
     try {
+      if (logoutChoice === '1') {
+        await syncApi.merge();
+      } else if (logoutChoice === '3') {
+        const confirmText = language === 'en' ? 'CLEAR' : '清理';
+        const typed = window.prompt(
+          language === 'en'
+            ? 'This will clear all local data on this device after backup. Type CLEAR to continue.'
+            : language === 'zh-TW'
+              ? '這會在備份後清理這台裝置的所有本機資料。輸入「清理」繼續。'
+              : '这会在备份后清理这台设备的所有本机数据。输入“清理”继续。',
+        );
+        if (typed !== confirmText) return;
+        await saveSafetyBackup('logout-clear-local-data');
+        await syncApi.clearLocalData();
+      }
       await authApi.logout();
       setSession(null);
       setCloudDevices([]);
@@ -629,8 +738,8 @@ export function ProfilePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4">
-        <aside className="card p-6 h-fit">
+      <div className="space-y-4">
+        <section className="px-4 py-3">
           <div className="flex flex-col items-center text-center">
             <button
               type="button"
@@ -686,19 +795,22 @@ export function ProfilePage() {
             </div>
             <div className="mt-1 w-full">
               {editingSignature ? (
-                <div className="flex items-start gap-1.5">
+                <div className="relative flex items-start gap-1.5">
                   <textarea
                     className="input min-h-[72px] flex-1 resize-none text-sm"
                     value={signatureDraft}
-                    maxLength={120}
+                    maxLength={30}
                     autoFocus
                     placeholder={copy.signaturePlaceholder}
-                    onChange={(event) => setSignatureDraft(event.target.value)}
+                    onChange={(event) => setSignatureDraft(event.target.value.slice(0, 30))}
                     onKeyDown={(event) => {
                       if (event.key === 'Escape') cancelSignature();
                       if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) saveSignature();
                     }}
                   />
+                  <span className="pointer-events-none absolute bottom-2 right-12 text-[10px] text-text-muted">
+                    {30 - signatureDraft.length}
+                  </span>
                   <div className="flex flex-col gap-1.5">
                     <IconAction label={t('common.save')} onClick={saveSignature} disabled={saving}>
                       <Check size={15} />
@@ -722,9 +834,9 @@ export function ProfilePage() {
               )}
             </div>
           </div>
-        </aside>
+        </section>
 
-        <main className="space-y-4">
+        <main className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <section className="card p-5">
             <div className="text-sm font-semibold flex items-center gap-2 mb-4">
               <IdCard size={16} />
@@ -765,7 +877,7 @@ export function ProfilePage() {
             </div>
           </section>
 
-          <section className="card p-5">
+          <section className="card p-5 lg:col-span-2">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="text-sm font-semibold flex items-center gap-2">
@@ -1046,4 +1158,29 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function snapshotHasUserData(snapshot: Snapshot) {
+  const total =
+    snapshot.boards.length +
+    snapshot.lists.length +
+    snapshot.tasks.length +
+    snapshot.goals.length +
+    snapshot.keyResults.length +
+    snapshot.progressLogs.length +
+    snapshot.milestones.length +
+    snapshot.pomodoroSessions.length +
+    snapshot.checkIns.length +
+    snapshot.reviewReports.length +
+    snapshot.calendarEvents.length +
+    snapshot.calendarHolidaySources.length +
+    snapshot.calendarEmailAccounts.length +
+    snapshot.holidaySyncConfigs.length;
+  const profileHasData = Boolean(
+    snapshot.userProfile?.nickname ||
+    snapshot.userProfile?.phone ||
+    snapshot.userProfile?.email ||
+    snapshot.userProfile?.signature,
+  );
+  return total > 0 || profileHasData;
 }

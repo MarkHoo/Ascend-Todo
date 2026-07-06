@@ -428,6 +428,27 @@ pub fn request_cloud_device_wipe(state: State<DbState>, device_id: String) -> Ap
 }
 
 #[tauri::command]
+pub fn mark_cloud_device_wiped(state: State<DbState>, device_id: String) -> AppResult<()> {
+    let session =
+        current_session(state.clone())?.ok_or_else(|| AppError::Auth("not logged in".into()))?;
+    let base = api_base(session.server_url.clone());
+    let response = reqwest::blocking::Client::new()
+        .post(format!("{base}/api/devices/{device_id}/mark-wiped"))
+        .bearer_auth(&session.token)
+        .send()
+        .map_err(|e| AppError::Auth(format!("mark device cleanup failed: {e}")))?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(AppError::Auth(
+            response
+                .text()
+                .unwrap_or_else(|_| "mark device cleanup failed".into()),
+        ))
+    }
+}
+
+#[tauri::command]
 pub fn logout(state: State<DbState>) -> AppResult<()> {
     if let Some(session) = current_session(state.clone())? {
         let base = api_base(session.server_url.clone());

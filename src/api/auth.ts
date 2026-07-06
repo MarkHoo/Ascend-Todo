@@ -28,4 +28,5 @@ export const authApi = {
   revokeDevice: (deviceId: string) => invoke<void>('revoke_cloud_device', { deviceId }),
   revokeOtherDevices: () => invoke<void>('revoke_other_cloud_devices'),
   requestDeviceWipe: (deviceId: string) => invoke<void>('request_cloud_device_wipe', { deviceId }),
+  markDeviceWiped: (deviceId: string) => invoke<void>('mark_cloud_device_wiped', { deviceId }),
 };
