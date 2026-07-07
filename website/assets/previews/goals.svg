@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900">
+  <rect width="1440" height="900" fill="#f6f8fc"/>
+  <rect width="245" height="900" fill="#ffffff"/><rect x="245" width="1" height="900" fill="#e2e8f0"/>
+  <text x="30" y="52" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="800" fill="#0f172a">光阶Todo</text>
+  <rect x="18" y="208" width="208" height="42" rx="12" fill="#eef2ff"/>
+  <text x="58" y="235" font-family="Inter,Segoe UI,sans-serif" font-size="18" font-weight="700" fill="#6366f1">目标</text>
+  <text x="292" y="70" font-family="Inter,Segoe UI,sans-serif" font-size="32" font-weight="800" fill="#0f172a">目标</text>
+  <text x="292" y="100" font-family="Inter,Segoe UI,sans-serif" font-size="15" fill="#64748b">把长期方向拆成可检查、可推进、可复盘的关键结果。</text>
+  <g font-family="Inter,Segoe UI,sans-serif">
+    <rect x="292" y="138" width="1032" height="164" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="326" y="180" font-size="22" font-weight="800" fill="#0f172a">【示例】构建个人知识库 Agent 原型</text>
+    <text x="326" y="210" font-size="14" fill="#64748b">以真实笔记和真实问题为核心，完成一个可演示、可复盘的 Agent 原型。</text>
+    <rect x="326" y="238" width="680" height="12" rx="6" fill="#e2e8f0"/>
+    <rect x="326" y="238" width="428" height="12" rx="6" fill="#6366f1"/>
+    <text x="1036" y="248" font-size="34" font-weight="800" fill="#6366f1">63%</text>
+    <rect x="292" y="330" width="500" height="438" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="326" y="374" font-size="20" font-weight="800" fill="#0f172a">关键结果</text>
+    <g transform="translate(326 402)">
+      <rect width="410" height="72" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="18" y="30" font-size="15" font-weight="700" fill="#0f172a">完成 1 个本地笔记读取工具</text>
+      <rect x="18" y="46" width="268" height="8" rx="4" fill="#e2e8f0"/><rect x="18" y="46" width="268" height="8" rx="4" fill="#10b981"/>
+      <text x="314" y="54" font-size="12" fill="#10b981">1 / 1 tool</text>
+      <rect y="92" width="410" height="72" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="18" y="122" font-size="15" font-weight="700" fill="#0f172a">连接 2 个可检索数据源</text>
+      <rect x="18" y="138" width="268" height="8" rx="4" fill="#e2e8f0"/><rect x="18" y="138" width="134" height="8" rx="4" fill="#6366f1"/>
+      <text x="314" y="146" font-size="12" fill="#64748b">1 / 2 sources</text>
+      <rect y="184" width="410" height="72" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="18" y="214" font-size="15" font-weight="700" fill="#0f172a">运行 5 个真实问题测试</text>
+      <rect x="18" y="230" width="268" height="8" rx="4" fill="#e2e8f0"/><rect x="18" y="230" width="108" height="8" rx="4" fill="#f59e0b"/>
+      <text x="314" y="238" font-size="12" fill="#64748b">2 / 5 tests</text>
+    </g>
+    <rect x="824" y="330" width="500" height="438" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="858" y="374" font-size="20" font-weight="800" fill="#0f172a">进度历史</text>
+    <polyline points="858,682 916,650 974,666 1032,602 1090,574 1148,520 1206,492 1264,430" fill="none" stroke="#6366f1" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="1264" cy="430" r="10" fill="#6366f1"/>
+    <rect x="858" y="408" width="220" height="64" rx="14" fill="#eef2ff"/>
+    <text x="880" y="436" font-size="14" font-weight="700" fill="#0f172a">本周检查</text>
+    <text x="880" y="458" font-size="12" fill="#64748b">Demo 已能读取本地 Markdown</text>
+    <rect x="858" y="716" width="402" height="12" rx="6" fill="#e2e8f0"/>
+  </g>
+</svg>

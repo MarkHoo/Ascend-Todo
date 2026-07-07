@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900">
+  <rect width="1440" height="900" fill="#f6f8fc"/>
+  <rect x="0" y="0" width="245" height="900" fill="#ffffff"/>
+  <rect x="245" y="0" width="1" height="900" fill="#e2e8f0"/>
+  <text x="30" y="52" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="800" fill="#0f172a">光阶Todo</text>
+  <text x="30" y="76" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#64748b">拾光而上，有序人生</text>
+  <g font-family="Inter,Segoe UI,sans-serif" font-size="18">
+    <rect x="18" y="112" width="208" height="42" rx="12" fill="#eef2ff"/>
+    <text x="58" y="139" fill="#6366f1" font-weight="700">总览</text>
+    <text x="58" y="193" fill="#64748b">任务看板</text>
+    <text x="58" y="241" fill="#64748b">目标</text>
+    <text x="58" y="289" fill="#64748b">日历</text>
+    <text x="58" y="337" fill="#64748b">番茄钟</text>
+  </g>
+  <rect x="24" y="712" width="197" height="58" rx="14" fill="#f0f4fb"/>
+  <circle cx="54" cy="741" r="18" fill="#6366f1"/>
+  <text x="48" y="748" font-family="Inter,Segoe UI,sans-serif" font-size="18" font-weight="800" fill="#fff">A</text>
+  <text x="82" y="736" font-family="Inter,Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#0f172a">Mark</text>
+  <text x="82" y="758" font-family="Inter,Segoe UI,sans-serif" font-size="12" fill="#64748b">持续构建长期能力</text>
+
+  <text x="292" y="70" font-family="Inter,Segoe UI,sans-serif" font-size="32" font-weight="800" fill="#0f172a">总览</text>
+  <text x="292" y="100" font-family="Inter,Segoe UI,sans-serif" font-size="15" fill="#64748b">今天是把计划推进一小步的好日子。</text>
+  <rect x="1098" y="36" width="176" height="42" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="1132" y="63" font-family="Inter,Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#6366f1">今日</text>
+  <text x="1190" y="63" font-family="Inter,Segoe UI,sans-serif" font-size="15" fill="#64748b">本周</text>
+
+  <g font-family="Inter,Segoe UI,sans-serif">
+    <rect x="292" y="135" width="250" height="122" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="322" y="173" font-size="15" fill="#64748b">连续活跃</text>
+    <text x="322" y="220" font-size="38" font-weight="800" fill="#0f172a">12天</text>
+    <text x="322" y="243" font-size="13" fill="#10b981">本周期活跃 6/7 天</text>
+    <rect x="566" y="135" width="250" height="122" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="596" y="173" font-size="15" fill="#64748b">完成任务</text>
+    <text x="596" y="220" font-size="38" font-weight="800" fill="#0f172a">18项</text>
+    <text x="596" y="243" font-size="13" fill="#10b981">准时率 86% · +5</text>
+    <rect x="840" y="135" width="250" height="122" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="870" y="173" font-size="15" fill="#64748b">目标进展</text>
+    <text x="870" y="220" font-size="38" font-weight="800" fill="#0f172a">+14%</text>
+    <text x="870" y="243" font-size="13" fill="#3b82f6">推进 3 个目标</text>
+    <rect x="1114" y="135" width="250" height="122" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="1144" y="173" font-size="15" fill="#64748b">专注时长</text>
+    <text x="1144" y="220" font-size="38" font-weight="800" fill="#0f172a">6h 40m</text>
+    <text x="1144" y="243" font-size="13" fill="#ec4899">8 次番茄钟</text>
+  </g>
+
+  <rect x="292" y="286" width="1072" height="168" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="322" y="324" font-family="Inter,Segoe UI,sans-serif" font-size="18" font-weight="800" fill="#0f172a">年度活跃热力图</text>
+  <g transform="translate(322 350)">
+    <script type="application/ecmascript"><![CDATA[]]></script>
+    <g>
+      <rect x="0" y="0" width="15" height="15" rx="4" fill="#eef2f7"/><rect x="22" y="0" width="15" height="15" rx="4" fill="#c7d2fe"/><rect x="44" y="0" width="15" height="15" rx="4" fill="#a5b4fc"/><rect x="66" y="0" width="15" height="15" rx="4" fill="#818cf8"/><rect x="88" y="0" width="15" height="15" rx="4" fill="#6366f1"/>
+    </g>
+    <g fill="#c7d2fe">
+      <rect x="0" y="32" width="15" height="15" rx="4"/><rect x="24" y="32" width="15" height="15" rx="4"/><rect x="48" y="32" width="15" height="15" rx="4" fill="#6366f1"/><rect x="72" y="32" width="15" height="15" rx="4"/><rect x="96" y="32" width="15" height="15" rx="4" fill="#a5b4fc"/><rect x="120" y="32" width="15" height="15" rx="4" fill="#818cf8"/><rect x="144" y="32" width="15" height="15" rx="4"/>
+      <rect x="0" y="56" width="15" height="15" rx="4" fill="#eef2f7"/><rect x="24" y="56" width="15" height="15" rx="4" fill="#a5b4fc"/><rect x="48" y="56" width="15" height="15" rx="4"/><rect x="72" y="56" width="15" height="15" rx="4" fill="#6366f1"/><rect x="96" y="56" width="15" height="15" rx="4"/><rect x="120" y="56" width="15" height="15" rx="4" fill="#eef2f7"/><rect x="144" y="56" width="15" height="15" rx="4" fill="#818cf8"/>
+    </g>
+  </g>
+  <rect x="292" y="486" width="514" height="316" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="322" y="528" font-family="Inter,Segoe UI,sans-serif" font-size="20" font-weight="800" fill="#0f172a">今日安排</text>
+  <rect x="322" y="556" width="424" height="58" rx="14" fill="#eef2ff"/>
+  <text x="344" y="581" font-family="Inter,Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#0f172a">09:30 Agent 知识库原型设计</text>
+  <text x="344" y="604" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#64748b">任务 · 90 分钟</text>
+  <rect x="322" y="630" width="424" height="58" rx="14" fill="#ecfdf5"/>
+  <text x="344" y="655" font-family="Inter,Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#0f172a">14:00 工具调用 Demo 实验</text>
+  <text x="344" y="678" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#64748b">日程 · 60 分钟</text>
+  <rect x="322" y="704" width="424" height="58" rx="14" fill="#fff7ed"/>
+  <text x="344" y="729" font-family="Inter,Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#0f172a">20:30 周末学习复盘</text>
+  <text x="344" y="752" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#64748b">复盘 · 45 分钟</text>
+  <rect x="834" y="486" width="530" height="316" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="864" y="528" font-family="Inter,Segoe UI,sans-serif" font-size="20" font-weight="800" fill="#0f172a">完成趋势</text>
+  <polyline points="884,736 948,696 1012,710 1076,648 1140,666 1204,604 1268,572 1328,548" fill="none" stroke="#6366f1" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="884,756 948,740 1012,724 1076,690 1140,682 1204,644 1268,626 1328,590" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -2,7 +2,7 @@ export const APP_NAME = 'Ascend Todo';
 export const APP_NAME_ZH = '\u5149\u9636Todo';
 export const APP_SLOGAN = 'Master your time, elevate your life.';
 export const APP_SLOGAN_ZH = '\u62fe\u5149\u800c\u4e0a\uff0c\u6709\u5e8f\u4eba\u751f';
-export const APP_VERSION = '2.1.0';
+export const APP_VERSION = '2.1.1';
 
 export const THEMES = [
   { id: 'aurora-day', name: 'Aurora Day' },

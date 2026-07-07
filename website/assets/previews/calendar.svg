@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900">
+  <rect width="1440" height="900" fill="#f6f8fc"/>
+  <rect width="245" height="900" fill="#ffffff"/><rect x="245" width="1" height="900" fill="#e2e8f0"/>
+  <text x="30" y="52" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="800" fill="#0f172a">光阶Todo</text>
+  <rect x="18" y="256" width="208" height="42" rx="12" fill="#eef2ff"/>
+  <text x="58" y="283" font-family="Inter,Segoe UI,sans-serif" font-size="18" font-weight="700" fill="#6366f1">日历</text>
+  <text x="292" y="70" font-family="Inter,Segoe UI,sans-serif" font-size="32" font-weight="800" fill="#0f172a">日历</text>
+  <text x="292" y="100" font-family="Inter,Segoe UI,sans-serif" font-size="15" fill="#64748b">用时间块看见今天、这一周，以及真正可执行的容量。</text>
+  <rect x="292" y="132" width="1042" height="52" rx="16" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="326" y="165" font-family="Inter,Segoe UI,sans-serif" font-size="16" font-weight="800" fill="#0f172a">2026年7月8日 - 7月14日</text>
+  <text x="1110" y="165" font-family="Inter,Segoe UI,sans-serif" font-size="14" fill="#6366f1">日 · 周 · 月</text>
+  <g font-family="Inter,Segoe UI,sans-serif">
+    <rect x="292" y="210" width="1042" height="590" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+    <g fill="#64748b" font-size="13">
+      <text x="326" y="246">08:00</text><text x="326" y="326">10:00</text><text x="326" y="406">12:00</text><text x="326" y="486">14:00</text><text x="326" y="566">16:00</text><text x="326" y="646">18:00</text><text x="326" y="726">20:00</text>
+    </g>
+    <g stroke="#edf2f7">
+      <line x1="386" y1="240" x2="1308" y2="240"/><line x1="386" y1="320" x2="1308" y2="320"/><line x1="386" y1="400" x2="1308" y2="400"/><line x1="386" y1="480" x2="1308" y2="480"/><line x1="386" y1="560" x2="1308" y2="560"/><line x1="386" y1="640" x2="1308" y2="640"/><line x1="386" y1="720" x2="1308" y2="720"/>
+      <line x1="518" y1="210" x2="518" y2="800"/><line x1="650" y1="210" x2="650" y2="800"/><line x1="782" y1="210" x2="782" y2="800"/><line x1="914" y1="210" x2="914" y2="800"/><line x1="1046" y1="210" x2="1046" y2="800"/><line x1="1178" y1="210" x2="1178" y2="800"/>
+    </g>
+    <g fill="#0f172a" font-size="14" font-weight="800">
+      <text x="414" y="232">周一</text><text x="546" y="232">周二</text><text x="678" y="232">周三</text><text x="810" y="232">周四</text><text x="942" y="232">周五</text><text x="1074" y="232">周六</text><text x="1206" y="232">周日</text>
+    </g>
+    <rect x="410" y="280" width="92" height="86" rx="12" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="424" y="308" font-size="13" font-weight="800" fill="#312e81">Agent 阅读</text>
+    <text x="424" y="332" font-size="11" fill="#64748b">09:00-10:30</text>
+    <rect x="674" y="340" width="92" height="92" rx="12" fill="#ecfdf5" stroke="#bbf7d0"/>
+    <text x="688" y="368" font-size="13" font-weight="800" fill="#14532d">工具 Demo</text>
+    <text x="688" y="392" font-size="11" fill="#64748b">10:30-12:00</text>
+    <rect x="806" y="500" width="92" height="72" rx="12" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="820" y="528" font-size="13" font-weight="800" fill="#7c2d12">运动</text>
+    <text x="820" y="552" font-size="11" fill="#64748b">15:00-16:00</text>
+    <rect x="1202" y="660" width="92" height="72" rx="12" fill="#fdf2f8" stroke="#fbcfe8"/>
+    <text x="1216" y="688" font-size="13" font-weight="800" fill="#831843">周复盘</text>
+    <text x="1216" y="712" font-size="11" fill="#64748b">18:30-19:30</text>
+    <line x1="386" y1="454" x2="1308" y2="454" stroke="#ef4444" stroke-width="3"/>
+    <circle cx="386" cy="454" r="6" fill="#ef4444"/>
+  </g>
+</svg>
