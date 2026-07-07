@@ -1,0 +1,64 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f4f6fa;
+}
+
+.admin-shell {
+  min-height: 100%;
+}
+
+.brand {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  font-weight: 700;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.topbar {
+  height: 56px;
+  padding: 0 20px;
+  background: #fff;
+  border-bottom: 1px solid #edf0f5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.content {
+  padding: 20px;
+}
+
+.page h1 {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+
+.chart-card {
+  margin-top: 16px;
+}
+
+.login-page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef3fb;
+}
+
+.login-card {
+  width: 380px;
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "\u5149\u9636Todo",
+  "version": "1.0.0",
+  "identifier": "com.ascend.todo",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "beforeBundleCommand": "node src-tauri/scripts/copy-resources.cjs",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "\u5149\u9636Todo - \u62fe\u5149\u800c\u4e0a\uff0c\u6709\u5e8f\u4eba\u751f",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "resources": {
+      "resources/WebView2Loader.dll": "WebView2Loader.dll",
+      "icons/icon.ico": "app-icon-1.0.0.ico"
+    },
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "category": "Productivity",
+    "shortDescription": "Ascend Todo - Master your time, elevate your life.",
+    "longDescription": "A cross-platform Todo app with boards, goals, calendar, and pomodoro.",
+    "publisher": "Mark",
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper", "silent": true },
+      "nsis": {
+        "template": "nsis/installer.nsi",
+        "languages": ["SimpChinese", "TradChinese", "English"],
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine"
+      },
+      "wix": { "template": "wix-main.wxs", "language": { "zh-CN": { "localePath": "wix-locale.wxl" } } }
+    }
+  },
+  "plugins": {}
+}

@@ -1,0 +1,260 @@
+name: Build & Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v1.0.1. Leave empty to build artifacts only.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: windows-x86_64-msi
+            os: windows-latest
+            rustTarget: x86_64-pc-windows-msvc
+            bundles: msi
+            artifactPattern: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            assetSuffix: windows-x86_64.msi
+          - label: windows-x86_64-exe
+            os: windows-latest
+            rustTarget: x86_64-pc-windows-msvc
+            bundles: nsis
+            artifactPattern: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            assetSuffix: windows-x86_64.exe
+          - label: macos-x86_64-dmg
+            os: macos-15-intel
+            rustTarget: x86_64-apple-darwin
+            bundles: dmg
+            artifactPattern: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            assetSuffix: macos-x86_64.dmg
+          - label: macos-aarch64-dmg
+            os: macos-latest
+            rustTarget: aarch64-apple-darwin
+            bundles: dmg
+            artifactPattern: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            assetSuffix: macos-aarch64.dmg
+          - label: linux-x86_64-appimage
+            os: ubuntu-22.04
+            rustTarget: x86_64-unknown-linux-gnu
+            bundles: appimage
+            artifactPattern: src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            assetSuffix: linux-x86_64.AppImage
+          - label: linux-aarch64-appimage
+            os: ubuntu-24.04-arm
+            rustTarget: aarch64-unknown-linux-gnu
+            bundles: appimage
+            artifactPattern: src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            assetSuffix: linux-aarch64.AppImage
+
+    runs-on: ${{ matrix.os }}
+    name: build (${{ matrix.label }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            else
+              VERSION="$(node -p "require('./package.json').version")"
+              echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+            fi
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=manual-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set app version from release tag
+        shell: bash
+        run: |
+          TAG='${{ steps.release.outputs.tag }}'
+          VERSION="${TAG#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag '$TAG' is not a semantic app version; keep versions from repository."
+            exit 0
+          fi
+          APP_VERSION="$VERSION" python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["APP_VERSION"]
+
+          for file_name in ("package.json", "package-lock.json", "admin-web/package.json", "admin-web/package-lock.json"):
+              path = Path(file_name)
+              data = json.loads(path.read_text(encoding="utf-8"))
+              data["version"] = version
+              if file_name == "package-lock.json":
+                  root = data.get("packages", {}).get("")
+                  if root is not None:
+                      root["version"] = version
+              path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+          for cargo_file in ("src-tauri/Cargo.toml", "server/Cargo.toml"):
+              cargo_toml = Path(cargo_file)
+              lines = cargo_toml.read_text(encoding="utf-8").splitlines()
+              for index, line in enumerate(lines):
+                  if line.startswith("version = "):
+                      lines[index] = f'version = "{version}"'
+                      break
+              else:
+                  raise SystemExit(f"version field not found in {cargo_file}")
+              cargo_toml.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+          cargo_lock = Path("src-tauri/Cargo.lock")
+          if cargo_lock.exists():
+              lines = cargo_lock.read_text(encoding="utf-8").splitlines()
+              in_app_package = False
+              for index, line in enumerate(lines):
+                  if line == 'name = "ascend-todo"':
+                      in_app_package = True
+                  elif in_app_package and line.startswith("version = "):
+                      lines[index] = f'version = "{version}"'
+                      break
+                  elif line.startswith("[[package]]"):
+                      in_app_package = False
+              cargo_lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+          server_lock = Path("server/Cargo.lock")
+          if server_lock.exists():
+              lines = server_lock.read_text(encoding="utf-8").splitlines()
+              in_server_package = False
+              for index, line in enumerate(lines):
+                  if line == 'name = "ascend-todo-server"':
+                      in_server_package = True
+                  elif in_server_package and line.startswith("version = "):
+                      lines[index] = f'version = "{version}"'
+                      break
+                  elif line.startswith("[[package]]"):
+                      in_server_package = False
+              server_lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+          tauri_conf = Path("src-tauri/tauri.conf.json")
+          data = json.loads(tauri_conf.read_text(encoding="utf-8"))
+          data["version"] = version
+          tauri_conf.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+          constants = Path("src/utils/constants.ts")
+          text = constants.read_text(encoding="utf-8")
+          text = re.sub(
+              r"export const APP_VERSION = '[^']+';",
+              f"export const APP_VERSION = '{version}';",
+              text,
+          )
+          constants.write_text(text, encoding="utf-8")
+
+          admin_login = Path("admin-web/src/pages/LoginPage.tsx")
+          text = admin_login.read_text(encoding="utf-8")
+          text = re.sub(
+              r"appVersion: '[^']+',",
+              f"appVersion: '{version}',",
+              text,
+          )
+          admin_login.write_text(text, encoding="utf-8")
+          PY
+          echo "App package version set to $VERSION"
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev
+
+      - name: Create placeholder for WebView2 resource
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/resources | Out-Null
+          New-Item -ItemType File -Force -Path src-tauri/resources/WebView2Loader.dll | Out-Null
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rustTarget }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build package
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        with:
+          args: --target ${{ matrix.rustTarget }} --bundles ${{ matrix.bundles }}
+
+      - name: Rename package
+        id: package
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path '${{ matrix.artifactPattern }}'
+          if ($files.Count -eq 0) {
+            throw 'No package files found for ${{ matrix.label }}'
+          }
+          $source = $files | Select-Object -First 1
+          $targetName = 'Ascend-Todo-${{ steps.release.outputs.tag }}-${{ matrix.assetSuffix }}'
+          $target = Join-Path $source.DirectoryName $targetName
+          Move-Item -LiteralPath $source.FullName -Destination $target -Force
+          "path=$target" >> $env:GITHUB_OUTPUT
+
+      - name: Upload manual build artifact
+        if: steps.release.outputs.publish != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ascend-todo-${{ matrix.label }}
+          path: ${{ steps.package.outputs.path }}
+          if-no-files-found: error
+
+      - name: Upload release asset
+        if: steps.release.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Ascend Todo ${{ steps.release.outputs.tag }}
+          body: |
+            ## Ascend Todo ${{ steps.release.outputs.tag }}
+
+            This release is built from GitHub Actions and includes:
+
+            - Windows x86_64 MSI
+            - Windows x86_64 EXE installer
+            - macOS x86_64 DMG
+            - macOS aarch64 DMG
+            - Linux x86_64 AppImage
+            - Linux aarch64 AppImage
+          draft: false
+          prerelease: false
+          overwrite_files: true
+          files: ${{ steps.package.outputs.path }}

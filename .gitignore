@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+admin-web/node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+admin-web/dist/
+src-tauri/target/
+src-tauri/gen/
+server/target/
+
+# Generated resources
+src-tauri/resources/
+vite.config.js
+vite.config.d.ts
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+server/.env
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local assistant/tooling state
+.agents/
+.claude/
+
+# Rust lockfile generated for the Tauri workspace is intentionally local.
+src-tauri/Cargo.lock
