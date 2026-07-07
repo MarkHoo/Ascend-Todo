@@ -1,58 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900">
+  <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0f172a" flood-opacity=".08"/></filter><style>.t{font-family:Inter,"Segoe UI",Arial,sans-serif}.muted{fill:#64748b}.text{fill:#0f172a}.card{fill:#fff;stroke:#e2e8f0}.b{font-weight:800}.small{font-size:13px}</style></defs>
   <rect width="1440" height="900" fill="#f6f8fc"/>
-  <rect width="245" height="900" fill="#ffffff"/>
-  <rect x="245" width="1" height="900" fill="#e2e8f0"/>
-  <text x="30" y="52" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="800" fill="#0f172a">光阶Todo</text>
-  <text x="30" y="76" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#64748b">拾光而上，有序人生</text>
-  <rect x="18" y="160" width="208" height="42" rx="12" fill="#eef2ff"/>
-  <text x="58" y="187" font-family="Inter,Segoe UI,sans-serif" font-size="18" font-weight="700" fill="#6366f1">任务看板</text>
-  <text x="58" y="139" font-family="Inter,Segoe UI,sans-serif" font-size="18" fill="#64748b">总览</text>
-  <text x="58" y="241" font-family="Inter,Segoe UI,sans-serif" font-size="18" fill="#64748b">目标</text>
-  <text x="58" y="289" font-family="Inter,Segoe UI,sans-serif" font-size="18" fill="#64748b">日历</text>
-  <text x="292" y="70" font-family="Inter,Segoe UI,sans-serif" font-size="32" font-weight="800" fill="#0f172a">【示例】Agent 学习与生活节奏</text>
-  <text x="292" y="100" font-family="Inter,Segoe UI,sans-serif" font-size="15" fill="#64748b">把学习、实践、复盘和生活安排放进一个可推进的看板。</text>
-  <g font-family="Inter,Segoe UI,sans-serif">
-    <g transform="translate(292 142)">
-      <rect width="246" height="680" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
-      <text x="22" y="40" font-size="18" font-weight="800" fill="#0f172a">今日整理</text>
-      <rect x="18" y="68" width="210" height="128" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
-      <text x="34" y="100" font-size="15" font-weight="700" fill="#0f172a">整理本周生活待办</text>
-      <text x="34" y="126" font-size="12" fill="#64748b">Markdown 说明 · 今日</text>
-      <rect x="34" y="152" width="62" height="22" rx="11" fill="#dcfce7"/><text x="48" y="168" font-size="11" fill="#15803d">进行中</text>
-      <rect x="18" y="214" width="210" height="116" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
-      <text x="34" y="246" font-size="15" font-weight="700" fill="#0f172a">安排轻量运动</text>
-      <text x="34" y="272" font-size="12" fill="#64748b">30 分钟 · 晚间</text>
-    </g>
-    <g transform="translate(562 142)">
-      <rect width="246" height="680" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
-      <text x="22" y="40" font-size="18" font-weight="800" fill="#0f172a">本周学习</text>
-      <rect x="18" y="68" width="210" height="128" rx="14" fill="#fff7ed" stroke="#fed7aa"/>
-      <text x="34" y="100" font-size="15" font-weight="700" fill="#0f172a">阅读 Agent 架构文章</text>
-      <text x="34" y="126" font-size="12" fill="#64748b">RAG · 工具调用 · 记卡片</text>
-      <rect x="34" y="152" width="62" height="22" rx="11" fill="#ffedd5"/><text x="48" y="168" font-size="11" fill="#c2410c">高优先级</text>
-      <rect x="18" y="214" width="210" height="128" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
-      <text x="34" y="246" font-size="15" font-weight="700" fill="#0f172a">整理开发术语卡片</text>
-      <text x="34" y="272" font-size="12" fill="#64748b">上下文 · Memory · MCP</text>
-    </g>
-    <g transform="translate(832 142)">
-      <rect width="246" height="680" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
-      <text x="22" y="40" font-size="18" font-weight="800" fill="#0f172a">实践开发</text>
-      <rect x="18" y="68" width="210" height="146" rx="14" fill="#eef2ff" stroke="#c7d2fe"/>
-      <text x="34" y="100" font-size="15" font-weight="700" fill="#0f172a">搭建最小工具调用 Demo</text>
-      <text x="34" y="126" font-size="12" fill="#64748b">目标：完成一次端到端调用</text>
-      <rect x="34" y="154" width="150" height="8" rx="4" fill="#c7d2fe"/>
-      <rect x="34" y="154" width="92" height="8" rx="4" fill="#6366f1"/>
-      <text x="34" y="188" font-size="12" fill="#64748b">关联番茄钟 2 次</text>
-    </g>
-    <g transform="translate(1102 142)">
-      <rect width="246" height="680" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
-      <text x="22" y="40" font-size="18" font-weight="800" fill="#0f172a">复盘沉淀</text>
-      <rect x="18" y="68" width="210" height="128" rx="14" fill="#f0fdf4" stroke="#bbf7d0"/>
-      <text x="34" y="100" font-size="15" font-weight="700" fill="#0f172a">记录一次失败案例</text>
-      <text x="34" y="126" font-size="12" fill="#64748b">失败原因 · 下次改进</text>
-      <rect x="18" y="214" width="210" height="128" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
-      <text x="34" y="246" font-size="15" font-weight="700" fill="#0f172a">写周末学习复盘</text>
-      <text x="34" y="272" font-size="12" fill="#64748b">输出一页 Markdown</text>
+  <rect width="1440" height="40" fill="#fff"/><line y1="40" x2="1440" y2="40" stroke="#e2e8f0"/><text x="1296" y="25" class="t small muted">☁ 云同步：关闭</text>
+  <rect y="40" width="240" height="860" fill="#fff"/><line x1="240" y1="40" x2="240" y2="900" stroke="#e2e8f0"/>
+  <text x="24" y="84" class="t" font-size="24" font-weight="800" fill="#0f172a">光阶Todo</text><text x="24" y="106" class="t" font-size="12" fill="#64748b">拾光而上，有序人生</text>
+  <text x="48" y="160" class="t" font-size="15" fill="#64748b">▦  总览</text><rect x="16" y="184" width="208" height="40" rx="10" fill="#eef2ff"/><text x="48" y="210" class="t" font-size="15" font-weight="800" fill="#6366f1">▤  任务看板</text><text x="48" y="256" class="t" font-size="15" fill="#64748b">◎  目标</text><text x="48" y="302" class="t" font-size="15" fill="#64748b">□  日历</text><text x="48" y="348" class="t" font-size="15" fill="#64748b">◴  番茄钟</text>
+  <rect x="16" y="792" width="208" height="72" rx="12" fill="#f0f4fb"/><circle cx="48" cy="828" r="18" fill="#6366f1"/><text x="42" y="835" class="t" font-size="18" font-weight="800" fill="#fff">M</text><text x="76" y="822" class="t small b text">Mark</text><text x="76" y="844" class="t" font-size="12" fill="#64748b">持续构建长期能力</text>
+  <g transform="translate(280 80)">
+    <text x="0" y="0" class="t" font-size="28" font-weight="800" fill="#0f172a">【示例】Agent 学习与生活节奏</text>
+    <text x="0" y="30" class="t small muted">把学习、实践、复盘和生活安排放进一个可推进的看板。</text>
+    <rect x="920" y="-28" width="116" height="36" rx="9" fill="#6366f1"/><text x="948" y="-5" class="t" font-size="13" font-weight="800" fill="#fff">+ 新建</text>
+    <g transform="translate(0 72)">
+      <g><rect width="248" height="666" rx="16" class="card" filter="url(#shadow)"/><text x="20" y="38" class="t" font-size="17" font-weight="800" fill="#0f172a">今日整理</text><text x="190" y="38" class="t small muted">2</text>
+        <rect x="16" y="66" width="216" height="126" rx="14" fill="#fff" stroke="#e2e8f0"/><rect x="16" y="66" width="5" height="126" rx="3" fill="#10b981"/><text x="34" y="96" class="t small b text">整理本周生活待办</text><text x="34" y="122" class="t" font-size="12" fill="#64748b">## 今天先收口</text><rect x="34" y="148" width="62" height="22" rx="11" fill="#dcfce7"/><text x="48" y="164" class="t" font-size="11" fill="#15803d">进行中</text>
+        <rect x="16" y="210" width="216" height="112" rx="14" fill="#fff" stroke="#e2e8f0"/><rect x="16" y="210" width="5" height="112" rx="3" fill="#f59e0b"/><text x="34" y="240" class="t small b text">安排一次轻量运动</text><text x="34" y="266" class="t" font-size="12" fill="#64748b">30 分钟 · 晚间</text></g>
+      <g transform="translate(270 0)"><rect width="248" height="666" rx="16" class="card" filter="url(#shadow)"/><text x="20" y="38" class="t" font-size="17" font-weight="800" fill="#0f172a">本周学习</text><text x="190" y="38" class="t small muted">3</text>
+        <rect x="16" y="66" width="216" height="132" rx="14" fill="#fff" stroke="#fed7aa"/><rect x="16" y="66" width="5" height="132" rx="3" fill="#f97316"/><text x="34" y="96" class="t small b text">阅读 Agent 架构文章</text><text x="34" y="122" class="t" font-size="12" fill="#64748b">RAG · Memory · Tool use</text><rect x="34" y="150" width="74" height="22" rx="11" fill="#ffedd5"/><text x="47" y="166" class="t" font-size="11" fill="#c2410c">高优先级</text>
+        <rect x="16" y="216" width="216" height="114" rx="14" fill="#fff" stroke="#e2e8f0"/><text x="34" y="246" class="t small b text">整理开发术语卡片</text><text x="34" y="272" class="t" font-size="12" fill="#64748b">20 张卡片 · 6 已完成</text></g>
+      <g transform="translate(540 0)"><rect width="248" height="666" rx="16" class="card" filter="url(#shadow)"/><text x="20" y="38" class="t" font-size="17" font-weight="800" fill="#0f172a">实践开发</text><text x="190" y="38" class="t small muted">1</text>
+        <rect x="16" y="66" width="216" height="158" rx="14" fill="#eef2ff" stroke="#c7d2fe"/><rect x="16" y="66" width="5" height="158" rx="3" fill="#6366f1"/><text x="34" y="96" class="t small b text">搭建最小工具调用 Demo</text><text x="34" y="122" class="t" font-size="12" fill="#64748b">端到端调用 · 可复盘</text><rect x="34" y="150" width="152" height="8" rx="4" fill="#c7d2fe"/><rect x="34" y="150" width="94" height="8" rx="4" fill="#6366f1"/><text x="34" y="186" class="t" font-size="12" fill="#64748b">◴ 关联番茄钟 2 次</text></g>
+      <g transform="translate(810 0)"><rect width="248" height="666" rx="16" class="card" filter="url(#shadow)"/><text x="20" y="38" class="t" font-size="17" font-weight="800" fill="#0f172a">复盘沉淀</text><text x="190" y="38" class="t small muted">2</text>
+        <rect x="16" y="66" width="216" height="126" rx="14" fill="#fff" stroke="#bbf7d0"/><rect x="16" y="66" width="5" height="126" rx="3" fill="#22c55e"/><text x="34" y="96" class="t small b text">记录一次失败案例</text><text x="34" y="122" class="t" font-size="12" fill="#64748b">失败原因 · 下次改进</text>
+        <rect x="16" y="210" width="216" height="126" rx="14" fill="#fff" stroke="#e2e8f0"/><text x="34" y="240" class="t small b text">写周末学习复盘</text><text x="34" y="266" class="t" font-size="12" fill="#64748b">Markdown 输出</text></g>
     </g>
   </g>
 </svg>
