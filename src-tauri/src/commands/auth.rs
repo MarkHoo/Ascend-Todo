@@ -7,6 +7,8 @@ use crate::db::DbState;
 use crate::error::{AppError, AppResult};
 use crate::models::AuthSession;
 
+const DEFAULT_API_BASE_URL: &str = "https://todo-api.foresai.com";
+
 fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
     state.conn.lock().expect("db lock")
 }
@@ -14,7 +16,7 @@ fn conn<'a>(state: &'a DbState) -> std::sync::MutexGuard<'a, Connection> {
 fn api_base(server_url: Option<String>) -> String {
     server_url
         .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| "http://127.0.0.1:11911".to_string())
+        .unwrap_or_else(|| DEFAULT_API_BASE_URL.to_string())
         .trim_end_matches('/')
         .to_string()
 }
