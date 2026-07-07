@@ -17,7 +17,7 @@ export function LoginPage() {
         deviceName: 'Admin Web',
         deviceFingerprint: `admin-web-${navigator.userAgent}`,
         platform: navigator.platform,
-        appVersion: '2.1.2',
+        appVersion: '2.1.3',
       });
       setToken(result.accessToken);
       navigate('/');
