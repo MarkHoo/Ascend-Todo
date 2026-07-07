@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Ascend Todo is a private, focused desktop planner for tasks, goals, calendars, and deep work."
+    />
+    <meta property="og:title" content="Ascend Todo" />
+    <meta
+      property="og:description"
+      content="Plan tasks, goals, calendars, and focus sessions in one calm desktop workspace."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://todo.foresai.com" />
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Ascend Todo</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Ascend Todo">
+        <span class="brand-mark">A</span>
+        <span data-i18n="brand">Ascend Todo</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="#features" data-i18n="navFeatures">Features</a>
+        <a href="#workflow" data-i18n="navWorkflow">Workflow</a>
+        <a href="#download" data-i18n="navDownload">Download</a>
+      </nav>
+      <div class="header-actions">
+        <select id="languageSelect" class="language-select" aria-label="Language">
+          <option value="en">English</option>
+          <option value="zh-CN">简体中文</option>
+          <option value="zh-TW">繁體中文</option>
+        </select>
+        <a
+          class="ghost-button"
+          href="https://github.com/MarkHoo/Ascend-Todo"
+          rel="noreferrer"
+          target="_blank"
+          data-i18n="github"
+        >GitHub</a>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero-section">
+        <div class="hero-copy">
+          <p class="eyebrow" data-i18n="eyebrow">Desktop planner for focused work</p>
+          <h1 data-i18n="heroTitle">Ascend Todo</h1>
+          <p class="hero-subtitle" data-i18n="heroSubtitle">
+            A calm desktop workspace for tasks, goals, calendars, reminders, and Pomodoro focus.
+          </p>
+          <div class="hero-actions" id="download">
+            <a id="primaryDownload" class="primary-button" href="https://github.com/MarkHoo/Ascend-Todo/releases/latest">
+              <span data-i18n="downloadLatest">Download latest</span>
+              <small id="primaryDownloadMeta" data-i18n="detecting">Detecting your system...</small>
+            </a>
+            <a class="secondary-button" href="#all-downloads" data-i18n="allDownloads">All downloads</a>
+          </div>
+          <div class="release-status" id="releaseStatus" data-i18n="releaseLoading">
+            Loading latest GitHub release...
+          </div>
+        </div>
+
+        <div class="product-preview" aria-label="Product preview">
+          <div class="preview-window">
+            <div class="window-bar">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="preview-layout">
+              <aside>
+                <b data-i18n="previewToday">Today</b>
+                <span data-i18n="previewCalendar">Calendar</span>
+                <span data-i18n="previewGoals">Goals</span>
+                <span data-i18n="previewFocus">Focus</span>
+              </aside>
+              <section>
+                <div class="preview-kpi">
+                  <span data-i18n="previewPlan">Deep work plan</span>
+                  <strong>3h 20m</strong>
+                </div>
+                <div class="timeline">
+                  <div class="time-block green"></div>
+                  <div class="time-block amber"></div>
+                  <div class="time-block blue"></div>
+                </div>
+                <div class="task-list">
+                  <div><span></span><p data-i18n="previewTask1">Review weekly goals</p></div>
+                  <div><span></span><p data-i18n="previewTask2">Ship product notes</p></div>
+                  <div><span></span><p data-i18n="previewTask3">Focus session</p></div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-heading">
+          <p class="eyebrow" data-i18n="featuresEyebrow">Built for real planning</p>
+          <h2 data-i18n="featuresTitle">Everything lives in one rhythm</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span>01</span>
+            <h3 data-i18n="featureTasksTitle">Task boards</h3>
+            <p data-i18n="featureTasksText">Organize projects, tasks, notes, reminders, and progress without leaving the desktop.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3 data-i18n="featureGoalsTitle">Goals and reviews</h3>
+            <p data-i18n="featureGoalsText">Track goals, key results, check-ins, and progress history with a clear planning loop.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3 data-i18n="featureCalendarTitle">Calendar planning</h3>
+            <p data-i18n="featureCalendarText">Arrange tasks and events across day, week, and month views with practical time blocks.</p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3 data-i18n="featureFocusTitle">Pomodoro focus</h3>
+            <p data-i18n="featureFocusText">Run countdown or count-up focus sessions and keep output visible over time.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="workflow" class="workflow-section">
+        <div>
+          <p class="eyebrow" data-i18n="workflowEyebrow">Private first</p>
+          <h2 data-i18n="workflowTitle">Works offline, ready for cloud sync</h2>
+          <p data-i18n="workflowText">
+            The app is useful as a local desktop planner from the first launch. Account sync can be enabled when the API service is available.
+          </p>
+        </div>
+        <ul class="workflow-list">
+          <li data-i18n="workflowItem1">Local data stays on your device by default.</li>
+          <li data-i18n="workflowItem2">Cloud sync covers tasks, goals, settings, and calendars.</li>
+          <li data-i18n="workflowItem3">Avatar images remain local for privacy.</li>
+        </ul>
+      </section>
+
+      <section id="all-downloads" class="section downloads-section">
+        <div class="section-heading">
+          <p class="eyebrow" data-i18n="downloadEyebrow">Latest release</p>
+          <h2 data-i18n="downloadTitle">Choose your installer</h2>
+        </div>
+        <div class="download-grid" id="downloadGrid"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span data-i18n="footer">Ascend Todo is an open-source desktop planner.</span>
+      <a href="https://github.com/MarkHoo/Ascend-Todo/releases/latest" target="_blank" rel="noreferrer" data-i18n="footerRelease">Latest release</a>
+    </footer>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

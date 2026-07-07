@@ -229,6 +229,12 @@ const cloudCopy = {
   },
 } as const;
 
+const syncServiceNote = {
+  'zh-CN': '云端同步服务上线前，注册、登录、验证码和同步可能暂不可用。当前数据会继续保存在本机；服务上线后可直接重试，无需升级软件。',
+  'zh-TW': '雲端同步服務上線前，註冊、登入、驗證碼和同步可能暫不可用。目前資料會繼續保存在本機；服務上線後可直接重試，無需升級軟體。',
+  en: 'Before the cloud sync service is online, sign-in, verification codes, and sync may be unavailable. Your data stays on this device; retry after the service is online with no app upgrade required.',
+} as const;
+
 export function ProfilePage() {
   const { t } = useTranslation();
   const { settings, setSettings, setAll } = useSettingsStore();
@@ -642,7 +648,7 @@ export function ProfilePage() {
       setPostLoginSyncDialogOpen(false);
       await refreshCloudStatus();
     } catch (error) {
-      toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error)));
+      toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error, language)));
     } finally {
       setCloudBusy(false);
     }
@@ -666,12 +672,12 @@ export function ProfilePage() {
       await refreshCloudStatus();
       window.setTimeout(() => {
         void handlePostLoginSyncChoice(nextSession).catch((error) => {
-          toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error)));
+          toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error, language)));
         });
       }, 0);
       toast.success(authMode === 'login' ? cloudText.loginSuccess : cloudText.registerSuccess);
     } catch (error) {
-      toast.error(String(error));
+      toast.error(friendlySyncError(error, language));
     } finally {
       setCloudBusy(false);
     }
@@ -700,7 +706,7 @@ export function ProfilePage() {
       } else if (message.includes('UNAUTHORIZED') || message.includes('unauthorized')) {
         setVerificationHint(language === 'en' ? 'Your sign-in has expired. Please sign in again.' : language === 'zh-TW' ? '登入狀態已過期，請重新登入。' : '登录状态已过期，请重新登录。');
       } else {
-        setVerificationHint(language === 'en' ? 'Code could not be sent. Please check your network and try again.' : language === 'zh-TW' ? '驗證碼暫時無法傳送，請檢查網路後重試。' : '验证码暂时无法发送，请检查网络后重试。');
+        setVerificationHint(friendlySyncError(error, language));
       }
     } finally {
       setCloudBusy(false);
@@ -753,7 +759,7 @@ export function ProfilePage() {
       setLogoutDialogOpen(false);
       toast.info(cloudText.loggedOut);
     } catch (error) {
-      toast.error(String(error));
+      toast.error(friendlySyncError(error, language));
     } finally {
       setCloudBusy(false);
     }
@@ -774,7 +780,7 @@ export function ProfilePage() {
       }
       await refreshCloudStatus();
     } catch (error) {
-      toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error)));
+      toast.error(cloudText.syncFailed.replace('{{msg}}', friendlySyncError(error, language)));
     } finally {
       setCloudBusy(false);
     }
@@ -789,7 +795,7 @@ export function ProfilePage() {
       await refreshCloudStatus();
       toast.success(cloudText.deviceRenamed);
     } catch (error) {
-      toast.error(String(error));
+      toast.error(friendlySyncError(error, language));
     } finally {
       setCloudBusy(false);
     }
@@ -805,7 +811,7 @@ export function ProfilePage() {
       await refreshCloudStatus();
       toast.success(cloudText.deviceRemoved);
     } catch (error) {
-      toast.error(String(error));
+      toast.error(friendlySyncError(error, language));
     } finally {
       setCloudBusy(false);
     }
@@ -820,7 +826,7 @@ export function ProfilePage() {
       await refreshCloudStatus();
       toast.success(cloudText.wipeRequested);
     } catch (error) {
-      toast.error(String(error));
+      toast.error(friendlySyncError(error, language));
     } finally {
       setCloudBusy(false);
     }
@@ -835,7 +841,7 @@ export function ProfilePage() {
       await refreshCloudStatus();
       toast.success(cloudText.othersRemoved);
     } catch (error) {
-      toast.error(String(error));
+      toast.error(friendlySyncError(error, language));
     } finally {
       setCloudBusy(false);
     }
@@ -978,6 +984,9 @@ export function ProfilePage() {
                   {cloudText.title}
                 </div>
                 <p className="mt-1 text-xs leading-5 text-text-muted">{cloudText.subtitle}</p>
+                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                  {syncServiceNote[language]}
+                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span className="text-sm font-medium">{cloudText.syncEnabled}</span>
