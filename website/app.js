@@ -207,7 +207,12 @@ function detectTheme() {
 function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
   localStorage.setItem('ascendTodoSiteTheme', theme);
-  document.getElementById('themeToggle').textContent = theme === 'dark' ? '☀' : '●';
+  const toggle = document.getElementById('themeToggle');
+  if (!toggle) return;
+  toggle.innerHTML = theme === 'dark'
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 4.25a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 0 1.5h-.5a.75.75 0 0 1-.75-.75Zm0 15.5a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 0 1.5h-.5a.75.75 0 0 1-.75-.75ZM4.25 12a.75.75 0 0 1-.75-.75v-.5a.75.75 0 0 1 1.5 0v.5a.75.75 0 0 1-.75.75Zm15.5 0a.75.75 0 0 1-.75-.75v-.5a.75.75 0 0 1 1.5 0v.5a.75.75 0 0 1-.75.75ZM6.02 6.02a.75.75 0 0 1 1.06 0l.35.35a.75.75 0 0 1-1.06 1.06l-.35-.35a.75.75 0 0 1 0-1.06Zm10.55 10.55a.75.75 0 0 1 1.06 0l.35.35a.75.75 0 0 1-1.06 1.06l-.35-.35a.75.75 0 0 1 0-1.06Zm1.41-10.55a.75.75 0 0 1 0 1.06l-.35.35a.75.75 0 1 1-1.06-1.06l.35-.35a.75.75 0 0 1 1.06 0ZM7.43 16.57a.75.75 0 0 1 0 1.06l-.35.35a.75.75 0 0 1-1.06-1.06l.35-.35a.75.75 0 0 1 1.06 0ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg>'
+    : '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.2 15.66A8.5 8.5 0 0 1 8.34 3.8a.75.75 0 0 1 .94.94 7 7 0 0 0 9.98 9.98.75.75 0 0 1 .94.94Z"/></svg>';
+  toggle.title = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
 }
 
 function text(key) {

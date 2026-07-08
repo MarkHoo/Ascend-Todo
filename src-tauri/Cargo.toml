@@ -1,6 +1,6 @@
 [package]
 name = "ascend-todo"
-version = "2.2.2"
+version = "2.2.3"
 description = "Ascend Todo - Master your time, elevate your life."
 authors = ["Mark"]
 edition = "2021"

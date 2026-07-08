@@ -138,12 +138,38 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   font-size: 14px;
 }
 
 .icon-button {
   width: 38px;
   cursor: pointer;
+}
+
+.theme-toggle {
+  position: relative;
+  width: 42px;
+  padding: 0;
+}
+
+.theme-toggle svg,
+.github-logo {
+  display: block;
+  width: 17px;
+  height: 17px;
+}
+
+.theme-toggle svg {
+  transition: transform 180ms ease;
+}
+
+.theme-toggle:hover svg {
+  transform: rotate(-12deg) scale(1.04);
+}
+
+.github-button {
+  font-weight: 760;
 }
 
 .hero-section {
