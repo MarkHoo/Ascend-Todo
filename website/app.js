@@ -143,9 +143,9 @@ const messages = {
     featureGoalsTitle: '可度量的目標推進',
     featureGoalsText: '用關鍵結果、檢查日期和進度歷史承接長期目標，讓野心不再停留在口號。',
     featureCalendarTitle: '尊重時間的日曆規劃',
-    featureCalendarText: '在日、週、月檢視中安排任務和日程，用真實時間區塊看見一天的負載與節奏。',
+    featureCalendarText: '在日、週、月視圖中安排任務和日程，用真實時間區塊看見一天的負載與節奏。',
     featureFocusTitle: '不止計時的專注分析',
-    featureFocusText: '支援倒數與正計時專注，並把注意力投入沉澱為趨勢、統計和複盤依據。',
+    featureFocusText: '支援倒計時與正計時專注，並把注意力投入沉澱為趨勢、統計和複盤依據。',
     workflowEyebrow: '預設私密',
     workflowTitle: '精緻的本機工作區，也為雲端連續性準備好',
     workflowText: '無需帳號也能從首次打開開始使用。同步 API 上線後，完成信箱驗證的帳號即可在多裝置之間延續同一套計劃系統。',
@@ -203,7 +203,7 @@ function detectTheme() {
 function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
   localStorage.setItem('ascendTodoSiteTheme', theme);
-  document.getElementById('themeToggle').textContent = theme === 'dark' ? '☀' : '◐';
+  document.getElementById('themeToggle').textContent = theme === 'dark' ? '☀' : '●';
 }
 
 function text(key) {

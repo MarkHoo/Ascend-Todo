@@ -1,70 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900">
   <defs>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0f172a" flood-opacity=".08"/>
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0f172a" flood-opacity=".07"/>
     </filter>
     <style>
-      .t{font-family:Inter,"Segoe UI",Arial,sans-serif}.muted{fill:#64748b}.text{fill:#0f172a}.card{fill:#fff;stroke:#e2e8f0}.soft{fill:#f0f4fb}.primary{fill:#6366f1}.small{font-size:13px}.label{font-size:15px}.h{font-size:28px;font-weight:800}.b{font-weight:800}
+      .t{font-family:Inter,"Segoe UI",Arial,sans-serif}.muted{fill:#64748b}.text{fill:#0f172a}.card{fill:#fff;stroke:#e2e8f0}.soft{fill:#f0f4fb}.primary{fill:#6366f1}.b{font-weight:700}.sb{font-weight:600}.xs{font-size:12px}.sm{font-size:14px}.md{font-size:16px}.h{font-size:28px;font-weight:700}.chip{fill:#eef2ff;stroke:#c7d2fe}
     </style>
   </defs>
   <rect width="1440" height="900" fill="#f6f8fc"/>
-  <rect x="0" y="0" width="1440" height="40" fill="#fff"/>
-  <line x1="0" y1="40" x2="1440" y2="40" stroke="#e2e8f0"/>
-  <text x="1048" y="25" class="t small muted">⌘K  快速搜索</text>
-  <text x="1186" y="25" class="t small muted">⌨ 快捷键</text>
-  <text x="1296" y="25" class="t small muted">☁ 云同步：关闭</text>
-  <rect y="40" width="240" height="860" fill="#fff"/>
-  <line x1="240" y1="40" x2="240" y2="900" stroke="#e2e8f0"/>
-  <text x="24" y="84" class="t" font-size="24" font-weight="800" fill="#0f172a">光阶Todo</text>
-  <text x="24" y="106" class="t" font-size="12" fill="#64748b">拾光而上，有序人生</text>
-  <rect x="16" y="134" width="208" height="40" rx="10" fill="#eef2ff"/>
-  <text x="48" y="160" class="t label b" fill="#6366f1">▦  总览</text>
-  <text x="48" y="210" class="t label muted">▤  任务看板</text>
-  <text x="48" y="256" class="t label muted">◎  目标</text>
-  <text x="48" y="302" class="t label muted">□  日历</text>
-  <text x="48" y="348" class="t label muted">◴  番茄钟</text>
-  <text x="24" y="416" class="t" font-size="12" font-weight="800" fill="#64748b">已固定</text>
-  <text x="36" y="448" class="t small text">●  Agent 学习与生活节奏</text>
-  <rect x="16" y="792" width="208" height="72" rx="12" fill="#f0f4fb"/>
-  <circle cx="48" cy="828" r="18" fill="#6366f1"/>
-  <text x="42" y="835" class="t" font-size="18" font-weight="800" fill="#fff">M</text>
-  <text x="76" y="822" class="t small b text">Mark</text>
-  <text x="76" y="844" class="t" font-size="12" fill="#64748b">持续构建长期能力</text>
-  <g transform="translate(280 80)">
-    <text x="0" y="0" class="t h text">总览</text>
-    <text x="0" y="30" class="t small muted">今天是把计划推进一小步的好日子。</text>
-    <rect x="796" y="-24" width="164" height="36" rx="10" fill="#fff" stroke="#e2e8f0"/>
-    <rect x="803" y="-18" width="52" height="24" rx="7" fill="#f0f4fb"/>
-    <text x="817" y="-2" class="t" font-size="12" font-weight="800" fill="#6366f1">今日</text>
-    <text x="870" y="-2" class="t" font-size="12" fill="#64748b">本周</text>
-    <g transform="translate(0 72)">
-      <rect width="248" height="118" rx="16" class="card" filter="url(#shadow)"/><text x="24" y="34" class="t small muted">连续活跃</text><text x="24" y="78" class="t" font-size="34" font-weight="900" fill="#0f172a">12天</text><text x="24" y="102" class="t" font-size="12" fill="#10b981">本周期活跃 6/7 天</text>
-      <rect x="270" width="248" height="118" rx="16" class="card" filter="url(#shadow)"/><text x="294" y="34" class="t small muted">完成任务</text><text x="294" y="78" class="t" font-size="34" font-weight="900" fill="#0f172a">18项</text><text x="294" y="102" class="t" font-size="12" fill="#10b981">准时率 86% · +5</text>
-      <rect x="540" width="248" height="118" rx="16" class="card" filter="url(#shadow)"/><text x="564" y="34" class="t small muted">目标进展</text><text x="564" y="78" class="t" font-size="34" font-weight="900" fill="#0f172a">+14%</text><text x="564" y="102" class="t" font-size="12" fill="#3b82f6">推进 3 个目标</text>
-      <rect x="810" width="248" height="118" rx="16" class="card" filter="url(#shadow)"/><text x="834" y="34" class="t small muted">专注时长</text><text x="834" y="78" class="t" font-size="34" font-weight="900" fill="#0f172a">6h 40m</text><text x="834" y="102" class="t" font-size="12" fill="#ec4899">8 次番茄钟 · 关联任务 75%</text>
+  <rect width="1440" height="40" fill="#fff"/><line y1="40" x2="1440" y2="40" stroke="#e2e8f0"/>
+  <text x="1020" y="25" class="t xs muted">⌘K  快速搜索</text><text x="1160" y="25" class="t xs muted">⌘/  快捷键</text><text x="1280" y="25" class="t xs muted">☁ 云同步：关闭</text>
+  <rect y="40" width="240" height="860" fill="#fff"/><line x1="240" y1="40" x2="240" y2="900" stroke="#e2e8f0"/>
+  <text x="24" y="82" class="t" font-size="24" font-weight="800" fill="#0f172a">光阶Todo</text><text x="24" y="105" class="t xs muted">拾光而上，有序人生</text>
+  <rect x="16" y="132" width="208" height="40" rx="10" fill="#eef2ff"/><text x="48" y="158" class="t sm b" fill="#6366f1">▦ 总览</text>
+  <text x="48" y="208" class="t sm muted">▤ 任务看板</text><text x="48" y="254" class="t sm muted">◎ 目标</text><text x="48" y="300" class="t sm muted">▣ 日历</text><text x="48" y="346" class="t sm muted">◴ 番茄钟</text>
+  <text x="24" y="412" class="t xs b muted">已固定</text><circle cx="32" cy="446" r="4" fill="#10b981"/><text x="48" y="451" class="t sm text">【示例】Agent 学习</text>
+  <rect x="16" y="792" width="208" height="72" rx="12" fill="#f0f4fb"/><circle cx="48" cy="828" r="18" fill="#6366f1"/><text x="42" y="835" class="t md b" fill="#fff">M</text><text x="76" y="822" class="t sm b text">Mark</text><text x="76" y="844" class="t xs muted">持续构建长期能力</text>
+  <g transform="translate(280 72)">
+    <rect x="0" y="0" width="1080" height="118" rx="16" fill="#fff" stroke="#e2e8f0"/>
+    <text x="28" y="38" class="t xs muted">今日一句</text><text x="28" y="72" class="t" font-size="24" font-style="italic" fill="#0f172a">「A goal without a plan is just a wish.」</text><text x="28" y="100" class="t xs muted">2026-07-08 星期三</text>
+    <g transform="translate(0 142)">
+      <rect width="102" height="38" rx="10" fill="#6366f1"/><text x="36" y="25" class="t sm b" fill="#fff">总览</text><rect x="106" width="102" height="38" rx="10" fill="#fff" stroke="#e2e8f0"/><text x="136" y="25" class="t sm muted">复盘</text>
+      <rect x="548" width="320" height="38" rx="10" fill="#fff" stroke="#e2e8f0"/><text x="568" y="25" class="t xs" fill="#6366f1">按天</text><text x="630" y="25" class="t xs muted">按周</text><text x="692" y="25" class="t xs muted">按月</text><text x="754" y="25" class="t xs muted">按季度</text><text x="832" y="25" class="t xs muted">按年</text>
+      <rect x="884" width="76" height="38" rx="10" fill="#fff" stroke="#e2e8f0"/><text x="910" y="25" class="t xs muted">今天</text><rect x="974" width="86" height="38" rx="10" fill="#fff" stroke="#e2e8f0"/><text x="1000" y="25" class="t xs muted">刷新</text>
     </g>
-    <rect y="220" width="1058" height="158" rx="16" class="card"/>
-    <text x="24" y="256" class="t label b text">年度活跃热力图</text>
-    <g transform="translate(24 284)">
-      <g>
-        <rect x="0" y="0" width="13" height="13" rx="3" fill="#eef2f7"/><rect x="20" y="0" width="13" height="13" rx="3" fill="#c7d2fe"/><rect x="40" y="0" width="13" height="13" rx="3" fill="#a5b4fc"/><rect x="60" y="0" width="13" height="13" rx="3" fill="#818cf8"/><rect x="80" y="0" width="13" height="13" rx="3" fill="#6366f1"/>
-      </g>
-      <g transform="translate(0 28)">
-        <rect width="13" height="13" rx="3" fill="#c7d2fe"/><rect x="20" width="13" height="13" rx="3" fill="#eef2f7"/><rect x="40" width="13" height="13" rx="3" fill="#818cf8"/><rect x="60" width="13" height="13" rx="3" fill="#a5b4fc"/><rect x="80" width="13" height="13" rx="3" fill="#6366f1"/><rect x="100" width="13" height="13" rx="3" fill="#c7d2fe"/><rect x="120" width="13" height="13" rx="3" fill="#eef2f7"/><rect x="140" width="13" height="13" rx="3" fill="#818cf8"/><rect x="160" width="13" height="13" rx="3" fill="#6366f1"/>
-        <rect y="22" width="13" height="13" rx="3" fill="#eef2f7"/><rect x="20" y="22" width="13" height="13" rx="3" fill="#a5b4fc"/><rect x="40" y="22" width="13" height="13" rx="3" fill="#c7d2fe"/><rect x="60" y="22" width="13" height="13" rx="3" fill="#6366f1"/><rect x="80" y="22" width="13" height="13" rx="3" fill="#c7d2fe"/><rect x="100" y="22" width="13" height="13" rx="3" fill="#818cf8"/><rect x="120" y="22" width="13" height="13" rx="3" fill="#eef2f7"/><rect x="140" y="22" width="13" height="13" rx="3" fill="#a5b4fc"/><rect x="160" y="22" width="13" height="13" rx="3" fill="#6366f1"/>
+    <g transform="translate(0 208)">
+      <g><rect width="255" height="112" rx="14" class="card" filter="url(#shadow)"/><circle cx="30" cy="33" r="11" fill="#fb923c"/><text x="54" y="37" class="t sm muted">连续打卡</text><text x="24" y="76" class="t" font-size="31" font-weight="800" fill="#0f172a">8天</text><text x="24" y="98" class="t xs muted">本期活跃 5/7 天</text></g>
+      <g transform="translate(275 0)"><rect width="255" height="112" rx="14" class="card" filter="url(#shadow)"/><circle cx="30" cy="33" r="11" fill="#22c55e"/><text x="54" y="37" class="t sm muted">完成任务</text><text x="24" y="76" class="t" font-size="31" font-weight="800" fill="#0f172a">18项</text><text x="24" y="98" class="t xs muted">按时率 86% · 较上期增加 12%</text></g>
+      <g transform="translate(550 0)"><rect width="255" height="112" rx="14" class="card" filter="url(#shadow)"/><circle cx="30" cy="33" r="11" fill="#3b82f6"/><text x="54" y="37" class="t sm muted">目标推进</text><text x="24" y="76" class="t" font-size="31" font-weight="800" fill="#0f172a">+24%</text><text x="24" y="98" class="t xs muted">推进 3 个 · 风险 1 个</text></g>
+      <g transform="translate(825 0)"><rect width="255" height="112" rx="14" class="card" filter="url(#shadow)"/><circle cx="30" cy="33" r="11" fill="#ec4899"/><text x="54" y="37" class="t sm muted">专注时长</text><text x="24" y="76" class="t" font-size="31" font-weight="800" fill="#0f172a">6小时40分</text><text x="24" y="98" class="t xs muted">10 个番茄 · 关联任务 80%</text></g>
+    </g>
+    <g transform="translate(0 350)">
+      <rect width="1080" height="150" rx="16" class="card"/><text x="24" y="34" class="t md b text">活动图</text><text x="92" y="34" class="t xs muted">最近 365 天 · 43 个活跃日</text>
+      <g transform="translate(24 58)">
+        <rect width="13" height="13" rx="3" fill="#eef2f7"/><rect x="18" width="13" height="13" rx="3" fill="#c7d2fe"/><rect x="36" width="13" height="13" rx="3" fill="#a5b4fc"/><rect x="54" width="13" height="13" rx="3" fill="#818cf8"/><rect x="72" width="13" height="13" rx="3" fill="#6366f1"/>
+        <g transform="translate(0 26)">
+          <path d="M0 55 C80 18 135 92 220 40 S360 22 450 62 S600 88 710 36 S850 18 1028 58" fill="none" stroke="#6366f1" stroke-width="4" stroke-linecap="round"/>
+          <path d="M0 74 C120 54 180 84 280 58 S480 28 620 60 S780 84 1028 35" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" opacity=".75"/>
+        </g>
       </g>
     </g>
-    <rect y="404" width="504" height="304" rx="16" class="card"/>
-    <text x="24" y="442" class="t label b text">今日安排</text>
-    <rect x="24" y="462" width="432" height="54" rx="12" fill="#eef2ff"/><text x="42" y="486" class="t small b text">09:30 Agent 知识库原型设计</text><text x="42" y="506" class="t" font-size="12" fill="#64748b">任务 · 90 分钟 · 关联目标</text>
-    <rect x="24" y="530" width="432" height="54" rx="12" fill="#ecfdf5"/><text x="42" y="554" class="t small b text">14:00 工具调用 Demo 实验</text><text x="42" y="574" class="t" font-size="12" fill="#64748b">日程 · 60 分钟</text>
-    <rect x="24" y="598" width="432" height="54" rx="12" fill="#fff7ed"/><text x="42" y="622" class="t small b text">20:30 周末学习复盘</text><text x="42" y="642" class="t" font-size="12" fill="#64748b">复盘 · 45 分钟</text>
-    <rect x="530" y="404" width="528" height="304" rx="16" class="card"/>
-    <text x="554" y="442" class="t label b text">完成与专注趋势</text>
-    <g stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <polyline points="570,644 626,608 682,620 738,568 794,582 850,522 906,494 966,464" stroke="#6366f1" stroke-width="7"/>
-      <polyline points="570,666 626,652 682,628 738,604 794,596 850,562 906,546 966,506" stroke="#10b981" stroke-width="7"/>
+    <g transform="translate(0 524)">
+      <g><rect width="350" height="246" rx="16" class="card"/><text x="22" y="34" class="t md b text">今日日程</text><text x="22" y="62" class="t xs muted">基于任务开始时间与截至时间</text><rect x="22" y="92" width="306" height="52" rx="10" fill="#eef2ff" stroke="#c7d2fe"/><text x="40" y="122" class="t sm b text">10:00 Agent 工具调用练习</text><text x="40" y="140" class="t xs muted">学习看板 / 实践开发</text><rect x="22" y="158" width="306" height="52" rx="10" fill="#ecfeff" stroke="#bae6fd"/><text x="40" y="188" class="t sm b text">15:30 复盘提示词设计</text><text x="40" y="206" class="t xs muted">目标：构建个人 Agent 原型</text></g>
+      <g transform="translate(374 0)"><rect width="350" height="246" rx="16" class="card"/><text x="22" y="34" class="t md b text">目标推进情况</text><text x="22" y="62" class="t xs muted">按关键结果加权变化排序</text><text x="22" y="104" class="t sm b text">构建个人 Agent 原型</text><rect x="22" y="122" width="260" height="9" rx="5" fill="#e2e8f0"/><rect x="22" y="122" width="174" height="9" rx="5" fill="#6366f1"/><text x="296" y="129" class="t xs muted">67%</text><text x="22" y="166" class="t sm b text">建立健康学习节奏</text><rect x="22" y="184" width="260" height="9" rx="5" fill="#e2e8f0"/><rect x="22" y="184" width="218" height="9" rx="5" fill="#10b981"/><text x="296" y="191" class="t xs muted">84%</text></g>
+      <g transform="translate(748 0)"><rect width="332" height="246" rx="16" class="card"/><text x="22" y="34" class="t md b text">优先处理</text><text x="22" y="62" class="t xs muted">逾期、临期、停滞目标和 KR 检查</text><rect x="22" y="90" width="288" height="38" rx="10" fill="#fff7ed" stroke="#fed7aa"/><text x="40" y="114" class="t sm text">整理 RAG 评估清单</text><rect x="22" y="140" width="288" height="38" rx="10" fill="#fef2f2" stroke="#fecaca"/><text x="40" y="164" class="t sm text">补充失败案例复盘</text><rect x="22" y="190" width="288" height="38" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="40" y="214" class="t sm text">KR 检查：Demo 稳定性</text></g>
     </g>
-    <g fill="#64748b" class="t" font-size="11"><text x="570" y="686">Mon</text><text x="738" y="686">Wed</text><text x="906" y="686">Fri</text></g>
   </g>
 </svg>
