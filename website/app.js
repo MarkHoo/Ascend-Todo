@@ -1,5 +1,6 @@
 const repo = 'MarkHoo/Ascend-Todo';
-const releaseApi = `https://api.github.com/repos/${repo}/releases/latest`;
+const releaseApi = '/.netlify/functions/latest-release';
+const githubReleaseApi = `https://api.github.com/repos/${repo}/releases/latest`;
 const latestReleaseUrl = `https://github.com/${repo}/releases/latest`;
 
 const messages = {
@@ -304,9 +305,7 @@ function updatePreview(index) {
 async function loadRelease() {
   const status = document.getElementById('releaseStatus');
   try {
-    const response = await fetch(releaseApi, { headers: { Accept: 'application/vnd.github+json' } });
-    if (!response.ok) throw new Error(`GitHub ${response.status}`);
-    const release = await response.json();
+    const release = await fetchReleaseData();
     latestTag = release.tag_name || '';
     latestAssets = Array.isArray(release.assets) ? release.assets : [];
     status.textContent = text('releaseReady').replace('{{tag}}', latestTag || 'latest');
@@ -316,6 +315,19 @@ async function loadRelease() {
     status.textContent = text('releaseFallback');
   }
   renderDownloads();
+}
+
+async function fetchReleaseData() {
+  for (const url of [releaseApi, githubReleaseApi]) {
+    try {
+      const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+      if (!response.ok) continue;
+      return response.json();
+    } catch {
+      // Try the next source.
+    }
+  }
+  throw new Error('Release lookup failed');
 }
 
 document.getElementById('languageSelect').addEventListener('change', (event) => {
