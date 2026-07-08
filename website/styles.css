@@ -150,6 +150,9 @@ a {
 .theme-toggle {
   position: relative;
   width: 42px;
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-solid));
+  color: var(--accent);
   padding: 0;
 }
 
@@ -162,6 +165,16 @@ a {
 
 .theme-toggle svg {
   transition: transform 180ms ease;
+}
+
+.theme-toggle .moon-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.theme-toggle .sun-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .theme-toggle:hover svg {

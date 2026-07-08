@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "\u5149\u9636Todo",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "identifier": "com.ascend.todo",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -31,7 +31,7 @@
     "targets": ["msi", "nsis"],
     "resources": {
       "resources/WebView2Loader.dll": "WebView2Loader.dll",
-      "icons/icon.ico": "app-icon-2.2.3.ico"
+      "icons/icon.ico": "app-icon-2.2.4.ico"
     },
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "category": "Productivity",
