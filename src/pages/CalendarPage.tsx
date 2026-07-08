@@ -912,6 +912,7 @@ export function CalendarPage() {
   const [boards, setBoards] = useState<BoardWithLists[]>([]);
   const [createDraft, setCreateDraft] = useState<CalendarCreateDraft | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null);
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [syncStatus, setSyncStatus] = useState<CalendarSyncStatus | null>(null);
   const [emailSyncing, setEmailSyncing] = useState(false);
@@ -1022,6 +1023,7 @@ export function CalendarPage() {
   }, [filteredEntries]);
 
   const selectedEntries = byDate.get(selectedDate) || [];
+  const expandedEntries = expandedDate ? byDate.get(expandedDate) || [] : [];
   const taskCount = filteredEntries.filter((e) => e.sourceType === 'task').length;
   const dueSoon = filteredEntries.filter((e) => e.sourceType === 'task' && e.date >= dayjs().format('YYYY-MM-DD')).length;
   const emailSyncLabel = emailSyncing
@@ -1535,6 +1537,10 @@ export function CalendarPage() {
                     byDate={byDate}
                     selectedDate={selectedDate}
                     onSelectDate={setSelectedDate}
+                    onShowDateEntries={(date) => {
+                      setSelectedDate(date);
+                      setExpandedDate(date);
+                    }}
                     onCreate={openCreateTask}
                     onOpenEntry={openCalendarEntry}
                     onEntryPointerDragStart={startCalendarEntryDrag}
@@ -1652,6 +1658,16 @@ export function CalendarPage() {
           }}
         />
       )}
+      <DateEntriesModal
+        date={expandedDate}
+        entries={expandedEntries}
+        onClose={() => setExpandedDate(null)}
+        onOpenEntry={(entry) => {
+          setExpandedDate(null);
+          openCalendarEntry(entry);
+        }}
+        onEntryPointerDragStart={startCalendarEntryDrag}
+      />
       <DeleteConfirmModal
         open={Boolean(manualEntryToDelete)}
         onClose={() => setManualEntryToDelete(null)}
@@ -1778,6 +1794,7 @@ function MonthView({
   byDate,
   selectedDate,
   onSelectDate,
+  onShowDateEntries,
   onCreate,
   onOpenEntry,
   onEntryPointerDragStart,
@@ -1789,6 +1806,7 @@ function MonthView({
   byDate: Map<string, CalendarEntry[]>;
   selectedDate: string;
   onSelectDate: (date: string) => void;
+  onShowDateEntries: (date: string) => void;
   onCreate: (date: string) => void;
   onOpenEntry: (entry: CalendarEntry) => void;
   onEntryPointerDragStart: (entry: CalendarEntry, event: React.PointerEvent) => void;
@@ -1844,13 +1862,63 @@ function MonthView({
                 {list.slice(0, maxVisibleItems).map((e) => (
                   <EventPill key={e.id} entry={e} onClick={() => onOpenEntry(e)} onPointerDragStart={onEntryPointerDragStart} />
                 ))}
-                {list.length > maxVisibleItems && <div className="text-[11px] text-text-muted">{text.moreItems.replace('{{count}}', String(list.length - maxVisibleItems))}</div>}
+                {list.length > maxVisibleItems && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onShowDateEntries(key);
+                    }}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                    className="w-full rounded-md px-1.5 py-1 text-left text-[11px] font-medium text-primary transition-colors hover:bg-primary-soft/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {text.moreItems.replace('{{count}}', String(list.length - maxVisibleItems))}
+                  </button>
+                )}
               </div>
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function DateEntriesModal({
+  date,
+  entries,
+  onClose,
+  onOpenEntry,
+  onEntryPointerDragStart,
+}: {
+  date: string | null;
+  entries: CalendarEntry[];
+  onClose: () => void;
+  onOpenEntry: (entry: CalendarEntry) => void;
+  onEntryPointerDragStart: (entry: CalendarEntry, event: React.PointerEvent) => void;
+}) {
+  const text = useCalendarText();
+  const title = date
+    ? `${dayjs(date).format(text.title === 'Calendar' ? 'MMM D, YYYY dddd' : 'YYYY-MM-DD dddd')} · ${text.itemCount.replace('{{count}}', String(entries.length))}`
+    : '';
+
+  return (
+    <Modal open={Boolean(date)} onClose={onClose} title={title} size="lg" closeOnBackdrop>
+      <div className="space-y-2">
+        {entries.length === 0 ? (
+          <EmptyState title={text.noSchedule} description={text.noScheduleDesc} compact />
+        ) : (
+          entries.map((entry) => (
+            <EventCard
+              key={entry.id}
+              entry={entry}
+              onClick={() => onOpenEntry(entry)}
+              onPointerDragStart={onEntryPointerDragStart}
+            />
+          ))
+        )}
+      </div>
+    </Modal>
   );
 }
 
