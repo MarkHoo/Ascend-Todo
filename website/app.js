@@ -18,6 +18,7 @@ const messages = {
     releaseLoading: 'Loading latest GitHub release...',
     releaseReady: 'Latest release: {{tag}}',
     releaseFallback: 'Could not read GitHub release details. Open the release page instead.',
+    releaseResolving: 'latest link resolving',
     trustLocal: 'Local-first',
     trustOpen: 'Open source',
     trustCross: 'Windows, macOS, Linux',
@@ -73,6 +74,7 @@ const messages = {
     releaseLoading: '正在读取 GitHub 最新版本...',
     releaseReady: '最新版本：{{tag}}',
     releaseFallback: '暂时无法读取 GitHub 版本信息，可打开发布页下载。',
+    releaseResolving: '正在匹配最新下载链接',
     trustLocal: '本地优先',
     trustOpen: '开源透明',
     trustCross: 'Windows、macOS、Linux',
@@ -128,6 +130,7 @@ const messages = {
     releaseLoading: '正在讀取 GitHub 最新版本...',
     releaseReady: '最新版本：{{tag}}',
     releaseFallback: '暫時無法讀取 GitHub 版本資訊，可打開發布頁下載。',
+    releaseResolving: '正在匹配最新下載連結',
     trustLocal: '本機優先',
     trustOpen: '開源透明',
     trustCross: 'Windows、macOS、Linux',
@@ -223,8 +226,9 @@ function translate() {
 }
 
 function detectPlatform() {
+  const uaDataPlatform = navigator.userAgentData?.platform?.toLowerCase?.() || '';
   const ua = navigator.userAgent.toLowerCase();
-  const platform = (navigator.platform || '').toLowerCase();
+  const platform = `${uaDataPlatform} ${navigator.platform || ''}`.toLowerCase();
   if (ua.includes('windows')) return 'windows';
   if (ua.includes('mac') || platform.includes('mac')) {
     if (ua.includes('arm') || ua.includes('aarch64')) return 'mac-arm';
@@ -235,6 +239,18 @@ function detectPlatform() {
     return 'linux';
   }
   return 'windows';
+}
+
+function renderPrimaryDownload() {
+  const primary = document.getElementById('primaryDownload');
+  const meta = document.getElementById('primaryDownloadMeta');
+  if (!primary || !meta) return;
+  const recommended = recommendedItem();
+  const primaryAsset = findAsset(recommended);
+  primary.href = primaryAsset?.browser_download_url || latestReleaseUrl;
+  meta.textContent = primaryAsset
+    ? `${text(recommended.label)} · ${latestTag || 'latest'}`
+    : `${text(recommended.label)} · ${text('releaseResolving')}`;
 }
 
 function findAsset(item) {
@@ -271,13 +287,7 @@ function renderDownloads() {
     `;
   }).join('');
 
-  const primary = document.getElementById('primaryDownload');
-  const meta = document.getElementById('primaryDownloadMeta');
-  const primaryAsset = findAsset(recommended);
-  primary.href = primaryAsset?.browser_download_url || latestReleaseUrl;
-  meta.textContent = primaryAsset
-    ? `${text(recommended.label)} · ${latestTag || 'latest'}`
-    : text('detecting');
+  renderPrimaryDownload();
 }
 
 function updatePreview(index) {
