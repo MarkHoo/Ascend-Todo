@@ -43,12 +43,21 @@ export default function ReminderPopupPage() {
 
   const close = async () => {
     stopReminderSound();
-    await getCurrentWindow().close();
+    const window = getCurrentWindow();
+    try {
+      await window.destroy();
+    } catch {
+      await window.close().catch(() => {});
+    }
   };
 
   const run = async (action: 'view' | 'snooze' | 'today') => {
     stopReminderSound();
-    if (!item.taskId || working) return;
+    if (working) return;
+    if (!item.taskId) {
+      await close();
+      return;
+    }
     setWorking(true);
     try {
       if (action === 'snooze') {
@@ -58,8 +67,8 @@ export default function ReminderPopupPage() {
       } else {
         await remindersApi.openTask(item.boardId, item.taskId);
       }
-      await close();
     } finally {
+      await close();
       setWorking(false);
     }
   };
@@ -77,7 +86,9 @@ export default function ReminderPopupPage() {
         <button
           type="button"
           className="grid h-8 w-8 place-items-center rounded-md text-text-muted hover:bg-surface-2 hover:text-text"
-          onClick={close}
+          onClick={() => {
+            close().catch(() => {});
+          }}
           title={t('reminder.closeCurrent')}
           aria-label={t('reminder.closeCurrent')}
         >
@@ -100,7 +111,9 @@ export default function ReminderPopupPage() {
         <button
           type="button"
           className="btn-primary flex h-9 items-center justify-center gap-1.5 px-2 text-xs"
-          onClick={() => run('view')}
+          onClick={() => {
+            run('view').catch(() => {});
+          }}
           disabled={working}
         >
           <ExternalLink size={15} />
@@ -109,7 +122,9 @@ export default function ReminderPopupPage() {
         <button
           type="button"
           className="btn-outline flex h-9 items-center justify-center gap-1.5 px-2 text-xs"
-          onClick={() => run('snooze')}
+          onClick={() => {
+            run('snooze').catch(() => {});
+          }}
           disabled={working}
         >
           <Clock3 size={15} />
@@ -118,7 +133,9 @@ export default function ReminderPopupPage() {
         <button
           type="button"
           className="btn-outline flex h-9 items-center justify-center gap-1.5 px-2 text-xs"
-          onClick={() => run('today')}
+          onClick={() => {
+            run('today').catch(() => {});
+          }}
           disabled={working}
         >
           <VolumeX size={15} />
