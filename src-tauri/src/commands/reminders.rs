@@ -1,3 +1,6 @@
+use std::collections::VecDeque;
+use std::sync::Mutex;
+
 use chrono::{DateTime, Datelike, Duration, Local, NaiveTime, TimeZone, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use tauri::{
@@ -11,6 +14,17 @@ use crate::models::{ReminderItem, TaskReminderSettings};
 const REMINDER_WINDOW_LABEL: &str = "reminder-popup";
 const REMINDER_WINDOW_WIDTH: u32 = 390;
 const REMINDER_WINDOW_HEIGHT: u32 = 236;
+
+#[derive(Default)]
+pub struct ReminderPopupState {
+    queue: Mutex<ReminderPopupQueue>,
+}
+
+#[derive(Default)]
+struct ReminderPopupQueue {
+    active: bool,
+    pending: VecDeque<ReminderItem>,
+}
 
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -456,14 +470,18 @@ pub fn upcoming_reminders(
 }
 
 #[tauri::command]
-pub async fn show_reminder_popup(app: AppHandle, item: ReminderItem) -> AppResult<()> {
-    if let Some(window) = app.get_webview_window(REMINDER_WINDOW_LABEL) {
-        window.emit("reminder-popup-data", &item)?;
-        position_reminder_window(&window)?;
-        window.show()?;
-        window.set_focus()?;
+pub async fn show_reminder_popup(
+    app: AppHandle,
+    popup_state: State<'_, ReminderPopupState>,
+    item: ReminderItem,
+) -> AppResult<()> {
+    let mut queue = popup_state.queue.lock().expect("reminder popup state lock");
+    if queue.active {
+        queue.pending.push_back(item);
         return Ok(());
     }
+    queue.active = true;
+    drop(queue);
 
     let window = WebviewWindowBuilder::new(&app, REMINDER_WINDOW_LABEL, reminder_window_url(&item))
         .title("任务提醒")
@@ -479,11 +497,60 @@ pub async fn show_reminder_popup(app: AppHandle, item: ReminderItem) -> AppResul
         .shadow(true)
         .focused(true)
         .visible(false)
-        .build()?;
+        .build();
+
+    let window = match window {
+        Ok(window) => window,
+        Err(error) => {
+            popup_state
+                .queue
+                .lock()
+                .expect("reminder popup state lock")
+                .active = false;
+            return Err(error.into());
+        }
+    };
 
     position_reminder_window(&window)?;
     window.show()?;
     window.set_focus()?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn dismiss_reminder_popup(
+    app: AppHandle,
+    popup_state: State<'_, ReminderPopupState>,
+) -> AppResult<()> {
+    let next = {
+        let mut queue = popup_state.queue.lock().expect("reminder popup state lock");
+        let next = queue.pending.pop_front();
+        if next.is_none() {
+            queue.active = false;
+        }
+        next
+    };
+
+    if let Some(item) = next {
+        if let Some(window) = app.get_webview_window(REMINDER_WINDOW_LABEL) {
+            window.emit("reminder-popup-data", &item)?;
+            position_reminder_window(&window)?;
+            window.show()?;
+            window.set_focus()?;
+            return Ok(());
+        }
+
+        popup_state
+            .queue
+            .lock()
+            .expect("reminder popup state lock")
+            .active = false;
+        return show_reminder_popup(app, popup_state, item).await;
+    }
+
+    if let Some(window) = app.get_webview_window(REMINDER_WINDOW_LABEL) {
+        window.destroy()?;
+    }
     Ok(())
 }
 

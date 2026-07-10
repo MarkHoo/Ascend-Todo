@@ -10,6 +10,7 @@ use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 
+use crate::commands::reminders::ReminderPopupState;
 use crate::db::DbState;
 
 pub fn run() {
@@ -38,6 +39,7 @@ pub fn run() {
             app.manage(DbState {
                 conn: Mutex::new(conn),
             });
+            app.manage(ReminderPopupState::default());
 
             if let (Some(window), Some(icon)) =
                 (app.get_webview_window("main"), app.default_window_icon())
@@ -307,6 +309,7 @@ pub fn run() {
             commands::reminders::snooze_task_reminder,
             commands::reminders::silence_task_reminder_today,
             commands::reminders::show_reminder_popup,
+            commands::reminders::dismiss_reminder_popup,
             commands::reminders::open_reminder_task,
             // updates
             commands::updates::fetch_latest_release,

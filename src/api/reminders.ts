@@ -16,6 +16,7 @@ export const remindersApi = {
     invoke<void>('silence_task_reminder_today', { taskId }),
   showPopup: (item: ReminderItem) =>
     invoke<void>('show_reminder_popup', { item }),
+  dismissPopup: () => invoke<void>('dismiss_reminder_popup'),
   openTask: (boardId: string, taskId: string) =>
     invoke<void>('open_reminder_task', { boardId, taskId }),
 };

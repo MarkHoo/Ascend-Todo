@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BellRing, Clock3, ExternalLink, VolumeX, X } from 'lucide-react';
 import { emit, listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useTranslation } from 'react-i18next';
 import { remindersApi } from '@/api';
 import type { ReminderItem } from '@/types';
@@ -26,11 +25,13 @@ export default function ReminderPopupPage() {
   const { t } = useTranslation();
   const [item, setItem] = useState<ReminderItem>(itemFromQuery);
   const [working, setWorking] = useState(false);
+  const dismissingRef = useRef(false);
 
   useEffect(() => {
     const unlisten = listen<ReminderItem>('reminder-popup-data', (event) => {
       setItem(event.payload);
       setWorking(false);
+      dismissingRef.current = false;
     });
     return () => {
       unlisten.then((fn) => fn());
@@ -41,24 +42,32 @@ export default function ReminderPopupPage() {
     emit(STOP_REMINDER_SOUND_EVENT).catch(() => {});
   };
 
-  const close = async () => {
+  const dismissCurrent = async () => {
     stopReminderSound();
-    const window = getCurrentWindow();
+    await remindersApi.dismissPopup();
+  };
+
+  const close = async () => {
+    if (dismissingRef.current) return;
+    dismissingRef.current = true;
+    setWorking(true);
     try {
-      await window.destroy();
-    } catch {
-      await window.close().catch(() => {});
+      await dismissCurrent();
+    } finally {
+      dismissingRef.current = false;
+      setWorking(false);
     }
   };
 
   const run = async (action: 'view' | 'snooze' | 'today') => {
     stopReminderSound();
-    if (working) return;
+    if (working || dismissingRef.current) return;
     if (!item.taskId) {
       await close();
       return;
     }
     setWorking(true);
+    dismissingRef.current = true;
     try {
       if (action === 'snooze') {
         await remindersApi.snooze(item.taskId);
@@ -68,8 +77,12 @@ export default function ReminderPopupPage() {
         await remindersApi.openTask(item.boardId, item.taskId);
       }
     } finally {
-      await close();
-      setWorking(false);
+      try {
+        await dismissCurrent();
+      } finally {
+        dismissingRef.current = false;
+        setWorking(false);
+      }
     }
   };
 
@@ -89,6 +102,7 @@ export default function ReminderPopupPage() {
           onClick={() => {
             close().catch(() => {});
           }}
+          disabled={working}
           title={t('reminder.closeCurrent')}
           aria-label={t('reminder.closeCurrent')}
         >
